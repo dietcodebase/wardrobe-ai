@@ -14,7 +14,7 @@ M01 — Runtime and device qualification. Adds an isolated iOS qualification app
 
 - Swift frontend syntax parsing and `plutil` project validation pass locally. These do not type-check LiteRTLM signatures.
 - Artifact verifier accepts a valid fixture and rejects wrong sizes and hashes. No model weights downloaded.
-- Full Xcode is absent locally; actual probe compilation is delegated to the PR CI and remains pending.
+- Full Xcode is absent locally. The initial CI signature build exposed an upstream main-source / v0.18.0 binary mismatch; the probe now pins the matching v0.18.0 release source. Its replacement arm64 simulator build is pending.
 - No simulator or device execution, screenshots, memory measurements, latency measurements, capture/model-switching stress results or MTP comparison yet.
 - Generation/vision must pass on a named physical device before M06–M08. Embedding/audio gates remain independent. E4B is optional.
 
