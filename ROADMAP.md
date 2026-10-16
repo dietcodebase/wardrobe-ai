@@ -1,6 +1,6 @@
 # Wardrobe AI roadmap
 
-Status: planning complete; no implementation milestones started. Updated 16 October 2026.
+Status: M00 implemented locally; build/launch acceptance pending full Xcode. Updated 16 October 2026.
 
 Read [validation and corrections](docs/PLAN-VALIDATION.md) before implementation. The [original proposal](docs/implementation-plan-v2.md) is preserved as reference; this roadmap is the execution plan. No time estimates are promised before runtime/device qualification.
 
@@ -24,7 +24,7 @@ Default delivery order is numeric. Dependencies below are the technical minimum;
 
 | ID | Milestone | Branch | Depends on | State | PR |
 |---|---|---|---|---|---|
-| M00 | Project and delivery foundation | `milestone/m00-foundation` | — | planned | — |
+| M00 | Project and delivery foundation | `milestone/m00-foundation` | — | blocked | See [evidence](docs/m00-evidence.md) |
 | M01 | Runtime and device qualification | `milestone/m01-runtime-spike` | M00 | planned | — |
 | M02 | Database and file storage | `milestone/m02-storage` | M00 | planned | — |
 | M03 | Wardrobe browsing and editing | `milestone/m03-wardrobe` | M02 | planned | — |
