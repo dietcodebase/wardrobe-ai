@@ -1,0 +1,41 @@
+{
+  "runtime": {
+    "repository": "https://github.com/google-ai-edge/LiteRT-LM",
+    "revision": "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27",
+    "iosMinimum": "15.0",
+    "binaryVersion": "0.18.0",
+    "binarySHA256": "d765b99592d4ec3d0c9e2bd69469454af06c834861340672da1891c0c121c347"
+  },
+  "models": [
+    {
+      "id": "e2b",
+      "repository": "litert-community/gemma-4-E2B-it-litert-lm",
+      "revision": "b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1",
+      "filename": "gemma-4-E2B-it-gpu.litertlm",
+      "bytes": 2008432640,
+      "sha256": "a53a59001894c58e6bdb5b9b227709f91a2e3e556baa7d85acf9c55402ba5cf5",
+      "url": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it-gpu.litertlm",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "embedding",
+      "repository": "litert-community/embeddinggemma-2-740m-litert-lm",
+      "revision": "24d962e906c7d332c6428e71c9676855024569e2",
+      "filename": "embeddinggemma-2-740m.litertlm",
+      "bytes": 484622336,
+      "sha256": "e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c",
+      "url": "https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/24d962e906c7d332c6428e71c9676855024569e2/embeddinggemma-2-740m.litertlm",
+      "license": "Apache-2.0"
+    },
+    {
+      "id": "e4b",
+      "repository": "litert-community/gemma-4-E4B-it-litert-lm",
+      "revision": "2eee7ac325f20eb8c9ac1d0e972f7c84663062da",
+      "filename": "gemma-4-E4B-it-gpu.litertlm",
+      "bytes": 2969059328,
+      "sha256": "4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff",
+      "url": "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/2eee7ac325f20eb8c9ac1d0e972f7c84663062da/gemma-4-E4B-it-gpu.litertlm",
+      "license": "Apache-2.0"
+    }
+  ]
+}
