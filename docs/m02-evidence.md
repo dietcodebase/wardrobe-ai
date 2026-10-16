@@ -19,7 +19,7 @@ Status: code complete; acceptance verification blocked by the unavailable full X
 | `git diff --check origin/main...HEAD` | Passed |
 | `xcodebuild -list -project WardrobeAI.xcodeproj` | Blocked: active developer directory is Command Line Tools; no Xcode app is installed |
 | Storage XCTest suite | Unrun: requires full Xcode and resolving the GRDB package |
-| PR #3 CI, first run | Failed before tests: Xcode built the app for x86_64 while GRDB was built for arm64 only. Pinning the destination architecture alone did not constrain build architectures; the script now sets `-arch arm64 ONLY_ACTIVE_ARCH=YES`. Rerun pending. |
+| PR #3 CI | The initial run compiled x86_64 against arm64-only GRDB. The next run then reported that architecture was specified in both the destination and build settings. The script now specifies arm64 only through `-arch arm64 ONLY_ACTIVE_ARCH=YES`; rerun pending. |
 
 The new `StorageTests` cover item CRUD, parameterized tag filtering, preference round-trips, foreign-key deletion behavior, persistent database reopening, idempotent seeds, image rollback and orphan recovery. They are not acceptance evidence until they run under the specified Xcode toolchain.
 

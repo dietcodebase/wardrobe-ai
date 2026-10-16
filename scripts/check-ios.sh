@@ -13,7 +13,7 @@ if [[ "$version" != $'Xcode 16.4\nBuild version 16F6' ]]; then
 fi
 xcodebuild -version
 xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI \
-  -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5,arch=arm64' \
+  -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
   -derivedDataPath DerivedData -resultBundlePath build/M00.xcresult \
   -arch arm64 ONLY_ACTIVE_ARCH=YES \
   CODE_SIGNING_ALLOWED=NO clean build test
