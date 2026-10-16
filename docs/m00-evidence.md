@@ -33,3 +33,16 @@ command from a clean checkout. Record the successful result bundle, simulator
 launch, all-tab smoke result and screenshots. CI has not yet demonstrated a pass.
 No build, launch, UI test or device pass is claimed. M00 must not merge until
 these checks and review pass. No M01 runtime/device evidence is implied.
+
+## Hosting evidence
+
+Draft PR: https://github.com/dietcodebase/wardrobe-ai/pull/1 (not merged).
+The configured destination was empty; the empty bootstrap `main` and milestone
+branch were pushed. GitHub authentication succeeded outside the network sandbox.
+CI run 38923733534 was queued; no pass is claimed here.
+
+The account has admin permission, but GitHub's protection API returned HTTP 403:
+“Upgrade to GitHub Pro or make this repository public to enable this feature.”
+Required checks/review protection cannot be configured on the current private
+repository plan. Preserve private visibility; resolve hosting entitlement before
+relying on enforced protection.

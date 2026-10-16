@@ -24,7 +24,7 @@ Default delivery order is numeric. Dependencies below are the technical minimum;
 
 | ID | Milestone | Branch | Depends on | State | PR |
 |---|---|---|---|---|---|
-| M00 | Project and delivery foundation | `milestone/m00-foundation` | — | blocked | See [evidence](docs/m00-evidence.md) |
+| M00 | Project and delivery foundation | `milestone/m00-foundation` | — | blocked | [#1](https://github.com/dietcodebase/wardrobe-ai/pull/1) · [evidence](docs/m00-evidence.md) |
 | M01 | Runtime and device qualification | `milestone/m01-runtime-spike` | M00 | planned | — |
 | M02 | Database and file storage | `milestone/m02-storage` | M00 | planned | — |
 | M03 | Wardrobe browsing and editing | `milestone/m03-wardrobe` | M02 | planned | — |
