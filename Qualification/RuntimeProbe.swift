@@ -68,13 +68,19 @@ actor RuntimeProbe {
         ExperimentalFlags.optIntoExperimentalAPIs()
         ExperimentalFlags.enableSpeculativeDecoding = mtp
         // The first load uses a new cache; the second reuses it. Neither implies OS page-cache eviction.
-        for pass in 0..<2 {
-            try Task.checkCancellation()
-            if mode == .embedding {
-                try await embeddings(folder: folder, artifact: artifact, pass: pass)
-            } else {
-                try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+        do {
+            for pass in 0..<2 {
+                try Task.checkCancellation()
+                if mode == .embedding {
+                    try await embeddings(folder: folder, artifact: artifact, pass: pass)
+                } else {
+                    try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+                }
             }
+            try record("suite-complete", 0, 0, "Review semantic quality and external memory evidence")
+        } catch {
+            try record("suite-failed", 0, 0, String(describing: error))
+            throw error
         }
     }
 
@@ -100,13 +106,13 @@ actor RuntimeProbe {
             backend: .gpu, visionBackend: mode == .image ? .cpu() : nil,
             audioBackend: mode == .audio ? .cpu() : nil,
             maxNumTokens: 4096, cacheDir: cache.path)
-        let start = Date()
+        let start = ProcessInfo.processInfo.systemUptime
         let engine = Engine(engineConfig: config)
         try await engine.initialize()
-        try record("load-\(pass)", 0, Date().timeIntervalSince(start), "initialized")
+        try record("load-\(pass)", 0, ProcessInfo.processInfo.systemUptime - start, "initialized")
         for iteration in 1...10 {
             try Task.checkCancellation()
-            let started = Date()
+            let started = ProcessInfo.processInfo.systemUptime
             var contents = [Content.text("Reply with the word ready.")]
             switch mode {
             case .image:
@@ -129,9 +135,9 @@ actor RuntimeProbe {
                 let response = try await conversation.sendMessage(Message(contents: contents), maxOutputTokens: 128)
                 let calls = await ToolWitness.shared.count
                 let result = "toolCalls=\(calls); final=\(response.toString)"
-                try record("\(mode.rawValue)-\(pass)", iteration, Date().timeIntervalSince(started), result)
+                try record("\(mode.rawValue)-\(pass)", iteration, ProcessInfo.processInfo.systemUptime - started, result)
             } catch {
-                try record("\(mode.rawValue)-\(pass)", iteration, Date().timeIntervalSince(started), "ERROR: \(error)")
+                try record("\(mode.rawValue)-\(pass)", iteration, ProcessInfo.processInfo.systemUptime - started, "ERROR: \(error)")
                 throw error
             }
         }
@@ -142,12 +148,12 @@ actor RuntimeProbe {
             modelPath: folder.appendingPathComponent(artifact.filename).path,
             backend: .gpu, visionBackend: .gpu, cacheDir: cache.path))
         do {
-            let start = Date()
+            let start = ProcessInfo.processInfo.systemUptime
             try await engine.initialize()
-            try record("embedding-load-\(pass)", 0, Date().timeIntervalSince(start), "initialized")
+            try record("embedding-load-\(pass)", 0, ProcessInfo.processInfo.systemUptime - start, "initialized")
             for iteration in 1...10 {
                 try Task.checkCancellation()
-                let started = Date()
+                let started = ProcessInfo.processInfo.systemUptime
                 let image = try preparedImage(folder: folder, iteration: iteration)
                 let text = try await engine.computeEmbedding(contents: [.text("task: search query | text: red shirt")],
                                                              options: .init(normalize: true))
@@ -157,7 +163,7 @@ actor RuntimeProbe {
                     guard vector.count == 768, vector.allSatisfy({ $0.isFinite }),
                           vector.contains(where: { $0 != 0 }) else { throw ProbeError.invalidEmbedding }
                 }
-                try record("embedding-\(pass)", iteration, Date().timeIntervalSince(started), "two valid 768D vectors; relevance untested")
+                try record("embedding-\(pass)", iteration, ProcessInfo.processInfo.systemUptime - started, "two valid 768D vectors; relevance untested")
             }
             await engine.close()
         } catch {
