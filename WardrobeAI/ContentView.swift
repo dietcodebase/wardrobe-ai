@@ -30,7 +30,6 @@ struct ContentView: View {
             ForEach(AppTab.allCases) { tab in
                 NavigationStack {
                     ContentUnavailableView(tab.message, systemImage: tab.symbol)
-                        .accessibilityIdentifier("screen.\(tab.id)")
                         .navigationTitle(tab.rawValue)
                 }
                 .tabItem { Label(tab.rawValue, systemImage: tab.symbol) }

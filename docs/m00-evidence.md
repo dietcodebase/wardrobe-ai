@@ -46,3 +46,12 @@ The account has admin permission, but GitHub's protection API returned HTTP 403:
 Required checks/review protection cannot be configured on the current private
 repository plan. Preserve private visibility; resolve hosting entitlement before
 relying on enforced protection.
+
+## First CI failure and correction
+
+Run 38923800047 built successfully and passed the unit test. The UI test launched
+the app and found each navigation bar, but all four content assertions failed:
+the test assumed ContentUnavailableView exposed an `otherElements` node with
+the screen identifier. The correction checks each screen's visible static text
+with a bounded wait and retains screenshots in the result bundle. The unused
+container identifier was removed. A fresh CI run must verify this correction.
