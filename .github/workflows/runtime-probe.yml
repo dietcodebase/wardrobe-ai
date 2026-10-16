@@ -1,0 +1,24 @@
+name: Runtime probe
+on:
+  pull_request:
+    paths: ['Qualification/**', '.github/workflows/runtime-probe.yml']
+  push:
+    branches: [main]
+    paths: ['Qualification/**', '.github/workflows/runtime-probe.yml']
+permissions:
+  contents: read
+jobs:
+  compile:
+    name: Compile pinned runtime signatures
+    runs-on: macos-15
+    timeout-minutes: 25
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile isolated probe (no model download)
+        run: |
+          xcodebuild -version
+          xcodebuild -project Qualification/RuntimeProbe.xcodeproj -scheme RuntimeProbe \
+            -configuration Debug -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData/RuntimeProbe CODE_SIGNING_ALLOWED=NO build
