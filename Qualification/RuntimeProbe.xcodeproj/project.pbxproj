@@ -20,7 +20,7 @@ DC76E9F0C0006E8F919E0C51 = { isa = PBXGroup; children = (396C0841C14FE1AA1175BD3
 AAA000000000000000000001 = { isa = PBXFileReference; lastKnownFileType = text.json; path = artifacts.json; sourceTree = "<group>"; };
 AAA000000000000000000002 = { isa = PBXBuildFile; fileRef = AAA000000000000000000001; };
 AAA000000000000000000003 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (AAA000000000000000000002); runOnlyForDeploymentPostprocessing = 0; };
-AAA000000000000000000004 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/google-ai-edge/LiteRT-LM"; requirement = { kind = revision; revision = c1312ccd68050838dd2dc109e7f8443056ae6546; }; };
+AAA000000000000000000004 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/google-ai-edge/LiteRT-LM"; requirement = { kind = revision; revision = b2f686e2ed4718fb84ec398a61dd59ca0f0aff27; }; };
 AAA000000000000000000005 = { isa = XCSwiftPackageProductDependency; package = AAA000000000000000000004; productName = LiteRTLM; };
 AAA000000000000000000006 = { isa = PBXBuildFile; productRef = AAA000000000000000000005; };
 }; rootObject = 98F54143AB4E86B28C3AFEE0; }

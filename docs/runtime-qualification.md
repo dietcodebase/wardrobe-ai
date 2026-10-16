@@ -28,14 +28,14 @@ M02–M05 may proceed independently per ROADMAP. No AI capability gate is passed
 
 `Qualification/artifacts.json` is the machine-readable source of runtime/model
 pins and published model byte counts/SHA-256. Runtime source is pinned to
-`c1312ccd68050838dd2dc109e7f8443056ae6546`; its Package.swift references binary
+`b2f686e2ed4718fb84ec398a61dd59ca0f0aff27`; its Package.swift references binary
 v0.18.0 with an SPM checksum. Model metadata was retrieved through the official
 publisher's Hugging Face API with `blobs=true`; weights are not locally verified
 until provisioned and checked. Neither models nor SDK binaries are vendored.
 
-- [Pinned runtime manifest](https://github.com/google-ai-edge/LiteRT-LM/blob/c1312ccd68050838dd2dc109e7f8443056ae6546/Package.swift): Swift tools 5.9, SDK iOS minimum 15; probe deployment target remains iOS 18. Neither is a measured device-support policy.
-- [Pinned generation lifecycle](https://github.com/google-ai-edge/LiteRT-LM/blob/c1312ccd68050838dd2dc109e7f8443056ae6546/swift/Engine.swift): `Engine` deletes its native handle in `deinit`; no public `close()`. Conversations retain the engine. Probe scopes both before another load. Resource release must be measured.
-- [Pinned embedding lifecycle](https://github.com/google-ai-edge/LiteRT-LM/blob/c1312ccd68050838dd2dc109e7f8443056ae6546/swift/EmbeddingEngine.swift): explicit actor `close()` is awaited on success/error; engines run sequentially.
+- [Pinned runtime manifest](https://github.com/google-ai-edge/LiteRT-LM/blob/b2f686e2ed4718fb84ec398a61dd59ca0f0aff27/Package.swift): Swift tools 5.9, SDK iOS minimum 15; probe deployment target remains iOS 18. Neither is a measured device-support policy.
+- [Pinned generation lifecycle](https://github.com/google-ai-edge/LiteRT-LM/blob/b2f686e2ed4718fb84ec398a61dd59ca0f0aff27/swift/Engine.swift): `Engine` deletes its native handle in `deinit`; no public `close()`. Conversations retain the engine. Probe scopes both before another load. Resource release must be measured.
+- [Pinned embedding lifecycle](https://github.com/google-ai-edge/LiteRT-LM/blob/b2f686e2ed4718fb84ec398a61dd59ca0f0aff27/swift/EmbeddingEngine.swift): explicit actor `close()` is awaited on success/error; engines run sequentially.
 - [Swift guide](https://developers.google.com/edge/litert-lm/swift) and [embedding guide](https://developers.google.com/edge/litert-lm/embedding_models) informed the probe. Source inspection does not substitute for compilation or execution.
 
 E2B/E4B use the publisher's GPU artifact; generation uses Metal with CPU vision
@@ -89,7 +89,7 @@ state. Synthetic/licensed inputs only; no personal wardrobe photos or recordings
 - Artifact-verifier synthetic checks: valid bytes pass; wrong size and wrong hash reject.
 - `git diff --check`: pass.
 - `xcodebuild -version`: unavailable; selected developer directory is Command Line Tools and full Xcode is not installed locally.
-- CI exact-signature build: pending; results will be recorded after the draft PR run.
+- CI exact-signature build: first run failed in upstream Swift sources because main referenced a mismatched C binary. Source is now pinned to the matching v0.18.0 release commit; arm64 simulator rebuild pending. See [failed run](https://github.com/dietcodebase/wardrobe-ai/actions/runs/38925446897).
 - Device execution, screenshots, peak memory, p50/p95, thermal/capture/switch tests,
   audio quality, embedding relevance and MTP comparison: **not run**.
 

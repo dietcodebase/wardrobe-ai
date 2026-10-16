@@ -47,7 +47,7 @@ actor RuntimeProbe {
     func run(folder: URL, mode: ProbeMode, e4b: Bool, mtp: Bool) async throws {
         samples = []
         environment = ["os": ProcessInfo.processInfo.operatingSystemVersionString,
-                       "runtimeRevision": "c1312ccd68050838dd2dc109e7f8443056ae6546",
+                       "runtimeRevision": "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27",
                        "startedUTC": ISO8601DateFormatter().string(from: Date()),
                        "mode": mode.rawValue, "mtp": String(mtp), "e4b": String(e4b),
                        "backend": "Metal", "contextTokens": "4096",

@@ -18,7 +18,7 @@ uses Xcode 16.4/iOS 18.5 and cannot qualify iOS 26/27 hardware). Build commands:
 ```sh
 xcodebuild -project Qualification/RuntimeProbe.xcodeproj -scheme RuntimeProbe \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath DerivedData/RuntimeProbe CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath DerivedData/RuntimeProbe CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
 ```
 
 Copy model files and ten synthetic/licensed JPEGs named `image-01.jpg` through

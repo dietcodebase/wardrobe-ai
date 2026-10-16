@@ -1,7 +1,7 @@
 {
   "runtime": {
     "repository": "https://github.com/google-ai-edge/LiteRT-LM",
-    "revision": "c1312ccd68050838dd2dc109e7f8443056ae6546",
+    "revision": "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27",
     "iosMinimum": "15.0",
     "binaryVersion": "0.18.0",
     "binarySHA256": "d765b99592d4ec3d0c9e2bd69469454af06c834861340672da1891c0c121c347"

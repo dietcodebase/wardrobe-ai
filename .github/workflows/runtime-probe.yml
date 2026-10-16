@@ -24,4 +24,4 @@ jobs:
           xcodebuild -version
           xcodebuild -project Qualification/RuntimeProbe.xcodeproj -scheme RuntimeProbe \
             -configuration Debug -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath DerivedData/RuntimeProbe CODE_SIGNING_ALLOWED=NO build
+            -derivedDataPath DerivedData/RuntimeProbe CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
