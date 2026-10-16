@@ -1,6 +1,6 @@
 # M00 evidence — 16 October 2026
 
-State: implementation prepared; acceptance blocked. Branch:
+State: implementation and simulator acceptance passed in CI; PR review pending. Branch:
 `milestone/m00-foundation`. Destination: `dietcodebase/wardrobe-ai`.
 
 ## Delivered
@@ -13,7 +13,7 @@ State: implementation prepared; acceptance blocked. Branch:
   metadata is separate from the handwritten app and tests.
 - No injected services/fakes are needed by this static shell yet.
 
-## Actual verification
+## Initial local verification
 
 - `plutil -lint WardrobeAI.xcodeproj/project.pbxproj`: passed.
 - Python ElementTree parsing of shared scheme XML: passed.
@@ -26,7 +26,7 @@ State: implementation prepared; acceptance blocked. Branch:
 - No Xcode application was present under `/Applications`. The pinned toolchain
   and simulator destination are intended configuration, not observed evidence.
 
-## Outstanding acceptance
+## Initial outstanding acceptance (superseded by CI below)
 
 Install full Xcode 16.4 and iOS 18.5 simulator runtime, then run the documented
 command from a clean checkout. Record the successful result bundle, simulator
@@ -55,3 +55,15 @@ the test assumed ContentUnavailableView exposed an `otherElements` node with
 the screen identifier. The correction checks each screen's visible static text
 with a bounded wait and retains screenshots in the result bundle. The unused
 container identifier was removed. A fresh CI run must verify this correction.
+
+## Successful verification after correction
+
+[CI run 38924446663](https://github.com/dietcodebase/wardrobe-ai/actions/runs/38924446663)
+validated commit `8c61aec22bbc2d2671faf709140683f1849f38b6` from a clean
+GitHub checkout using Xcode 16.4 (16F6), iPhone 16 / iOS 18.5 simulator.
+Clean build succeeded; the unit test and all-tab UI smoke test each passed
+with zero failures. The UI test launched the app, checked all three screens
+and returned to Wardrobe. Screenshots are retained in the uploaded
+`M00-test-results` result bundle. This supersedes the earlier unverified
+simulator acceptance; local Xcode and real-device qualification remain absent.
+PR review remains pending; protection is still unavailable on this hosting plan.

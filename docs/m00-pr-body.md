@@ -18,9 +18,10 @@ required. Main contains only the roadmap-authorized empty bootstrap base.
 
 - Passed: project plist lint, scheme XML parse, Swift syntax parse, shell syntax,
   staged whitespace checks.
-- Blocked: build, launch and smoke tests; full Xcode is absent locally.
+- Passed in CI run 38924446663 at `8c61aec`: clean build, launch, one unit test
+  and all-tab UI smoke test, zero failures. Full Xcode remains absent locally.
 - Intended toolchain: Xcode 16.4 (16F6), iPhone 16 simulator / iOS 18.5.
-- Screenshots: pending simulator launch; no device/runtime claims.
+- Screenshots: retained in CI result bundle; no real-device/runtime claims.
 - Evidence: `docs/m00-evidence.md`.
 
 ## Review and merge
@@ -28,7 +29,8 @@ required. Main contains only the roadmap-authorized empty bootstrap base.
 - [x] No prerequisites; target is `main`.
 - [x] Scope matches M00; no private data, keys or model weights.
 - [ ] Required checks and acceptance criteria pass.
-- [x] ROADMAP records blocked acceptance.
+- [x] ROADMAP records successful simulator acceptance and pending review.
 - [ ] Review complete; merge preserves small commits.
 
-Draft until clean build, launch, navigation and review pass.
+Simulator acceptance passes; draft remains pending review. Branch protection
+is unavailable on the current private-repository plan (GitHub API HTTP 403).
