@@ -33,9 +33,44 @@ final class WardrobeRepository {
         return item
     }
 
+    func createSeedItem(_ draft: GarmentDraft, key: String) throws -> GarmentItem {
+        let normalized = try validate(draft)
+        return try database.write { database in
+            if let row = try Row.fetchOne(database, sql: "SELECT * FROM items WHERE seed_key = ?", arguments: [key]) {
+                return try garmentItem(from: row)
+            }
+            let timestamp = now()
+            let item = GarmentItem(
+                id: UUID(), name: normalized.name, category: normalized.category, color: normalized.color,
+                tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath,
+                createdAt: timestamp, updatedAt: timestamp
+            )
+            try database.execute(
+                sql: """
+                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, seed_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                arguments: [
+                    item.id.uuidString, item.name, item.category, item.color, try encode(item.tags),
+                    item.notes, item.imagePath, key, item.createdAt, item.updatedAt
+                ]
+            )
+            return item
+        }
+    }
+
     func item(id: UUID) throws -> GarmentItem? {
         try database.read { database in
             guard let row = try Row.fetchOne(database, sql: "SELECT * FROM items WHERE id = ?", arguments: [id.uuidString]) else {
+                return nil
+            }
+            return try garmentItem(from: row)
+        }
+    }
+
+    func item(seedKey: String) throws -> GarmentItem? {
+        try database.read { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM items WHERE seed_key = ?", arguments: [seedKey]) else {
                 return nil
             }
             return try garmentItem(from: row)
@@ -202,6 +237,12 @@ final class WardrobeRepository {
             try Row.fetchAll(
                 database, sql: "SELECT * FROM wear_logs WHERE item_id = ? ORDER BY worn_at DESC", arguments: [itemID.uuidString]
             ).map(wearLog(from:))
+        }
+    }
+
+    func deleteWearLog(id: UUID) throws {
+        try database.write { database in
+            try database.execute(sql: "DELETE FROM wear_logs WHERE id = ?", arguments: [id.uuidString])
         }
     }
 
