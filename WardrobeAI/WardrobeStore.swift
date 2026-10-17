@@ -14,6 +14,9 @@ enum WardrobeStoreError: LocalizedError {
 @MainActor
 final class WardrobeStore: ObservableObject {
     @Published private(set) var items: [GarmentItem] = []
+    @Published private(set) var outfits: [Outfit] = []
+    @Published private(set) var wearEvents: [WearEvent] = []
+    @Published private(set) var underusedItems: [WearItemSummary] = []
     @Published private(set) var errorMessage: String?
     @Published var searchText = "" { didSet { loadItems() } }
     @Published var selectedCategory: String? { didSet { loadItems() } }
@@ -26,6 +29,7 @@ final class WardrobeStore: ObservableObject {
         self.repository = repository
         self.imageCoordinator = imageStore.map { GarmentImageCoordinator(repository: repository, imageStore: $0) }
         loadItems()
+        loadOutfitData()
     }
 
     var availableTags: [String] {
@@ -36,9 +40,22 @@ final class WardrobeStore: ObservableObject {
         try? repository.item(id: id)
     }
 
+    var allGarments: [GarmentItem] { (try? repository.allItems()) ?? [] }
+
     func loadItems() {
         do {
             items = try repository.items(matching: searchText, category: selectedCategory, tag: selectedTag)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func loadOutfitData() {
+        do {
+            outfits = try repository.allOutfits()
+            wearEvents = try repository.wearEvents()
+            underusedItems = try repository.underusedItems()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -60,6 +77,7 @@ final class WardrobeStore: ObservableObject {
     func create(_ draft: GarmentDraft) throws {
         _ = try repository.createItem(draft)
         loadItems()
+        loadOutfitData()
     }
 
     func create(_ draft: GarmentDraft, imageData: Data?) throws {
@@ -70,12 +88,14 @@ final class WardrobeStore: ObservableObject {
             _ = try repository.createItem(draft)
         }
         loadItems()
+        loadOutfitData()
     }
 
     func replaceImage(for item: GarmentItem, with imageData: Data) throws -> GarmentItem {
         guard let imageCoordinator else { throw WardrobeStoreError.imageStorageUnavailable }
         let updated = try imageCoordinator.replaceImage(for: item.id, with: imageData)
         loadItems()
+        loadOutfitData()
         return updated
     }
 
@@ -88,5 +108,32 @@ final class WardrobeStore: ObservableObject {
         if let imageCoordinator { try imageCoordinator.deleteItem(id: item.id) }
         else { try repository.deleteItem(id: item.id) }
         loadItems()
+        loadOutfitData()
+    }
+
+    func createOutfit(_ draft: OutfitDraft) throws {
+        _ = try repository.createOutfit(draft)
+        loadOutfitData()
+    }
+
+    func updateOutfit(_ outfit: Outfit) throws {
+        _ = try repository.updateOutfit(outfit)
+        loadOutfitData()
+    }
+
+    func deleteOutfit(_ outfit: Outfit) throws {
+        try repository.deleteOutfit(id: outfit.id)
+        loadOutfitData()
+    }
+
+    func wearToday(_ outfit: Outfit) throws -> WearEvent {
+        let event = try repository.wearToday(outfitID: outfit.id)
+        loadOutfitData()
+        return event
+    }
+
+    func undoWear(_ event: WearEvent) throws {
+        try repository.undoWear(eventID: event.id)
+        loadOutfitData()
     }
 }
