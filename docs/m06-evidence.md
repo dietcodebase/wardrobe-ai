@@ -27,9 +27,10 @@ Recorded 17 October 2026.
 - `swiftc -parse WardrobeAI/ModelProvisioning.swift WardrobeAI/ModelStatusView.swift WardrobeAI/ContentView.swift WardrobeAI/WardrobeAIApp.swift WardrobeAITests/ModelInferenceCoordinatorTests.swift WardrobeAITests/ModelProvisioningTests.swift` — passed.
 - `plutil -lint WardrobeAI.xcodeproj/project.pbxproj` — passed.
 - `git diff --check` — passed before each commit.
+- `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -sdk iphoneos -configuration Debug -derivedDataPath /private/tmp/wardrobeai-m06-derived CODE_SIGNING_ALLOWED=NO build` — passed with Xcode 27.1 (27A9275).
+- `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -destination 'platform=iOS Simulator,id=56183167-984D-4BF9-9522-CB67E07B4ADD' -derivedDataPath /private/tmp/wardrobeai-m06-sim-derived CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES test` — passed on iPhone Duo, iOS 27.1.
 - Unit tests cover rejected existing files, verified import semantics, wrong-size
-  rejection and serial unload-before-switch behavior. XCTest execution is
-  pending the full Xcode toolchain.
+  rejection and serial unload-before-switch behavior.
 
 ## Blocking validation
 
@@ -42,4 +43,5 @@ Consequently M06 is code-complete for the independent provisioning/lifecycle
 surface, but **not accepted**. Before enabling provisioning controls or closing
 this milestone, record M01's device configuration and pass its image route,
 repeat combined app memory/thermal measurement with capture/model switching,
-and run the full simulator/XCTest suite using Xcode 16.4.
+and repeat the full simulator/XCTest suite with the toolchain chosen in the M01
+device run sheet.

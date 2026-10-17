@@ -16,9 +16,10 @@ runtime on a named device. Manual wardrobe flows continue without a model.
 
 - `swiftc -module-cache-path /private/tmp/wardrobe-m06-swift-cache -typecheck WardrobeAI/ModelProvisioning.swift` — passed.
 - Swift syntax parse, project property-list lint and `git diff --check` — passed.
+- Device-target build passed with Xcode 27.1 (27A9275).
+- Full XCTest/UI test suite passed on the iPhone Duo iOS 27.1 simulator with
+  `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES`.
 - Unit coverage was added for verification/import and serial engine switching.
-- Full Xcode build/XCTest and device checks are unrun because only Command Line
-  Tools are active locally.
 
 ## Review and merge
 
