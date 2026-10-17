@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct WardrobeAIApp: App {
     @StateObject private var store: WardrobeStore
+    @StateObject private var modelManager: ModelManager
 
     init() {
         let directory = try? FileManager.default.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
@@ -11,11 +12,12 @@ struct WardrobeAIApp: App {
         let database = try! WardrobeDatabase.makeQueue(at: url)
         let imageStore = try? WardrobeImageStore.applicationSupport()
         _store = StateObject(wrappedValue: WardrobeStore(repository: WardrobeRepository(database: database), imageStore: imageStore))
+        _modelManager = StateObject(wrappedValue: ModelManager())
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(store: store)
+            ContentView(store: store, modelManager: modelManager)
         }
     }
 }
