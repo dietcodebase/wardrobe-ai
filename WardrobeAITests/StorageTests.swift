@@ -95,6 +95,15 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(try repository.items(matching: "navy", category: "Shoes").isEmpty)
     }
 
+    func testClassificationProvenancePersistsManualCorrections() throws {
+        let repository = try makeRepository()
+        let suggestion = try GarmentClassificationSuggestion(category: "Top", color: "Blue", tags: ["work"], materialGuess: "linen")
+        let provenance = ClassificationProvenance(modelID: "e2b", modelRevision: "test", route: "local", classifiedAt: .now, suggestion: suggestion, wasEditedBeforeSave: true)
+        let item = try repository.createItem(GarmentDraft(name: "Oxford shirt", category: "Top", color: "Navy", tags: ["work"], classification: provenance))
+
+        XCTAssertEqual(try repository.item(id: item.id)?.classification, provenance)
+    }
+
     func testWearTodayIsIdempotentAndUndoRestoresUnderusedItems() throws {
         let repository = try makeRepository()
         let shirt = try repository.createItem(GarmentDraft(name: "Shirt", category: "Top"))
