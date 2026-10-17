@@ -1,14 +1,16 @@
 # Wardrobe AI roadmap
 
-Status: M00 implemented locally; build/launch acceptance pending full Xcode. Updated 16 October 2026.
+Status: M00–M06 merged; M07 is in review. Feature implementation is proceeding before consolidated release validation. Updated 17 October 2026.
 
 Read [validation and corrections](docs/PLAN-VALIDATION.md) before implementation. The [original proposal](docs/implementation-plan-v2.md) is preserved as reference; this roadmap is the execution plan. No time estimates are promised before runtime/device qualification.
 
-## Build one milestone at a time
+## Delivery mode: implement first, validate together
 
-Use `$wardrobe-milestone M00` to start, then `$wardrobe-milestone next`. The repository skill is at [.agents/skills/wardrobe-milestone/SKILL.md](.agents/skills/wardrobe-milestone/SKILL.md). If it does not appear in the selector, reopen the project or say `Read .agents/skills/wardrobe-milestone/SKILL.md and build M00`.
+The project owner chose deferred validation on 17 October 2026 to finish the remaining feature work before spending device time. Implement M07–M15 in numeric order, preserve each milestone's small commits and evidence file, and keep every PR draft or otherwise unmerged until the final validation pass is complete.
 
-Useful requests: `plan M07`, `status`, `resume M07`, or `merge M07`. Building opens a PR when a remote is configured; merging follows an explicit merge request or an existing instruction to build and merge. A phase is a release checkpoint containing several milestones; each milestone has its own branch and PR.
+Use `$wardrobe-milestone M07` to start, then `$wardrobe-milestone next`. The repository skill is at [.agents/skills/wardrobe-milestone/SKILL.md](.agents/skills/wardrobe-milestone/SKILL.md). Useful requests: `plan M08`, `status`, `resume M07`, or `merge M07`.
+
+The final test plan is maintained in [docs/final-validation.md](docs/final-validation.md). It is the single place for raw device evidence, release-build results, regressions, and the final go/no-go decision. Consolidating the testing saves setup time, but it does not turn unchecked acceptance criteria into passes: a failed shared dependency can require fixes in several draft milestones.
 
 ## Delivery map
 
@@ -20,7 +22,7 @@ Useful requests: `plan M07`, `status`, `resume M07`, or `merge M07`. Building op
 | 3 — Retrieval and context | M09–M11 | Semantic search, optional weather, calendar and outfit planning |
 | 4 — Multimodal assistant | M12–M15 | Tool chat, voice, batch capture, still-photo mirror demo, release qualification |
 
-Default delivery order is numeric. Dependencies below are the technical minimum; `next` picks the earliest unmerged eligible milestone. M02–M05 can proceed if device testing blocks M01. AI milestones cannot bypass M01 evidence.
+Default delivery order is numeric. Dependencies below remain the technical minimum. During deferred validation, later work may be based on the immediately preceding draft milestone so the app can be exercised as one integration candidate. M01's generation/vision, embedding, and audio gates are deferred checks, not waived requirements; dependent features must retain honest unavailable/manual fallbacks until their gate passes.
 
 | ID | Milestone | Branch | Depends on | State | PR |
 |---|---|---|---|---|---|
@@ -43,12 +45,12 @@ Default delivery order is numeric. Dependencies below are the technical minimum;
 
 ## Git and review contract
 
-1. Branch from updated `main` after prerequisite PRs merge. One milestone per branch and PR; no direct implementation commits or pushes to `main`. Resume an existing branch/PR instead of duplicating it. Avoid stacked branches by default.
+1. One milestone per branch and PR; no direct implementation commits or pushes to `main`. Resume an existing branch/PR instead of duplicating it. In deferred-validation mode, branch the next milestone from the immediately preceding draft milestone and set its PR base to that branch; restore the bases to `main` as predecessors merge after validation.
 2. Make one coherent change per commit, generally 100–250 changed handwritten lines. Treat 400 lines as a review signal: split when practical or explain why the change is indivisible. Generated Xcode metadata, lockfiles and fixtures are separate, clearly described commits. Do not split working code into intentionally broken commits just to meet a count.
 3. The slices below suggest commit boundaries. Each includes its relevant tests. Keep unrelated cleanup out. If a milestone grows beyond roughly 800 handwritten lines or several distinct outcomes, split it into suffixed milestones (e.g. M08a/M08b), each with a branch and PR, and update dependencies before proceeding.
-4. Verify build, relevant tests, diff and acceptance criteria. Record actual commands/results and any outstanding device checks. Required tests that cannot run are blockers, not passes. Draft PRs can preserve blocked work.
-5. PRs target `main`, identify the milestone, show before/after behavior, list verification and include screenshots for UI changes. Use [.github/pull_request_template.md](.github/pull_request_template.md).
-6. Merge only through the PR after required checks, review and milestone acceptance pass. Prefer merge commits to preserve small commits; rebase merge is acceptable if the repository requires it. Do not squash the entire milestone into one large commit by default. Never bypass branch protection.
+4. Verify build, relevant tests, diff and acceptance criteria that can run during implementation. Record actual commands/results and any outstanding device checks. Required tests that cannot run are blockers, not passes. Draft PRs preserve deferred work.
+5. PRs identify the milestone, show before/after behavior, list verification and include screenshots for UI changes. They normally target `main`; an intentionally stacked deferred-validation PR targets its predecessor until the integration pass. Use [.github/pull_request_template.md](.github/pull_request_template.md).
+6. Merge only through the PR after the final validation tracker records the required checks, review and milestone acceptance pass. Prefer merge commits to preserve small commits; rebase merge is acceptable if the repository requires it. Do not squash the entire milestone into one large commit by default. Never bypass branch protection.
 7. Update the table to `in-progress`, `in-review`, `blocked`, or `merged`, with the PR URL and evidence. Merge status is verified from the host, not inferred from local code. Record a completed merge in the next roadmap update; avoid a standalone PR solely to change a status cell.
 
 ### Initial repository bootstrap
@@ -74,6 +76,8 @@ Commit slices: (1) pin a LiteRT-LM revision and artifact manifest; (2) probe tex
 Acceptance: compile the exact Swift signatures; run E2B on an actual intended demo iPhone; measure cold/warm loading, full image request latency and peak memory over at least ten repeated operations including capture/model switching. Evaluate E4B only if resources allow. Record missing hardware as untested. Proposed budgets: classification p95 <=2.5 s and total peak <=3.5 GB on the named demo device, plus no termination during repeated use; revise budgets with measured rationale before implementation relies on them. No unsupported-device promises based solely on physical RAM.
 
 Gate: generation+vision must pass for M06–M08. Embedding and audio each get their own pass/fail; failure blocks only dependent features. Record SDK minimum OS, artifact hashes, preprocessing, active encoders, lifecycle/close semantics and MTP on/off results in `docs/runtime-qualification.md`. Preserve local/manual mode if AI qualification fails; do not silently replace the chosen model family.
+
+Deferred-validation note: the owner has authorized implementation of M06–M15 before this evidence is complete. No dependent milestone may be marked accepted, merged, or advertised as supported until its listed M01 gate is recorded as passing in [docs/final-validation.md](docs/final-validation.md).
 
 ### M02 — Database and file storage
 
@@ -199,4 +203,4 @@ Travel packing, shopping links/gap analysis, cloud sync/backup, a full onboardin
 
 ## Definition of done
 
-A milestone is done only when its scoped behavior and acceptance checks pass, its evidence is recorded, and its PR is merged into `main`. Implementation complete, PR open, device validation pending, and merged are distinct states. If requirements change, update this roadmap and the validation decision before expanding scope.
+A milestone is done only when its scoped behavior and acceptance checks pass, its evidence is recorded in [docs/final-validation.md](docs/final-validation.md) or its milestone evidence file, and its PR is merged into `main`. Implementation complete, draft PR open, validation pending, and merged are distinct states. If requirements change, update this roadmap and the validation decision before expanding scope.
