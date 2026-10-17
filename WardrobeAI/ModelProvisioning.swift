@@ -1,3 +1,4 @@
+import Combine
 import CryptoKit
 import Foundation
 #if canImport(UIKit)
@@ -40,6 +41,7 @@ enum ModelProvisioningError: LocalizedError, Equatable {
     case incorrectChecksum
     case missingVerifiedModel
     case downloadInterrupted
+    case httpResponse(statusCode: Int)
 
     var errorDescription: String? {
         switch self {
@@ -50,6 +52,7 @@ enum ModelProvisioningError: LocalizedError, Equatable {
         case .incorrectChecksum: "The model checksum did not match the pinned manifest."
         case .missingVerifiedModel: "No verified model is available. Import or download it again."
         case .downloadInterrupted: "The download was interrupted. You can resume it when a connection is available."
+        case let .httpResponse(statusCode): "The model host returned HTTP \(statusCode). Check the connection and try again."
         }
     }
 }
@@ -142,6 +145,40 @@ struct ModelStore {
         }
     }
 
+    /// Adopts a completed URLSession download without making a second full-sized
+    /// copy of the model. A URLSession temporary file and Application Support
+    /// normally live on the same volume, so this keeps the final installation
+    /// within the space advertised by the download button.
+    func adoptVerifiedDownload(at sourceURL: URL, as descriptor: ModelDescriptor) throws -> VerifiedModel {
+        let staging = rootURL.appending(path: ".\(UUID().uuidString).downloading")
+        do {
+            try fileManager.moveItem(at: sourceURL, to: staging)
+        } catch {
+            // Fall back to a copy only when the source is on another volume.
+            // In that uncommon case, report the real capacity requirement
+            // instead of leaving the download in an indeterminate state.
+            try ensureCapacity(for: descriptor)
+            try fileManager.copyItem(at: sourceURL, to: staging)
+        }
+
+        do {
+            try verifier.verify(staging, against: descriptor)
+            let destination = destination(for: descriptor)
+            if fileManager.fileExists(atPath: destination.path) {
+                try fileManager.removeItem(at: destination)
+            }
+            try fileManager.moveItem(at: staging, to: destination)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            var mutableDestination = destination
+            try mutableDestination.setResourceValues(values)
+            return VerifiedModel(descriptor: descriptor, fileURL: destination, verifiedAt: Date())
+        } catch {
+            try? fileManager.removeItem(at: staging)
+            throw error
+        }
+    }
+
     func remove(_ descriptor: ModelDescriptor) throws {
         let url = destination(for: descriptor)
         guard fileManager.fileExists(atPath: url.path) else { return }
@@ -153,8 +190,10 @@ struct ModelStore {
     }
 
     func ensureCapacity(for descriptor: ModelDescriptor) throws {
-        let values = try rootURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        let available = values.volumeAvailableCapacityForImportantUsage ?? 0
+        let values = try rootURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
+        let available = values.volumeAvailableCapacityForImportantUsage
+            ?? values.volumeAvailableCapacity.map(Int64.init)
+            ?? 0
         guard available >= descriptor.expectedBytes else {
             throw ModelProvisioningError.insufficientDiskSpace(required: descriptor.expectedBytes, available: available)
         }
@@ -163,7 +202,10 @@ struct ModelStore {
 
 enum ModelTransferStatus: Equatable {
     case notPresent
+    case connecting
     case downloading(progress: Double)
+    case cancelling
+    case verifying
     case interrupted
     case available(VerifiedModel)
     case failed(String)
@@ -176,10 +218,17 @@ final class ModelManager: ObservableObject {
 
     private let store: ModelStore?
     private var observers: [NSObjectProtocol] = []
+    private var downloadObservation: AnyCancellable?
 
     init(store: ModelStore? = try? .applicationSupport()) {
         self.store = store
         self.downloads = store.map(ModelDownloadController.init)
+        // ObservableObject does not automatically forward a nested object's
+        // changes. The Stylist observes this manager, so forward every transfer
+        // update, including progress and cancellation.
+        downloadObservation = downloads?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
         if store == nil { provisioningMessage = "Secure model storage is unavailable. Your manual wardrobe is still available." }
         downloads?.refreshInBackground()
         let center = NotificationCenter.default
@@ -199,14 +248,21 @@ final class ModelManager: ObservableObject {
             return
         }
         guard let store else { return }
-        let accessed = fileURL.startAccessingSecurityScopedResource()
-        defer { if accessed { fileURL.stopAccessingSecurityScopedResource() } }
-        do {
-            let model = try store.importVerifiedFile(at: fileURL, as: descriptor)
-            downloads?.recordImported(model)
-            provisioningMessage = "\(descriptor.id.rawValue.uppercased()) was verified and stored locally."
-        } catch {
-            provisioningMessage = error.localizedDescription
+        guard downloads?.beginImport(descriptor) == true else { return }
+        Task {
+            let result = await Task.detached(priority: .utility) {
+                let accessed = fileURL.startAccessingSecurityScopedResource()
+                defer { if accessed { fileURL.stopAccessingSecurityScopedResource() } }
+                return Result { try store.importVerifiedFile(at: fileURL, as: descriptor) }
+            }.value
+            switch result {
+            case let .success(model):
+                downloads?.recordImported(model)
+                provisioningMessage = "\(descriptor.id.rawValue.uppercased()) was verified and stored locally."
+            case let .failure(error):
+                downloads?.recordImportFailure(error, descriptor: descriptor)
+                provisioningMessage = error.localizedDescription
+            }
         }
     }
 
@@ -225,9 +281,13 @@ final class ModelDownloadController: NSObject, ObservableObject {
     @Published private(set) var statusByModel: [ModelID: ModelTransferStatus] = [:]
 
     private let store: ModelStore
+    private var refreshGeneration = 0
     private lazy var session: URLSession = {
         let configuration = URLSessionConfiguration.default
-        configuration.waitsForConnectivity = true
+        // Fail promptly when offline so the UI does not sit at 0% indefinitely.
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 60 * 60 * 24
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }()
     private var descriptorsByTaskID: [Int: ModelDescriptor] = [:]
@@ -239,6 +299,8 @@ final class ModelDownloadController: NSObject, ObservableObject {
     }
 
     func refreshInBackground() {
+        refreshGeneration += 1
+        let generation = refreshGeneration
         let store = self.store
         Task.detached(priority: .utility) { [weak self] in
             var statuses: [ModelID: ModelTransferStatus] = [:]
@@ -246,26 +308,41 @@ final class ModelDownloadController: NSObject, ObservableObject {
                 statuses[descriptor.id] = (try? store.verifiedModel(for: descriptor))
                     .flatMap { $0.map(ModelTransferStatus.available) } ?? .notPresent
             }
-            await self?.apply(statuses)
+            await self?.apply(statuses, generation: generation)
         }
     }
 
-    private func apply(_ statuses: [ModelID: ModelTransferStatus]) {
-        statusByModel.merge(statuses) { _, new in new }
+    private func apply(_ statuses: [ModelID: ModelTransferStatus], generation: Int) {
+        guard generation == refreshGeneration else { return }
+        for (modelID, status) in statuses where statusByModel[modelID] == nil {
+            statusByModel[modelID] = status
+        }
     }
 
     func recordImported(_ model: VerifiedModel) {
         statusByModel[model.descriptor.id] = .available(model)
     }
 
+    func beginImport(_ descriptor: ModelDescriptor) -> Bool {
+        guard tasksByModel[descriptor.id] == nil else { return false }
+        if case .verifying = statusByModel[descriptor.id] { return false }
+        statusByModel[descriptor.id] = .verifying
+        return true
+    }
+
+    func recordImportFailure(_ error: Error, descriptor: ModelDescriptor) {
+        statusByModel[descriptor.id] = .failed(error.localizedDescription)
+    }
+
     func download(_ descriptor: ModelDescriptor) {
         guard tasksByModel[descriptor.id] == nil else { return }
+        if case .verifying = statusByModel[descriptor.id] { return }
         do {
             try store.ensureCapacity(for: descriptor)
             let task = session.downloadTask(with: descriptor.downloadURL)
             descriptorsByTaskID[task.taskIdentifier] = descriptor
             tasksByModel[descriptor.id] = task
-            statusByModel[descriptor.id] = .downloading(progress: 0)
+            statusByModel[descriptor.id] = .connecting
             task.resume()
         } catch {
             statusByModel[descriptor.id] = .failed(error.localizedDescription)
@@ -275,61 +352,134 @@ final class ModelDownloadController: NSObject, ObservableObject {
     func cancel(_ descriptor: ModelDescriptor) {
         guard let task = tasksByModel[descriptor.id] else { return }
         let resumeURL = resumeDataURL(for: descriptor)
+        statusByModel[descriptor.id] = .cancelling
         task.cancel(byProducingResumeData: { [weak self] data in
             guard let self else { return }
             if let data { try? data.write(to: resumeURL, options: .atomic) }
-            Task { @MainActor in self.statusByModel[descriptor.id] = .interrupted }
+            Task { @MainActor in
+                self.completeCancellation(of: task, descriptor: descriptor)
+            }
         })
     }
 
     func resume(_ descriptor: ModelDescriptor) {
         guard tasksByModel[descriptor.id] == nil else { return }
+        if case .verifying = statusByModel[descriptor.id] { return }
         let resumeURL = resumeDataURL(for: descriptor)
         guard let data = try? Data(contentsOf: resumeURL) else {
             download(descriptor)
             return
         }
-        let task = session.downloadTask(withResumeData: data)
-        descriptorsByTaskID[task.taskIdentifier] = descriptor
-        tasksByModel[descriptor.id] = task
-        statusByModel[descriptor.id] = .downloading(progress: 0)
-        task.resume()
+        statusByModel[descriptor.id] = .connecting
+        do {
+            try store.ensureCapacity(for: descriptor)
+            let task = session.downloadTask(withResumeData: data)
+            descriptorsByTaskID[task.taskIdentifier] = descriptor
+            tasksByModel[descriptor.id] = task
+            task.resume()
+        } catch {
+            statusByModel[descriptor.id] = .failed(error.localizedDescription)
+        }
     }
 
     private func resumeDataURL(for descriptor: ModelDescriptor) -> URL {
         store.rootURL.appending(path: "\(descriptor.id.rawValue).resume")
     }
 
-    private func finishDownload(at location: URL, descriptor: ModelDescriptor) {
-        defer {
-            tasksByModel[descriptor.id] = nil
-            try? FileManager.default.removeItem(at: resumeDataURL(for: descriptor))
+    private func completeCancellation(of task: URLSessionDownloadTask, descriptor: ModelDescriptor) {
+        guard tasksByModel[descriptor.id]?.taskIdentifier == task.taskIdentifier else { return }
+        descriptorsByTaskID[task.taskIdentifier] = nil
+        tasksByModel[descriptor.id] = nil
+        statusByModel[descriptor.id] = .interrupted
+    }
+
+    private func verifyAndStoreDownload(at location: URL, descriptor: ModelDescriptor, taskIdentifier: Int) {
+        guard tasksByModel[descriptor.id]?.taskIdentifier == taskIdentifier else {
+            try? FileManager.default.removeItem(at: location)
+            return
         }
-        do {
-            statusByModel[descriptor.id] = .available(try store.importVerifiedFile(at: location, as: descriptor))
-        } catch {
-            statusByModel[descriptor.id] = .failed(error.localizedDescription)
+        if case .cancelling = statusByModel[descriptor.id] {
+            try? FileManager.default.removeItem(at: location)
+            return
+        }
+        statusByModel[descriptor.id] = .verifying
+        let store = self.store
+        Task.detached(priority: .utility) { [weak self] in
+            let result = Result { try store.adoptVerifiedDownload(at: location, as: descriptor) }
+            try? FileManager.default.removeItem(at: location)
+            await self?.finishVerification(result, descriptor: descriptor, taskIdentifier: taskIdentifier)
+        }
+    }
+
+    private func finishVerification(_ result: Result<VerifiedModel, Error>, descriptor: ModelDescriptor, taskIdentifier: Int) {
+        guard tasksByModel[descriptor.id]?.taskIdentifier == taskIdentifier else { return }
+        tasksByModel[descriptor.id] = nil
+        try? FileManager.default.removeItem(at: resumeDataURL(for: descriptor))
+        switch result {
+        case let .success(model): statusByModel[descriptor.id] = .available(model)
+        case let .failure(error): statusByModel[descriptor.id] = .failed(error.localizedDescription)
         }
     }
 }
 
 extension ModelDownloadController: URLSessionDownloadDelegate, URLSessionTaskDelegate {
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+        completionHandler(.performDefaultHandling, nil)
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        Task { @MainActor in
+            guard let descriptor = self.descriptorsByTaskID[task.taskIdentifier] else { return }
+            guard let error else {
+                // Successful download files are handled by didFinishDownloadingTo.
+                return
+            }
+            if case .cancelling = self.statusByModel[descriptor.id] {
+                // `cancel(byProducingResumeData:)` owns the final state so the
+                // Resume button is not enabled before its data has been saved.
+                return
+            }
+            self.descriptorsByTaskID[task.taskIdentifier] = nil
+            if self.tasksByModel[descriptor.id]?.taskIdentifier == task.taskIdentifier {
+                self.tasksByModel[descriptor.id] = nil
+            }
+            if (error as NSError).code == NSURLErrorCancelled {
+                self.statusByModel[descriptor.id] = .interrupted
+            } else {
+                self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard totalBytesExpectedToWrite > 0 else { return }
         Task { @MainActor in
             guard let descriptor = self.descriptorsByTaskID[downloadTask.taskIdentifier] else { return }
-            self.statusByModel[descriptor.id] = .downloading(progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+            guard self.tasksByModel[descriptor.id]?.taskIdentifier == downloadTask.taskIdentifier else { return }
+            if case .cancelling = self.statusByModel[descriptor.id] { return }
+            // Some hosts omit Content-Length. The pinned manifest still gives
+            // us a reliable total, including when resuming a partial download.
+            let total = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : descriptor.expectedBytes
+            guard total > 0 else { return }
+            self.statusByModel[descriptor.id] = .downloading(progress: min(1, max(0, Double(totalBytesWritten) / Double(total))))
         }
     }
 
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        if let response = downloadTask.response as? HTTPURLResponse, !(200..<300).contains(response.statusCode) {
+            Task { @MainActor in
+                guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else { return }
+                if self.tasksByModel[descriptor.id]?.taskIdentifier == downloadTask.taskIdentifier { self.tasksByModel[descriptor.id] = nil }
+                self.statusByModel[descriptor.id] = .failed(ModelProvisioningError.httpResponse(statusCode: response.statusCode).localizedDescription)
+            }
+            return
+        }
         let ownedURL = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).litertlm")
         do {
             try FileManager.default.moveItem(at: location, to: ownedURL)
         } catch {
             Task { @MainActor in
                 guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else { return }
-                self.tasksByModel[descriptor.id] = nil
+                if self.tasksByModel[descriptor.id]?.taskIdentifier == downloadTask.taskIdentifier { self.tasksByModel[descriptor.id] = nil }
                 self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
             }
             return
@@ -339,23 +489,14 @@ extension ModelDownloadController: URLSessionDownloadDelegate, URLSessionTaskDel
                 try? FileManager.default.removeItem(at: ownedURL)
                 return
             }
-            defer { try? FileManager.default.removeItem(at: ownedURL) }
-            self.finishDownload(at: ownedURL, descriptor: descriptor)
+            guard self.tasksByModel[descriptor.id]?.taskIdentifier == downloadTask.taskIdentifier else {
+                try? FileManager.default.removeItem(at: ownedURL)
+                return
+            }
+            self.verifyAndStoreDownload(at: ownedURL, descriptor: descriptor, taskIdentifier: downloadTask.taskIdentifier)
         }
     }
 
-    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let error else { return }
-        Task { @MainActor in
-            guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: task.taskIdentifier) else { return }
-            self.tasksByModel[descriptor.id] = nil
-            if (error as NSError).code == NSURLErrorCancelled {
-                self.statusByModel[descriptor.id] = .interrupted
-            } else {
-                self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
-            }
-        }
-    }
 }
 
 enum ModelRuntimeError: LocalizedError {
