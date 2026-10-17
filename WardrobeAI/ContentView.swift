@@ -41,20 +41,41 @@ private struct WardrobeView: View {
                 if let error = store.errorMessage {
                     ContentUnavailableView("Couldn’t load wardrobe", systemImage: "exclamationmark.triangle", description: Text(error))
                 } else if store.items.isEmpty {
-                    ContentUnavailableView { Label("No garments yet", systemImage: "tshirt") } description: { Text("Add the first item in your wardrobe.") } actions: {
-                        Button("Add garment") { isAdding = true }.buttonStyle(.borderedProminent)
+                    ContentUnavailableView {
+                        Label(store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "No garments yet" : "No matching garments", systemImage: "tshirt")
+                    } description: {
+                        VStack(spacing: 8) {
+                            Text(store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Add the first item in your wardrobe." : "Try a different search or clear your filters.")
+                            if let message = store.searchModeMessage {
+                                Label(message, systemImage: "text.magnifyingglass")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                                    .accessibilityLabel("Search mode: \(message)")
+                            }
+                        }
+                    } actions: {
+                        if store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button("Add garment") { isAdding = true }.buttonStyle(.borderedProminent)
+                        }
                     }
                 } else {
-                    ScrollView { LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(store.items) { item in
-                            Button { selectedItem = item } label: { GarmentCard(item: item, store: store) }
-                                .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
+                    ScrollView {
+                        if let message = store.searchModeMessage {
+                            Label(message, systemImage: "text.magnifyingglass")
+                                .font(.footnote).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.top, 8)
+                                .accessibilityLabel("Search mode: \(message)")
                         }
-                    }.padding() }
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(store.items) { item in
+                                Button { selectedItem = item } label: { GarmentCard(item: item, store: store) }
+                                    .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
+                            }
+                        }.padding()
+                    }
                 }
             }
             .navigationTitle("Wardrobe")
-            .searchable(text: $store.searchText, prompt: "Search garments, colors, tags")
+            .searchable(text: $store.searchText, prompt: "Search garments, colors, tags, or describe a garment")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu { Button("All categories") { store.selectedCategory = nil }; Divider(); ForEach(GarmentTaxonomy.categories, id: \.self) { category in Button(category) { store.selectedCategory = category } } } label: {

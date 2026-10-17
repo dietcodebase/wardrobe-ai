@@ -98,6 +98,44 @@ struct StylePreferences: Equatable, Sendable {
     static let empty = StylePreferences(preferredCategories: [], preferredColors: [], notes: "")
 }
 
+struct EmbeddingMetadata: Codable, Equatable, Sendable {
+    let modelID: String
+    let modelRevision: String
+    let dimension: Int
+    let normalized: Bool
+    let preprocessingVersion: String
+
+    static let embeddingGemma2 = EmbeddingMetadata(
+        modelID: "embeddinggemma-2-740m",
+        modelRevision: "24d962e906c7d332c6428e71c9676855024569e2",
+        dimension: 768,
+        normalized: true,
+        preprocessingVersion: "pending-prefix-evaluation-v1"
+    )
+}
+
+struct GarmentEmbedding: Equatable, Sendable {
+    let itemID: UUID
+    let metadata: EmbeddingMetadata
+    let contentHash: String
+    let vector: [Float]
+    let indexedAt: Date
+}
+
+enum SemanticSearchError: LocalizedError, Equatable {
+    case unavailable
+    case invalidVector
+    case incompatibleVector
+
+    var errorDescription: String? {
+        switch self {
+        case .unavailable: "Semantic search is not available on this device. Showing text matches instead."
+        case .invalidVector: "The local embedding was invalid and was not saved."
+        case .incompatibleVector: "The local embedding does not match this search index."
+        }
+    }
+}
+
 enum GarmentTaxonomy {
     static let categories = ["Top", "Bottom", "Dress", "One-piece outfit", "Outerwear", "Shoes", "Accessory"]
     static let occasions = ["Everyday", "Work", "Casual", "Formal", "Exercise", "Travel", "Evening"]
