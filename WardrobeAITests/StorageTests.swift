@@ -135,6 +135,24 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testSchedulingIsSeparateFromWearAndPersistsSourceEventReference() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(name: "Jacket", category: "Outerwear"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Dinner", itemIDs: [item.id]))
+        let store = WardrobeStore(repository: repository)
+
+        try store.schedule(outfit, for: Date(timeIntervalSince1970: 1_800_000_000), occasion: "Evening", sourceEventID: "event-123")
+
+        let plan = try XCTUnwrap(repository.plans().first)
+        XCTAssertEqual(plan.outfitID, outfit.id)
+        XCTAssertEqual(plan.occasion, "Evening")
+        XCTAssertEqual(plan.sourceEventID, "event-123")
+        XCTAssertTrue(try repository.wearEvents().isEmpty)
+        try repository.deletePlan(id: plan.id)
+        XCTAssertTrue(try repository.plans().isEmpty)
+    }
+
+    @MainActor
     func testRepeatedWearSuggestionReusesOutfitAndWearEvent() throws {
         let repository = try makeRepository()
         let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))

@@ -115,6 +115,20 @@ enum WardrobeDatabase {
             try database.create(index: "item_embeddings_compatibility", on: "item_embeddings", columns: ["model_id", "model_revision", "dimension", "preprocessing_version"])
         }
 
+        migrator.registerMigration("v6_outfit_plans") { database in
+            try database.create(table: "outfit_plans") { table in
+                table.column("id", .text).primaryKey()
+                table.column("outfit_id", .text).notNull().references("outfits", onDelete: .cascade)
+                table.column("scheduled_for", .datetime).notNull()
+                table.column("occasion", .text)
+                table.column("source_event_id", .text)
+                table.column("created_at", .datetime).notNull()
+                table.column("updated_at", .datetime).notNull()
+            }
+            try database.create(index: "outfit_plans_date", on: "outfit_plans", columns: ["scheduled_for"])
+            try database.create(index: "outfit_plans_event", on: "outfit_plans", columns: ["source_event_id"])
+        }
+
         return migrator
     }()
 }

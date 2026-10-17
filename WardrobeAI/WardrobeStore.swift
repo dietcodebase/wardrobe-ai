@@ -16,6 +16,7 @@ final class WardrobeStore: ObservableObject {
     @Published private(set) var items: [GarmentItem] = []
     @Published private(set) var outfits: [Outfit] = []
     @Published private(set) var wearEvents: [WearEvent] = []
+    @Published private(set) var outfitPlans: [OutfitPlan] = []
     @Published private(set) var underusedItems: [WearItemSummary] = []
     @Published private(set) var errorMessage: String?
     @Published private(set) var searchModeMessage: String?
@@ -59,6 +60,7 @@ final class WardrobeStore: ObservableObject {
         do {
             outfits = try repository.allOutfits()
             wearEvents = try repository.wearEvents()
+            outfitPlans = try repository.plans()
             underusedItems = try repository.underusedItems()
             errorMessage = nil
         } catch {
@@ -139,6 +141,16 @@ final class WardrobeStore: ObservableObject {
 
     func undoWear(_ event: WearEvent) throws {
         try repository.undoWear(eventID: event.id)
+        loadOutfitData()
+    }
+
+    func schedule(_ outfit: Outfit, for date: Date, occasion: String? = nil, sourceEventID: String? = nil) throws {
+        _ = try repository.createPlan(outfitID: outfit.id, scheduledFor: date, occasion: occasion, sourceEventID: sourceEventID)
+        loadOutfitData()
+    }
+
+    func removePlan(_ plan: OutfitPlan) throws {
+        try repository.deletePlan(id: plan.id)
         loadOutfitData()
     }
 
