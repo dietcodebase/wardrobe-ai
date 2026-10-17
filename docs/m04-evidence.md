@@ -1,6 +1,6 @@
 # M04 single-item capture and cutout evidence
 
-Status: code complete; real-device capture, denied-permission and visual acceptance remain pending. Recorded 17 October 2026.
+Status: in review at [PR #5](https://github.com/dietcodebase/wardrobe-ai/pull/5); real-device capture, denied-permission and visual acceptance remain pending. Recorded 17 October 2026.
 
 ## Implemented behavior
 
