@@ -100,6 +100,21 @@ enum WardrobeDatabase {
             }
         }
 
+        migrator.registerMigration("v5_item_embeddings") { database in
+            try database.create(table: "item_embeddings") { table in
+                table.column("item_id", .text).primaryKey().references("items", onDelete: .cascade)
+                table.column("model_id", .text).notNull()
+                table.column("model_revision", .text).notNull()
+                table.column("dimension", .integer).notNull()
+                table.column("normalized", .boolean).notNull()
+                table.column("preprocessing_version", .text).notNull()
+                table.column("content_hash", .text).notNull()
+                table.column("vector", .blob).notNull()
+                table.column("indexed_at", .datetime).notNull()
+            }
+            try database.create(index: "item_embeddings_compatibility", on: "item_embeddings", columns: ["model_id", "model_revision", "dimension", "preprocessing_version"])
+        }
+
         return migrator
     }()
 }

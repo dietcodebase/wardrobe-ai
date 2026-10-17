@@ -150,6 +150,7 @@ final class WardrobeRepository {
                 ]
             )
             guard database.changesCount == 1 else { throw WardrobeRepositoryError.itemNotFound(updated.id) }
+            try database.execute(sql: "DELETE FROM item_embeddings WHERE item_id = ?", arguments: [updated.id.uuidString])
         }
         return updated
     }
@@ -358,6 +359,41 @@ final class WardrobeRepository {
         }
     }
 
+    func saveEmbedding(_ embedding: GarmentEmbedding) throws {
+        guard isValid(embedding.vector, metadata: embedding.metadata) else { throw SemanticSearchError.invalidVector }
+        try database.write { database in
+            guard try itemExists(embedding.itemID, in: database) else { throw WardrobeRepositoryError.itemNotFound(embedding.itemID) }
+            try database.execute(sql: """
+                INSERT INTO item_embeddings (item_id, model_id, model_revision, dimension, normalized, preprocessing_version, content_hash, vector, indexed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(item_id) DO UPDATE SET
+                    model_id = excluded.model_id, model_revision = excluded.model_revision,
+                    dimension = excluded.dimension, normalized = excluded.normalized,
+                    preprocessing_version = excluded.preprocessing_version,
+                    content_hash = excluded.content_hash, vector = excluded.vector, indexed_at = excluded.indexed_at
+                """, arguments: [
+                    embedding.itemID.uuidString, embedding.metadata.modelID, embedding.metadata.modelRevision,
+                    embedding.metadata.dimension, embedding.metadata.normalized, embedding.metadata.preprocessingVersion,
+                    embedding.contentHash, vectorData(embedding.vector), embedding.indexedAt
+                ])
+        }
+    }
+
+    func embeddings(compatibleWith metadata: EmbeddingMetadata) throws -> [GarmentEmbedding] {
+        try database.read { database in
+            let rows = try Row.fetchAll(database, sql: """
+                SELECT * FROM item_embeddings
+                WHERE model_id = ? AND model_revision = ? AND dimension = ?
+                  AND normalized = ? AND preprocessing_version = ?
+                """, arguments: [metadata.modelID, metadata.modelRevision, metadata.dimension, metadata.normalized, metadata.preprocessingVersion])
+            return try rows.compactMap { row in
+                let vector = try vectorValues(row["vector"] as Data)
+                guard isValid(vector, metadata: metadata) else { return nil }
+                return GarmentEmbedding(itemID: try uuid(row["item_id"]), metadata: metadata, contentHash: row["content_hash"], vector: vector, indexedAt: row["indexed_at"])
+            }
+        }
+    }
+
     private func localDay(for date: Date) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
@@ -449,4 +485,19 @@ private func uuid(_ value: String) throws -> UUID {
 private func optionalUUID(_ value: String?) throws -> UUID? {
     guard let value else { return nil }
     return try uuid(value)
+}
+
+private func vectorData(_ vector: [Float]) -> Data {
+    vector.withUnsafeBufferPointer { Data(buffer: $0) }
+}
+
+private func vectorValues(_ data: Data) throws -> [Float] {
+    guard data.count.isMultiple(of: MemoryLayout<Float>.size) else { throw WardrobeRepositoryError.corruptRecord }
+    return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+}
+
+private func isValid(_ vector: [Float], metadata: EmbeddingMetadata) -> Bool {
+    guard vector.count == metadata.dimension, vector.allSatisfy(\.isFinite) else { return false }
+    let magnitudeSquared = vector.reduce(Float.zero) { $0 + $1 * $1 }
+    return magnitudeSquared.isFinite && magnitudeSquared > 0
 }
