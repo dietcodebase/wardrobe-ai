@@ -8,9 +8,12 @@ struct ModelStatusView: View {
     @State private var occasion = "Everyday"
     @State private var anchorItemID: UUID?
     @State private var message: String?
+    @State private var weatherCity = ""
+    @State private var weatherState = WeatherContextState.unavailable(reason: "Choose a city to add optional weather context.")
+    private let weatherService = WeatherContextService(provider: OpenWeatherMapProvider())
 
     private var suggestions: [OutfitSuggestion] {
-        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion, anchorItemID: anchorItemID)) ?? []
+        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion, anchorItemID: anchorItemID, weather: weatherState.isCurrent ? weatherState.snapshot : nil)) ?? []
     }
 
     var body: some View {
@@ -53,7 +56,8 @@ struct ModelStatusView: View {
                         suggestionRow(suggestion)
                     }
                 }
-                Text("Weather and calendar are manual context until later milestones.")
+                weatherContext
+                Text("Calendar remains manual context until M11.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -142,5 +146,31 @@ struct ModelStatusView: View {
     private func wear(_ suggestion: OutfitSuggestion) {
         do { _ = try store.wearSuggestion(suggestion); message = "Recorded as worn today." }
         catch { message = error.localizedDescription }
+    }
+
+    @ViewBuilder
+    private var weatherContext: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Optional weather context").font(.headline)
+            HStack {
+                TextField("City", text: $weatherCity).textInputAutocapitalization(.words)
+                Button("Refresh") {
+                    Task { weatherState = await weatherService.refresh(location: WeatherLocation(city: weatherCity)) }
+                }
+                .disabled(weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            Text(weatherDescription).font(.footnote).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Optional weather context. \(weatherDescription)")
+    }
+
+    private var weatherDescription: String {
+        switch weatherState {
+        case let .fresh(snapshot): return "Current from OpenWeatherMap: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity)."
+        case let .cached(snapshot): return "Cached weather: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity)."
+        case let .stale(snapshot, reason): return "Stale weather: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity). \(reason) Recommendations are not adjusted."
+        case let .unavailable(reason): return "Weather unavailable: \(reason) Recommendations remain usable without it."
+        }
     }
 }

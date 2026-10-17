@@ -142,13 +142,13 @@ final class WardrobeStore: ObservableObject {
         loadOutfitData()
     }
 
-    func recommendations(for occasion: String?, anchorItemID: UUID? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
+    func recommendations(for occasion: String?, anchorItemID: UUID? = nil, weather: WeatherSnapshot? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
         let preferences = try repository.preferences()
         return OutfitRecommendationEngine(ranker: ranker).suggestions(
             items: allGarments,
             preferences: preferences,
             wearEvents: wearEvents,
-            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, anchorItemID: anchorItemID)
+            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, anchorItemID: anchorItemID, weather: weather)
         )
     }
 

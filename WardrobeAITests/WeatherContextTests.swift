@@ -28,6 +28,17 @@ final class WeatherContextTests: XCTestCase {
         XCTAssertEqual(reason, WeatherError.rateLimited.localizedDescription)
         guard case .unavailable = await WeatherContextService(provider: FailingProvider(error: .missingAPIKey)).refresh(location: location) else { return XCTFail("Expected unavailable weather") }
     }
+
+    func testOpenWeatherProviderDecodesMetricResponseAndRateLimit() async throws {
+        let body = #"{"main":{"temp":21.5},"weather":[{"id":801,"description":"few clouds"}]}"#.data(using: .utf8)!
+        let provider = OpenWeatherMapProvider(apiKey: "local-test-key", transport: FixtureTransport(data: body, statusCode: 200))
+        let snapshot = try await provider.weather(for: .init(city: "Pune"))
+        XCTAssertEqual(snapshot.temperatureCelsius, 21.5)
+        XCTAssertEqual(snapshot.condition, .clouds)
+        XCTAssertEqual(snapshot.description, "few clouds")
+        let rateLimited = OpenWeatherMapProvider(apiKey: "local-test-key", transport: FixtureTransport(data: Data(), statusCode: 429))
+        await XCTAssertThrowsErrorAsync(try await rateLimited.weather(for: .init(city: "Pune"))) { XCTAssertEqual($0 as? WeatherError, .rateLimited) }
+    }
 }
 
 private struct FixtureProvider: WeatherProvider {
@@ -37,4 +48,15 @@ private struct FixtureProvider: WeatherProvider {
 private struct FailingProvider: WeatherProvider {
     let error: WeatherError
     func weather(for location: WeatherLocation) async throws -> WeatherSnapshot { throw error }
+}
+
+private struct FixtureTransport: WeatherTransport {
+    let data: Data
+    let statusCode: Int
+    func data(from url: URL) async throws -> (data: Data, statusCode: Int) { (data, statusCode) }
+}
+
+private func XCTAssertThrowsErrorAsync<T>(_ expression: @autoclosure () async throws -> T, _ handler: (Error) -> Void) async {
+    do { _ = try await expression(); XCTFail("Expected an error") }
+    catch { handler(error) }
 }
