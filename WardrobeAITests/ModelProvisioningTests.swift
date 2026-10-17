@@ -1,8 +1,52 @@
+import Combine
 import Foundation
 import XCTest
 @testable import WardrobeAI
 
 final class ModelProvisioningTests: XCTestCase {
+    @MainActor
+    func testManagerPublishesNestedTransferUpdatesForStylistView() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ModelStore(rootURL: directory, verifier: StubVerifier())
+        let manager = ModelManager(store: store)
+        let changed = expectation(description: "Stylist receives transfer change")
+        let observation = manager.objectWillChange.sink { changed.fulfill() }
+        let model = VerifiedModel(descriptor: descriptor(bytes: 5, hash: "valid"), fileURL: directory.appending(path: "test"), verifiedAt: Date())
+
+        manager.downloads?.recordImported(model)
+
+        wait(for: [changed], timeout: 1)
+        XCTAssertEqual(manager.downloads?.statusByModel[.e2b], .available(model))
+        withExtendedLifetime(observation) { }
+    }
+
+    @MainActor
+    func testImportPublishesBusyFailureAndReadyStatesAndRejectsOverlappingActions() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let manager = ModelManager(store: try ModelStore(rootURL: directory, verifier: StubVerifier()))
+        let downloads = try XCTUnwrap(manager.downloads)
+        let descriptor = descriptor(bytes: 5, hash: "valid")
+        var changes = 0
+        let observation = manager.objectWillChange.sink { changes += 1 }
+
+        XCTAssertTrue(downloads.beginImport(descriptor))
+        XCTAssertEqual(downloads.statusByModel[.e2b], .verifying)
+        XCTAssertFalse(downloads.beginImport(descriptor))
+        downloads.download(descriptor)
+        downloads.resume(descriptor)
+        XCTAssertEqual(downloads.statusByModel[.e2b], .verifying)
+        downloads.recordImportFailure(ModelProvisioningError.incorrectChecksum, descriptor: descriptor)
+        XCTAssertEqual(downloads.statusByModel[.e2b], .failed(ModelProvisioningError.incorrectChecksum.localizedDescription))
+        XCTAssertTrue(downloads.beginImport(descriptor))
+        let model = VerifiedModel(descriptor: descriptor, fileURL: directory.appending(path: "test"), verifiedAt: Date())
+        downloads.recordImported(model)
+        XCTAssertEqual(downloads.statusByModel[.e2b], .available(model))
+        XCTAssertEqual(changes, 4)
+        withExtendedLifetime(observation) { }
+    }
+
     func testUnverifiedExistingModelIsRemovedAtStartup() throws {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -40,6 +84,27 @@ final class ModelProvisioningTests: XCTestCase {
         XCTAssertThrowsError(try store.importVerifiedFile(at: source, as: descriptor)) { error in
             XCTAssertEqual(error as? ModelProvisioningError, .incorrectSize(expected: 3, actual: 2))
         }
+    }
+
+    func testCompletedDownloadIsVerifiedAndMovedWithoutCopyingTheSource() throws {
+        let directory = try temporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appending(path: "completed-download.litertlm")
+        try Data("valid".utf8).write(to: source)
+        let descriptor = descriptor(bytes: 5, hash: "valid")
+        let store = try ModelStore(rootURL: directory.appending(path: "Models"), verifier: StubVerifier())
+
+        let installed = try store.adoptVerifiedDownload(at: source, as: descriptor)
+
+        XCTAssertEqual(try Data(contentsOf: installed.fileURL), Data("valid".utf8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+    }
+
+    func testResumeCapacityUsesOnlyBytesRemainingAfterTheResumeOffset() {
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 7_500), 2_500)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 0), 10_000)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 12_000), 0)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: -1), 10_000)
     }
 
     private func descriptor(bytes: Int64, hash: String) -> ModelDescriptor {
