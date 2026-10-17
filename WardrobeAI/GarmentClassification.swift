@@ -126,26 +126,29 @@ enum VisionClassificationMapping {
 struct VisionGarmentClassifier: GarmentClassifying {
     func classify(imageData: Data) async throws -> ClassificationProvenance {
         try Task.checkCancellation()
-        return try await Task.detached(priority: .userInitiated) {
-            guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
-                throw GarmentClassificationError.malformedResponse
-            }
-            let request = VNClassifyImageRequest()
+        guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
+            throw GarmentClassificationError.malformedResponse
+        }
+        try Task.checkCancellation()
+        let request = VNClassifyImageRequest()
+        try await withTaskCancellationHandler {
             try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
-            try Task.checkCancellation()
-            let labels = (request.results ?? [])
-                .filter { $0.confidence >= 0.2 }
-                .map(\.identifier)
-            let suggestion = try VisionClassificationMapping.suggestion(for: labels)
-            return ClassificationProvenance(
-                modelID: "apple-vision",
-                modelRevision: "VNClassifyImageRequest",
-                route: "local-vision-observation",
-                classifiedAt: Date(),
-                suggestion: suggestion,
-                wasEditedBeforeSave: false
-            )
-        }.value
+        } onCancel: {
+            request.cancel()
+        }
+        try Task.checkCancellation()
+        let labels = (request.results ?? [])
+            .filter { $0.confidence >= 0.2 }
+            .map(\.identifier)
+        let suggestion = try VisionClassificationMapping.suggestion(for: labels)
+        return ClassificationProvenance(
+            modelID: "apple-vision",
+            modelRevision: "VNClassifyImageRequest",
+            route: "local-vision-observation",
+            classifiedAt: Date(),
+            suggestion: suggestion,
+            wasEditedBeforeSave: false
+        )
     }
 }
 

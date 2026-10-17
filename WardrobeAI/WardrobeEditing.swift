@@ -52,6 +52,7 @@ struct GarmentEditor: View {
     @State private var category: String
     @State private var color: String
     @State private var tags: String
+    @State private var materialGuess: String
     @State private var notes: String
     @State private var capturedImage: GarmentCaptureCandidate?
     @State private var isCapturing = false
@@ -69,6 +70,7 @@ struct GarmentEditor: View {
         _category = State(initialValue: item?.category ?? GarmentTaxonomy.categories[0])
         _color = State(initialValue: item?.color ?? "")
         _tags = State(initialValue: item?.tags.joined(separator: ", ") ?? "")
+        _materialGuess = State(initialValue: item?.classification?.suggestion.materialGuess ?? "")
         _notes = State(initialValue: item?.notes ?? "")
         _classification = State(initialValue: item?.classification)
     }
@@ -106,10 +108,16 @@ struct GarmentEditor: View {
                         Text("Suggested locally by \(classification.modelID.uppercased()). Review and edit every field before saving.")
                             .font(.footnote).foregroundStyle(.secondary)
                         if let material = classification.suggestion.materialGuess {
-                            LabeledContent("Material guess", value: material + " — verify this")
-                                .font(.footnote)
+                            TextField("Material guess (verify this)", text: $materialGuess)
+                                .textInputAutocapitalization(.words)
+                                .accessibilityLabel("Material guess, verify this")
+                        } else if !materialGuess.isEmpty {
+                            TextField("Material", text: $materialGuess)
+                                .textInputAutocapitalization(.words)
+                                .accessibilityLabel("Material")
                         }
                         Button("Try automatic suggestions again") { startClassification() }
+                            .disabled(capturedImage == nil)
                     } else {
                         Text(classificationMessage ?? "Suggestions are optional. Manual garment details always work.")
                             .font(.footnote).foregroundStyle(.secondary)
@@ -138,7 +146,7 @@ struct GarmentEditor: View {
         let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: userTags, notes: notes.nilIfBlank, imagePath: item?.imagePath, classification: savedClassification())
         do {
             if var item {
-                item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes
+                item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes; item.classification = draft.classification
                 try store.save(item, imageData: capturedImage?.data)
             } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
@@ -160,6 +168,7 @@ struct GarmentEditor: View {
                 category = result.suggestion.category
                 color = result.suggestion.color ?? ""
                 tags = result.suggestion.tags.joined(separator: ", ")
+                materialGuess = result.suggestion.materialGuess ?? ""
             } catch is CancellationError {
                 return
             } catch {
@@ -182,6 +191,23 @@ struct GarmentEditor: View {
     private func savedClassification() -> ClassificationProvenance? {
         guard var classification else { return nil }
         let editedTags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let editedMaterial = materialGuess.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        if editedMaterial != classification.suggestion.materialGuess,
+           let updatedSuggestion = try? GarmentClassificationSuggestion(
+                category: classification.suggestion.category,
+                color: classification.suggestion.color,
+                tags: classification.suggestion.tags,
+                materialGuess: editedMaterial
+           ) {
+            classification = ClassificationProvenance(
+                modelID: classification.modelID,
+                modelRevision: classification.modelRevision,
+                route: classification.route,
+                classifiedAt: classification.classifiedAt,
+                suggestion: updatedSuggestion,
+                wasEditedBeforeSave: true
+            )
+        }
         classification.wasEditedBeforeSave = classification.wasEditedBeforeSave
             || category != classification.suggestion.category
             || color.nilIfBlank != classification.suggestion.color
