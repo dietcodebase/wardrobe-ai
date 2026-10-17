@@ -18,11 +18,20 @@ final class GarmentClassificationTests: XCTestCase {
     }
 
     func testCoordinatorSurfacesUnavailableFallback() async {
-        let coordinator = GarmentClassificationCoordinator()
+        let coordinator = GarmentClassificationCoordinator(classifier: UnavailableGarmentClassifier())
         do {
             _ = try await coordinator.classify(imageData: Data([1]))
             XCTFail("Expected the unavailable classifier")
         } catch {
+            XCTAssertEqual(error as? GarmentClassificationError, .unavailable)
+        }
+    }
+
+    func testVisionMappingKeepsOnlyKnownGarmentCategories() throws {
+        let suggestion = try VisionClassificationMapping.suggestion(for: ["clothing", "button_down_shirt", "fashion"])
+        XCTAssertEqual(suggestion.category, "Top")
+        XCTAssertEqual(suggestion.tags, ["clothing", "button down shirt", "fashion"])
+        XCTAssertThrowsError(try VisionClassificationMapping.suggestion(for: ["dog", "furniture"])) { error in
             XCTAssertEqual(error as? GarmentClassificationError, .unavailable)
         }
     }

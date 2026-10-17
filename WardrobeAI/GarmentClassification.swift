@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import Vision
 
 /// The bounded set of fields a classifier may suggest. This is deliberately
 /// smaller than the editable garment record: model text is never written to
@@ -100,11 +102,58 @@ struct UnavailableGarmentClassifier: GarmentClassifying {
     }
 }
 
+enum VisionClassificationMapping {
+    static func suggestion(for labels: [String]) throws -> GarmentClassificationSuggestion {
+        let normalized = labels.map { $0.lowercased() }
+        let category: String?
+        if contains(normalized, any: ["t-shirt", "shirt", "blouse", "sweater", "hoodie", "top"]) { category = "Top" }
+        else if contains(normalized, any: ["trousers", "pants", "jeans", "skirt", "shorts", "bottom"]) { category = "Bottom" }
+        else if contains(normalized, any: ["dress", "jumpsuit"]) { category = "Dress" }
+        else if contains(normalized, any: ["coat", "jacket", "cardigan", "outerwear"]) { category = "Outerwear" }
+        else if contains(normalized, any: ["shoe", "sneaker", "boot", "sandal", "footwear"]) { category = "Shoes" }
+        else if contains(normalized, any: ["bag", "hat", "scarf", "belt", "accessory"]) { category = "Accessory" }
+        else { category = nil }
+        guard let category else { throw GarmentClassificationError.unavailable }
+        let tags = Array(labels.prefix(3)).map { $0.replacingOccurrences(of: "_", with: " ") }
+        return try GarmentClassificationSuggestion(category: category, tags: tags)
+    }
+
+    private static func contains(_ labels: [String], any terms: [String]) -> Bool {
+        labels.contains { label in terms.contains { label.localizedCaseInsensitiveContains($0) } }
+    }
+}
+
+struct VisionGarmentClassifier: GarmentClassifying {
+    func classify(imageData: Data) async throws -> ClassificationProvenance {
+        try Task.checkCancellation()
+        return try await Task.detached(priority: .userInitiated) {
+            guard let image = UIImage(data: imageData), let cgImage = image.cgImage else {
+                throw GarmentClassificationError.malformedResponse
+            }
+            let request = VNClassifyImageRequest()
+            try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+            try Task.checkCancellation()
+            let labels = (request.results ?? [])
+                .filter { $0.confidence >= 0.2 }
+                .map(\.identifier)
+            let suggestion = try VisionClassificationMapping.suggestion(for: labels)
+            return ClassificationProvenance(
+                modelID: "apple-vision",
+                modelRevision: "VNClassifyImageRequest",
+                route: "local-vision-observation",
+                classifiedAt: Date(),
+                suggestion: suggestion,
+                wasEditedBeforeSave: false
+            )
+        }.value
+    }
+}
+
 actor GarmentClassificationCoordinator {
     private let classifier: any GarmentClassifying
     private let timeout: Duration
 
-    init(classifier: any GarmentClassifying = UnavailableGarmentClassifier(), timeout: Duration = .seconds(12)) {
+    init(classifier: any GarmentClassifying = VisionGarmentClassifier(), timeout: Duration = .seconds(12)) {
         self.classifier = classifier
         self.timeout = timeout
     }
