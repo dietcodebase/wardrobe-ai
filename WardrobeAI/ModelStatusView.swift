@@ -134,7 +134,7 @@ struct ModelStatusView: View {
                     showingImporter = true
                 }
                     .disabled(isBusy(status))
-                Button(downloadTitle(status)) { downloadAction(descriptor, status: status) }
+                Button(downloadTitle(status, descriptor: descriptor)) { downloadAction(descriptor, status: status) }
                     .disabled(isBusy(status) || isInstalled(status))
                 if isActiveTransfer(status) {
                     Button("Cancel", role: .cancel) { manager.downloads?.cancel(descriptor) }
@@ -161,7 +161,7 @@ struct ModelStatusView: View {
         }
     }
 
-    private func downloadTitle(_ status: ModelTransferStatus) -> String {
+    private func downloadTitle(_ status: ModelTransferStatus, descriptor: ModelDescriptor) -> String {
         switch status {
         case .connecting: "Connecting…"
         case .downloading: "Downloading…"
@@ -169,7 +169,7 @@ struct ModelStatusView: View {
         case .verifying: "Verifying…"
         case .interrupted: "Resume"
         case .available: "Installed"
-        case .failed: "Retry"
+        case .failed: manager.downloads?.hasResumeData(for: descriptor) == true ? "Resume" : "Retry"
         case .notPresent: "Download"
         }
     }
@@ -208,8 +208,14 @@ struct ModelStatusView: View {
     }
 
     private func downloadAction(_ descriptor: ModelDescriptor, status: ModelTransferStatus) {
-        if case .interrupted = status { manager.downloads?.resume(descriptor) }
-        else { manager.downloads?.download(descriptor) }
+        switch status {
+        case .interrupted:
+            manager.downloads?.resume(descriptor)
+        case .failed where manager.downloads?.hasResumeData(for: descriptor) == true:
+            manager.downloads?.resume(descriptor)
+        default:
+            manager.downloads?.download(descriptor)
+        }
     }
 
     @ViewBuilder
