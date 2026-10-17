@@ -85,13 +85,35 @@ actor InMemoryWeatherCache: WeatherCache {
     func save(_ snapshot: WeatherSnapshot) { snapshots[snapshot.location.normalizedCity.lowercased()] = snapshot }
 }
 
+actor UserDefaultsWeatherCache: WeatherCache {
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func snapshot(for location: WeatherLocation) -> WeatherSnapshot? {
+        guard let data = defaults.data(forKey: key(for: location)) else { return nil }
+        return try? JSONDecoder().decode(WeatherSnapshot.self, from: data)
+    }
+
+    func save(_ snapshot: WeatherSnapshot) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: key(for: snapshot.location))
+    }
+
+    private func key(for location: WeatherLocation) -> String {
+        "weather-cache-v1-\(location.normalizedCity.lowercased())"
+    }
+}
+
 actor WeatherContextService {
     private let provider: any WeatherProvider
     private let cache: any WeatherCache
     private let freshFor: TimeInterval
     private let now: @Sendable () -> Date
 
-    init(provider: any WeatherProvider, cache: any WeatherCache = InMemoryWeatherCache(), freshFor: TimeInterval = 30 * 60, now: @escaping @Sendable () -> Date = Date.init) {
+    init(provider: any WeatherProvider, cache: any WeatherCache = UserDefaultsWeatherCache(), freshFor: TimeInterval = 30 * 60, now: @escaping @Sendable () -> Date = Date.init) {
         self.provider = provider
         self.cache = cache
         self.freshFor = freshFor

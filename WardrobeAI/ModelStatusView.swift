@@ -8,7 +8,7 @@ struct ModelStatusView: View {
     @State private var occasion = "Everyday"
     @State private var anchorItemID: UUID?
     @State private var message: String?
-    @State private var weatherCity = ""
+    @AppStorage("weather-city") private var weatherCity = ""
     @State private var weatherState = WeatherContextState.unavailable(reason: "Choose a city to add optional weather context.")
     private let weatherService = WeatherContextService(provider: OpenWeatherMapProvider())
 
@@ -74,6 +74,10 @@ struct ModelStatusView: View {
             case let .success(url): manager.importModel(at: url, descriptor: descriptor)
             case let .failure(error): manager.reportProvisioningFailure(error)
             }
+        }
+        .task {
+            guard !weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            if let cached = await weatherService.cachedState(for: WeatherLocation(city: weatherCity)) { weatherState = cached }
         }
     }
 
