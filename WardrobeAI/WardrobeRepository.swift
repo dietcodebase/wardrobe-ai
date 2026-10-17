@@ -17,18 +17,18 @@ final class WardrobeRepository {
         let timestamp = now()
         let item = GarmentItem(
             id: UUID(), name: normalized.name, category: normalized.category, color: normalized.color,
-            tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath,
+            tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath, classification: normalized.classification,
             createdAt: timestamp, updatedAt: timestamp
         )
         try database.write { database in
             try database.execute(
                 sql: """
-                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, seed_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, seed_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     item.id.uuidString, item.name, item.category, item.color, try encode(item.tags),
-                    item.notes, item.imagePath, seedKey, item.createdAt, item.updatedAt
+                    item.notes, item.imagePath, try encode(item.classification), seedKey, item.createdAt, item.updatedAt
                 ]
             )
         }
@@ -44,17 +44,17 @@ final class WardrobeRepository {
             let timestamp = now()
             let item = GarmentItem(
                 id: UUID(), name: normalized.name, category: normalized.category, color: normalized.color,
-                tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath,
+                tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath, classification: normalized.classification,
                 createdAt: timestamp, updatedAt: timestamp
             )
             try database.execute(
                 sql: """
-                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, seed_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, seed_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     item.id.uuidString, item.name, item.category, item.color, try encode(item.tags),
-                    item.notes, item.imagePath, key, item.createdAt, item.updatedAt
+                    item.notes, item.imagePath, try encode(item.classification), key, item.createdAt, item.updatedAt
                 ]
             )
             return item
@@ -127,7 +127,7 @@ final class WardrobeRepository {
     func updateItem(_ item: GarmentItem) throws -> GarmentItem {
         let draft = try validate(GarmentDraft(
             name: item.name, category: item.category, color: item.color, tags: item.tags,
-            notes: item.notes, imagePath: item.imagePath
+            notes: item.notes, imagePath: item.imagePath, classification: item.classification
         ))
         var updated = item
         updated.name = draft.name
@@ -136,16 +136,17 @@ final class WardrobeRepository {
         updated.tags = draft.tags
         updated.notes = draft.notes
         updated.imagePath = draft.imagePath
+        updated.classification = draft.classification
         updated.updatedAt = now()
         try database.write { database in
             try database.execute(
                 sql: """
-                UPDATE items SET name = ?, category = ?, color = ?, tags_json = ?, notes = ?, image_path = ?, updated_at = ?
+                UPDATE items SET name = ?, category = ?, color = ?, tags_json = ?, notes = ?, image_path = ?, classification_json = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 arguments: [
                     updated.name, updated.category, updated.color, try encode(updated.tags), updated.notes,
-                    updated.imagePath, updated.updatedAt, updated.id.uuidString
+                    updated.imagePath, try encode(updated.classification), updated.updatedAt, updated.id.uuidString
                 ]
             )
             guard database.changesCount == 1 else { throw WardrobeRepositoryError.itemNotFound(updated.id) }
@@ -370,7 +371,8 @@ final class WardrobeRepository {
         return GarmentDraft(
             name: name, category: category, color: draft.color?.trimmingCharacters(in: .whitespacesAndNewlines),
             tags: Array(Set(draft.tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })).sorted(),
-            notes: draft.notes?.trimmingCharacters(in: .whitespacesAndNewlines), imagePath: draft.imagePath
+            notes: draft.notes?.trimmingCharacters(in: .whitespacesAndNewlines), imagePath: draft.imagePath,
+            classification: draft.classification
         )
     }
 }
@@ -378,7 +380,7 @@ final class WardrobeRepository {
 private func garmentItem(from row: Row) throws -> GarmentItem {
     GarmentItem(
         id: try uuid(row["id"]), name: row["name"], category: row["category"], color: row["color"],
-        tags: try decode(row["tags_json"]), notes: row["notes"], imagePath: row["image_path"],
+        tags: try decode(row["tags_json"]), notes: row["notes"], imagePath: row["image_path"], classification: try decode(row["classification_json"]),
         createdAt: row["created_at"], updatedAt: row["updated_at"]
     )
 }
@@ -427,6 +429,16 @@ private func encode(_ values: [String]) throws -> String {
 
 private func decode(_ value: String) throws -> [String] {
     try JSONDecoder().decode([String].self, from: Data(value.utf8))
+}
+
+private func encode<T: Encodable>(_ value: T?) throws -> String? {
+    guard let value else { return nil }
+    return String(decoding: try JSONEncoder().encode(value), as: UTF8.self)
+}
+
+private func decode<T: Decodable>(_ value: String?) throws -> T? {
+    guard let value else { return nil }
+    return try JSONDecoder().decode(T.self, from: Data(value.utf8))
 }
 
 private func uuid(_ value: String) throws -> UUID {

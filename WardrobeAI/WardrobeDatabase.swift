@@ -94,6 +94,12 @@ enum WardrobeDatabase {
             try database.create(index: "wear_logs_event", on: "wear_logs", columns: ["event_id"])
         }
 
+        migrator.registerMigration("v4_classification_provenance") { database in
+            try database.alter(table: "items") { table in
+                table.add(column: "classification_json", .text)
+            }
+        }
+
         return migrator
     }()
 }

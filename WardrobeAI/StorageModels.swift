@@ -8,6 +8,7 @@ struct GarmentItem: Identifiable, Equatable, Sendable {
     var tags: [String]
     var notes: String?
     var imagePath: String?
+    var classification: ClassificationProvenance?
     let createdAt: Date
     var updatedAt: Date
 }
@@ -19,6 +20,7 @@ struct GarmentDraft: Equatable, Sendable {
     var tags: [String]
     var notes: String?
     var imagePath: String?
+    var classification: ClassificationProvenance?
 
     init(
         name: String,
@@ -26,7 +28,8 @@ struct GarmentDraft: Equatable, Sendable {
         color: String? = nil,
         tags: [String] = [],
         notes: String? = nil,
-        imagePath: String? = nil
+        imagePath: String? = nil,
+        classification: ClassificationProvenance? = nil
     ) {
         self.name = name
         self.category = category
@@ -34,6 +37,7 @@ struct GarmentDraft: Equatable, Sendable {
         self.tags = tags
         self.notes = notes
         self.imagePath = imagePath
+        self.classification = classification
     }
 }
 
