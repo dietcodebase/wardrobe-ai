@@ -3,7 +3,14 @@ import UniformTypeIdentifiers
 
 struct ModelStatusView: View {
     @ObservedObject var manager: ModelManager
+    @ObservedObject var store: WardrobeStore
     @State private var importingDescriptor: ModelDescriptor?
+    @State private var occasion = "Everyday"
+    @State private var message: String?
+
+    private var suggestions: [OutfitSuggestion] {
+        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion)) ?? []
+    }
 
     var body: some View {
         List {
@@ -25,7 +32,26 @@ struct ModelStatusView: View {
             if let message = manager.provisioningMessage {
                 Section { Text(message).foregroundStyle(.secondary) }
             }
+
+            Section("What should I wear?") {
+                Picker("Occasion", selection: $occasion) {
+                    ForEach(["Everyday"] + GarmentTaxonomy.occasions, id: \.self) { Text($0) }
+                }
+                .pickerStyle(.menu)
+                if suggestions.isEmpty {
+                    Text("Add a garment to receive owned-item suggestions.").foregroundStyle(.secondary)
+                } else {
+                    ForEach(suggestions.prefix(3)) { suggestion in
+                        suggestionRow(suggestion)
+                    }
+                }
+                Text("Weather and calendar are manual context until later milestones.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
+        .alert("Outfit suggestion", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
+            Button("OK", role: .cancel) { }
+        } message: { Text(message ?? "") }
         .fileImporter(isPresented: Binding(
             get: { importingDescriptor != nil },
             set: { if !$0 { importingDescriptor = nil } }
@@ -82,5 +108,31 @@ struct ModelStatusView: View {
     private func downloadAction(_ descriptor: ModelDescriptor, status: ModelTransferStatus) {
         if case .interrupted = status { manager.downloads?.resume(descriptor) }
         else { manager.downloads?.download(descriptor) }
+    }
+
+    @ViewBuilder
+    private func suggestionRow(_ suggestion: OutfitSuggestion) -> some View {
+        let names = suggestion.itemIDs.compactMap { store.item(id: $0)?.name }
+        VStack(alignment: .leading, spacing: 8) {
+            Text(names.joined(separator: " · ")).font(.headline)
+            Text(suggestion.explanation).font(.footnote).foregroundStyle(.secondary)
+            HStack {
+                Button("Save outfit") { save(suggestion) }
+                Button("Wear today") { wear(suggestion) }
+            }
+            .buttonStyle(.bordered)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Suggestion: \(names.joined(separator: ", ")). \(suggestion.explanation)")
+    }
+
+    private func save(_ suggestion: OutfitSuggestion) {
+        do { _ = try store.saveSuggestion(suggestion); message = "Saved to your outfits. Wear is recorded only when you choose Wear today." }
+        catch { message = error.localizedDescription }
+    }
+
+    private func wear(_ suggestion: OutfitSuggestion) {
+        do { _ = try store.wearSuggestion(suggestion); message = "Recorded as worn today." }
+        catch { message = error.localizedDescription }
     }
 }

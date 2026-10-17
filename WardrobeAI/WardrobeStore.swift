@@ -137,4 +137,29 @@ final class WardrobeStore: ObservableObject {
         try repository.undoWear(eventID: event.id)
         loadOutfitData()
     }
+
+    func recommendations(for occasion: String?) throws -> [OutfitSuggestion] {
+        let preferences = try repository.preferences()
+        return OutfitRecommendationEngine().suggestions(
+            items: allGarments,
+            preferences: preferences,
+            wearEvents: wearEvents,
+            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors)
+        )
+    }
+
+    func saveSuggestion(_ suggestion: OutfitSuggestion) throws -> Outfit {
+        if let existing = try repository.allOutfits().first(where: { $0.itemIDs == suggestion.itemIDs }) {
+            return existing
+        }
+        let names = suggestion.itemIDs.compactMap { item(id: $0)?.name }.joined(separator: " + ")
+        let outfit = try repository.createOutfit(OutfitDraft(name: names.isEmpty ? "Suggested outfit" : names, itemIDs: suggestion.itemIDs))
+        loadOutfitData()
+        return outfit
+    }
+
+    func wearSuggestion(_ suggestion: OutfitSuggestion) throws -> WearEvent {
+        let outfit = try saveSuggestion(suggestion)
+        return try wearToday(outfit)
+    }
 }
