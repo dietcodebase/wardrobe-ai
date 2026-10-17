@@ -121,6 +121,7 @@ final class StylistChat: ObservableObject {
                     self.isResponding = false
                 }
             }
+            guard !Task.isCancelled, self.activeResponseID == responseID else { return }
             let response: String
             if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
                 response = self.wearSummary()
@@ -206,6 +207,9 @@ final class StylistChat: ObservableObject {
         for word in response.split(separator: " ") {
             guard !Task.isCancelled, activeResponseID == responseID,
                   let index = messages.firstIndex(where: { $0.id == messageID }) else {
+                if let index = messages.firstIndex(where: { $0.id == messageID }) {
+                    messages.remove(at: index)
+                }
                 return
             }
             messages[index].text += (messages[index].text.isEmpty ? "" : " ") + word
