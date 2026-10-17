@@ -29,7 +29,7 @@ Default delivery order is numeric. Dependencies below are the technical minimum;
 | M02 | Database and file storage | `milestone/m02-storage` | M00 | blocked | [#3](https://github.com/dietcodebase/wardrobe-ai/pull/3) · [evidence](docs/m02-evidence.md) |
 | M03 | Wardrobe browsing and editing | `milestone/m03-wardrobe` | M02 | in-review | [#4](https://github.com/dietcodebase/wardrobe-ai/pull/4) · [evidence](docs/m03-evidence.md) |
 | M04 | Single-item capture and cutout | `milestone/m04-capture` | M03 | in-review | [#5](https://github.com/dietcodebase/wardrobe-ai/pull/5) · [evidence](docs/m04-evidence.md) |
-| M05 | Saved outfits and wear history | `milestone/m05-outfits-wear` | M03 | blocked | [evidence](docs/m05-evidence.md) |
+| M05 | Saved outfits and wear history | `milestone/m05-outfits-wear` | M03 | blocked | [#6](https://github.com/dietcodebase/wardrobe-ai/pull/6) · [evidence](docs/m05-evidence.md) |
 | M06 | Model provisioning and lifecycle | `milestone/m06-model-manager` | M01, M04, M05 | planned | — |
 | M07 | Automatic garment classification | `milestone/m07-classification` | M06 | planned | — |
 | M08 | Outfit suggestions and explanations | `milestone/m08-recommendations` | M07 | planned | — |
