@@ -126,7 +126,11 @@ actor WeatherContextService {
     }
 
     func currentState(from state: WeatherContextState) -> WeatherContextState {
-        guard case let .fresh(snapshot) = state else { return state }
+        let snapshot: WeatherSnapshot
+        switch state {
+        case let .fresh(value), let .cached(value): snapshot = value
+        case .stale, .unavailable: return state
+        }
         guard now().timeIntervalSince(snapshot.fetchedAt) <= freshFor else {
             return .stale(snapshot, reason: "Update needed")
         }

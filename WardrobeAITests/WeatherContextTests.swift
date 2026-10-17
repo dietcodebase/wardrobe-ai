@@ -29,6 +29,15 @@ final class WeatherContextTests: XCTestCase {
         XCTAssertEqual(expired, .stale(snapshot, reason: "Update needed"))
     }
 
+    func testCachedStateExpiresUsingTheConfiguredFreshnessWindow() async {
+        let fetchedAt = Date(timeIntervalSince1970: 1_000)
+        let snapshot = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 24, condition: .clear, description: "clear", fetchedAt: fetchedAt)
+        let service = WeatherContextService(provider: FixtureProvider(), freshFor: 60, now: { fetchedAt.addingTimeInterval(61) })
+
+        let expired = await service.currentState(from: .cached(snapshot))
+        XCTAssertEqual(expired, .stale(snapshot, reason: "Update needed"))
+    }
+
     func testFailedRefreshKeepsStaleWeatherAndEmptyCacheIsUnavailable() async {
         let location = WeatherLocation(city: "Pune")
         let cache = InMemoryWeatherCache()
