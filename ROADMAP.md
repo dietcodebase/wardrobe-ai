@@ -36,7 +36,7 @@ Default delivery order is numeric. Dependencies below remain the technical minim
 | M07 | Automatic garment classification | `milestone/m07-classification` | M06 | in-review | [#8](https://github.com/dietcodebase/wardrobe-ai/pull/8) · [evidence](docs/m07-evidence.md) |
 | M08 | Outfit suggestions and explanations | `milestone/m08-recommendations` | M07 | in-review | [#9](https://github.com/dietcodebase/wardrobe-ai/pull/9) · [evidence](docs/m08-evidence.md) |
 | M09 | Semantic wardrobe search | `milestone/m09-semantic-search` | M08, embedding gate from M01 | in-review | [#10](https://github.com/dietcodebase/wardrobe-ai/pull/10) · [evidence](docs/m09-evidence.md) |
-| M10 | Optional weather context | `milestone/m10-weather` | M08 | planned | — |
+| M10 | Optional weather context | `milestone/m10-weather` | M08 | in-review | local branch; PR pending network access · [evidence](docs/m10-evidence.md) |
 | M11 | Calendar and outfit scheduling | `milestone/m11-calendar` | M05, M10 | planned | — |
 | M12 | Text stylist with bounded tools | `milestone/m12-stylist-chat` | M08, M11 | planned | — |
 | M13 | Voice input | `milestone/m13-voice` | M12, audio gate from M01 | planned | — |
