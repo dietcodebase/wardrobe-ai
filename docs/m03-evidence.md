@@ -1,6 +1,6 @@
 # M03 wardrobe browsing and editing evidence
 
-Status: code complete; full XCTest and visual acceptance verification are blocked by the unavailable full Xcode toolchain. Recorded 17 October 2026.
+Status: code complete; pinned hosted build and smoke tests passed. Local Xcode and visual accessibility review remain unavailable. Recorded 17 October 2026.
 
 ## Implemented behavior
 
@@ -18,8 +18,9 @@ Status: code complete; full XCTest and visual acceptance verification are blocke
 | --- | --- |
 | `swiftc -parse WardrobeAI/*.swift WardrobeAITests/*.swift` | Passed (syntax parsing only) |
 | `plutil -lint WardrobeAI.xcodeproj/project.pbxproj` | Passed |
-| `git diff --check origin/main...HEAD` | Pending final documentation commit |
-| `xcodebuild -list -project WardrobeAI.xcodeproj` | Blocked: active developer directory is Command Line Tools, not full Xcode |
-| Unit/UI tests and visual Dynamic Type/accessibility pass | Unrun: require full Xcode simulator/runtime |
+| `git diff --check origin/main...HEAD` | Passed before evidence update |
+| Hosted PR check, Xcode 16.4 / iPhone 16 simulator, `clean build test` | Passed: [run 39007340903](https://github.com/dietcodebase/wardrobe-ai/actions/runs/39007340903) |
+| Local `xcodebuild -list -project WardrobeAI.xcodeproj` | Blocked: active developer directory is Command Line Tools, not full Xcode |
+| Manual visual Dynamic Type and VoiceOver review | Unrun: requires interactive simulator/device review |
 
 `StorageTests` adds coverage for text/category/tag search composition and `AppTabTests` verifies the one-piece taxonomy. No personal photos, credentials or model artifacts were added.
