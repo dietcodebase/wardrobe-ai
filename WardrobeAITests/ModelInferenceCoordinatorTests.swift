@@ -11,7 +11,8 @@ final class ModelInferenceCoordinatorTests: XCTestCase {
         _ = try await coordinator.withEngine(for: first) { _ in "first" }
         _ = try await coordinator.withEngine(for: second) { _ in "second" }
 
-        XCTAssertEqual(await loader.events(), ["load:e2b", "unload:e2b", "load:embedding"])
+        let events = await loader.events()
+        XCTAssertEqual(events, ["load:e2b", "unload:e2b", "load:embedding"])
     }
 
     func testExplicitUnloadReleasesActiveEngine() async throws {
@@ -20,7 +21,8 @@ final class ModelInferenceCoordinatorTests: XCTestCase {
         _ = try await coordinator.withEngine(for: verified(.e2b)) { _ in () }
         await coordinator.unload()
 
-        XCTAssertEqual(await loader.events(), ["load:e2b", "unload:e2b"])
+        let events = await loader.events()
+        XCTAssertEqual(events, ["load:e2b", "unload:e2b"])
     }
 
     private func verified(_ id: ModelID) -> VerifiedModel {
