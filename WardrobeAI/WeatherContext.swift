@@ -113,7 +113,7 @@ actor WeatherContextService {
     private let freshFor: TimeInterval
     private let now: @Sendable () -> Date
 
-    init(provider: any WeatherProvider, cache: any WeatherCache = UserDefaultsWeatherCache(), freshFor: TimeInterval = 30 * 60, now: @escaping @Sendable () -> Date = Date.init) {
+    init(provider: any WeatherProvider, cache: any WeatherCache = UserDefaultsWeatherCache(), freshFor: TimeInterval = 30 * 60, now: @escaping @Sendable () -> Date = { Date() }) {
         self.provider = provider
         self.cache = cache
         self.freshFor = freshFor
