@@ -106,13 +106,15 @@ final class StylistChat: ObservableObject {
         responseTask = Task { [weak self] in
             guard let self else { return }
             defer { self.isResponding = false }
+            let response: String
             if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
-                self.appendWearSummary()
+                response = self.wearSummary()
             } else if request.localizedCaseInsensitiveContains("plan") || request.localizedCaseInsensitiveContains("calendar") {
-                self.appendContextSummary()
+                response = self.contextSummary()
             } else {
-                self.appendSearchSummary(for: request)
+                response = self.searchSummary(for: request)
             }
+            await self.stream(response)
         }
     }
 
@@ -135,26 +137,39 @@ final class StylistChat: ObservableObject {
 
     func dismissWearConfirmation() { pendingWearOutfit = nil }
 
-    private func appendSearchSummary(for query: String) {
+    private func searchSummary(for query: String) -> String {
         do {
-            guard case let .garments(items) = try toolbox.execute(.init(tool: .searchWardrobe, query: query)) else { return }
+            guard case let .garments(items) = try toolbox.execute(.init(tool: .searchWardrobe, query: query)) else { return "" }
             let names = items.prefix(5).map(\.name)
-            messages.append(.init(role: .assistant, text: names.isEmpty ? "I couldn’t find owned garments matching that. Try a color, category, or tag." : "I found: \(names.joined(separator: ", "))."))
-        } catch { messages.append(.init(role: .assistant, text: error.localizedDescription)) }
+            return names.isEmpty ? "I couldn’t find owned garments matching that. Try a color, category, or tag." : "I found: \(names.joined(separator: ", "))."
+        } catch { return error.localizedDescription }
     }
 
-    private func appendWearSummary() {
+    private func wearSummary() -> String {
         do {
-            guard case let .wear(events) = try toolbox.execute(.init(tool: .recentWear)) else { return }
-            messages.append(.init(role: .assistant, text: events.isEmpty ? "No wear has been recorded yet." : "You have \(events.count) recent wear record\(events.count == 1 ? "" : "s")."))
-        } catch { messages.append(.init(role: .assistant, text: error.localizedDescription)) }
+            guard case let .wear(events) = try toolbox.execute(.init(tool: .recentWear)) else { return "" }
+            return events.isEmpty ? "No wear has been recorded yet." : "You have \(events.count) recent wear record\(events.count == 1 ? "" : "s")."
+        } catch { return error.localizedDescription }
     }
 
-    private func appendContextSummary() {
+    private func contextSummary() -> String {
         do {
-            guard case let .context(plans) = try toolbox.execute(.init(tool: .context)) else { return }
-            messages.append(.init(role: .assistant, text: plans.isEmpty ? "You have no upcoming in-app outfit plans." : "You have \(plans.count) upcoming outfit plan\(plans.count == 1 ? "" : "s")."))
-        } catch { messages.append(.init(role: .assistant, text: error.localizedDescription)) }
+            guard case let .context(plans) = try toolbox.execute(.init(tool: .context)) else { return "" }
+            return plans.isEmpty ? "You have no upcoming in-app outfit plans." : "You have \(plans.count) upcoming outfit plan\(plans.count == 1 ? "" : "s")."
+        } catch { return error.localizedDescription }
+    }
+
+    private func stream(_ response: String) async {
+        messages.append(.init(role: .assistant, text: ""))
+        let index = messages.index(before: messages.endIndex)
+        for word in response.split(separator: " ") {
+            guard !Task.isCancelled else {
+                messages.remove(at: index)
+                return
+            }
+            messages[index].text += (messages[index].text.isEmpty ? "" : " ") + word
+            try? await Task.sleep(for: .milliseconds(12))
+        }
     }
 }
 
