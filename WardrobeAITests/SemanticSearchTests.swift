@@ -6,8 +6,8 @@ final class SemanticSearchTests: XCTestCase {
         let repository = try makeRepository()
         let blue = try repository.createItem(GarmentDraft(name: "Blue linen shirt", category: "Top"))
         let black = try repository.createItem(GarmentDraft(name: "Black boots", category: "Shoes"))
-        try repository.saveEmbedding(GarmentEmbedding(itemID: blue.id, metadata: metadata, contentHash: "blue", vector: [1, 0, 0], indexedAt: .now))
-        try repository.saveEmbedding(GarmentEmbedding(itemID: black.id, metadata: metadata, contentHash: "black", vector: [0, 1, 0], indexedAt: .now))
+        try repository.saveEmbedding(GarmentEmbedding(itemID: blue.id, metadata: metadata, contentHash: garmentContentHash(for: blue), vector: [1, 0, 0], indexedAt: .now))
+        try repository.saveEmbedding(GarmentEmbedding(itemID: black.id, metadata: metadata, contentHash: garmentContentHash(for: black), vector: [0, 1, 0], indexedAt: .now))
 
         let coordinator = SemanticSearchCoordinator(repository: repository, embedder: FakeEmbedder(metadata: metadata, query: [1, 0, 0]))
         let results = try await coordinator.search(query: "breathable blue", items: [blue, black])

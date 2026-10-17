@@ -36,7 +36,7 @@ actor SemanticSearchCoordinator {
             try Task.checkCancellation()
             let vector = try await embedder.embedItem(item)
             let embedding = GarmentEmbedding(
-                itemID: item.id, metadata: embedder.metadata, contentHash: contentHash(for: item),
+                itemID: item.id, metadata: embedder.metadata, contentHash: garmentContentHash(for: item),
                 vector: vector, indexedAt: Date()
             )
             _ = try repository.saveEmbedding(embedding, for: item)
@@ -50,7 +50,7 @@ actor SemanticSearchCoordinator {
         return try repository.embeddings(compatibleWith: embedder.metadata)
             .compactMap { embedding in
                 guard let item = byID[embedding.itemID],
-                      contentHash(for: item) == embedding.contentHash else { return nil }
+                      garmentContentHash(for: item) == embedding.contentHash else { return nil }
                 return SemanticSearchResult(item: item, score: cosine(vector, embedding.vector))
             }
             .sorted { $0.score > $1.score }
@@ -58,10 +58,11 @@ actor SemanticSearchCoordinator {
             .map { $0 }
     }
 
-    private func contentHash(for item: GarmentItem) -> String {
-        let text = [item.name, item.category, item.color ?? "", item.tags.joined(separator: ","), item.notes ?? ""].joined(separator: "|")
-        return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
-    }
+}
+
+func garmentContentHash(for item: GarmentItem) -> String {
+    let text = [item.name, item.category, item.color ?? "", item.tags.joined(separator: ","), item.notes ?? ""].joined(separator: "|")
+    return SHA256.hash(data: Data(text.utf8)).map { String(format: "%02x", $0) }.joined()
 }
 
 func cosine(_ lhs: [Float], _ rhs: [Float]) -> Float {
