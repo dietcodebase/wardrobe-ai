@@ -79,6 +79,21 @@ enum WardrobeDatabase {
             try database.create(index: "wear_logs_worn_at", on: "wear_logs", columns: ["worn_at"])
         }
 
+        migrator.registerMigration("v3_wear_events") { database in
+            try database.create(table: "wear_events") { table in
+                table.column("id", .text).primaryKey()
+                table.column("outfit_id", .text).references("outfits", onDelete: .setNull)
+                table.column("local_day", .text).notNull()
+                table.column("worn_at", .datetime).notNull()
+                table.column("created_at", .datetime).notNull()
+            }
+            try database.create(index: "wear_events_outfit_day", on: "wear_events", columns: ["outfit_id", "local_day"], unique: true)
+            try database.alter(table: "wear_logs") { table in
+                table.add(column: "event_id", .text).references("wear_events", onDelete: .cascade)
+            }
+            try database.create(index: "wear_logs_event", on: "wear_logs", columns: ["event_id"])
+        }
+
         return migrator
     }()
 }

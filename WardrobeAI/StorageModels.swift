@@ -69,6 +69,23 @@ struct WearLog: Identifiable, Equatable, Sendable {
     let createdAt: Date
 }
 
+struct WearEvent: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let outfitID: UUID?
+    let wornAt: Date
+    let localDay: String
+    let createdAt: Date
+    var itemIDs: [UUID]
+}
+
+struct WearItemSummary: Identifiable, Equatable, Sendable {
+    let item: GarmentItem
+    let wearCount: Int
+    let lastWornAt: Date?
+
+    var id: UUID { item.id }
+}
+
 struct StylePreferences: Equatable, Sendable {
     var preferredCategories: [String]
     var preferredColors: [String]
@@ -93,6 +110,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
     case outfitNotFound(UUID)
     case itemIsReferenced(UUID)
     case duplicateOutfitItem(UUID)
+    case emptyOutfit
     case corruptRecord
 
     var errorDescription: String? {
@@ -103,6 +121,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
         case .outfitNotFound: "That outfit no longer exists."
         case .itemIsReferenced: "Remove this garment from outfits and wear history before deleting it."
         case .duplicateOutfitItem: "An outfit can include a garment only once."
+        case .emptyOutfit: "Add at least one garment before saving this outfit."
         case .corruptRecord: "A local wardrobe record could not be read."
         }
     }

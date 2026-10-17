@@ -95,8 +95,38 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(try repository.items(matching: "navy", category: "Shoes").isEmpty)
     }
 
-    private func makeRepository() throws -> WardrobeRepository {
+    func testWearTodayIsIdempotentAndUndoRestoresUnderusedItems() throws {
+        let repository = try makeRepository()
+        let shirt = try repository.createItem(GarmentDraft(name: "Shirt", category: "Top"))
+        let trousers = try repository.createItem(GarmentDraft(name: "Trousers", category: "Bottom"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Work", itemIDs: [shirt.id, trousers.id]))
+
+        let first = try repository.wearToday(outfitID: outfit.id)
+        let retry = try repository.wearToday(outfitID: outfit.id)
+        XCTAssertEqual(first, retry)
+        XCTAssertEqual(Set(first.itemIDs), Set([shirt.id, trousers.id]))
+        XCTAssertEqual(try repository.underusedItems().map(\.wearCount), [1, 1])
+
+        try repository.undoWear(eventID: first.id)
+        XCTAssertTrue(try repository.wearEvents().isEmpty)
+        XCTAssertEqual(try repository.underusedItems().map(\.wearCount), [0, 0])
+    }
+
+    func testWearTodayUsesLocalDayBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let repository = try makeRepository(calendar: calendar)
+        let item = try repository.createItem(GarmentDraft(name: "Dress", category: "Dress"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Friday", itemIDs: [item.id]))
+
+        let late = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 1, day: 1, hour: 23, minute: 59)))
+        let nextDay = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 1, day: 2, hour: 0, minute: 1)))
+        XCTAssertNotEqual(try repository.wearToday(outfitID: outfit.id, wornAt: late).id, try repository.wearToday(outfitID: outfit.id, wornAt: nextDay).id)
+        XCTAssertEqual(try repository.wearEvents().count, 2)
+    }
+
+    private func makeRepository(calendar: Calendar = .autoupdatingCurrent) throws -> WardrobeRepository {
         let queue = try WardrobeDatabase.makeInMemoryQueue()
-        return WardrobeRepository(database: queue, now: { Date(timeIntervalSince1970: 1_700_000_000) })
+        return WardrobeRepository(database: queue, now: { Date(timeIntervalSince1970: 1_700_000_000) }, calendar: calendar)
     }
 }

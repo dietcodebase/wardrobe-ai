@@ -16,7 +16,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             WardrobeView(store: store).tabItem { Label(AppTab.wardrobe.rawValue, systemImage: AppTab.wardrobe.symbol) }
-            placeholder(for: .outfits).tabItem { Label(AppTab.outfits.rawValue, systemImage: AppTab.outfits.symbol) }
+            OutfitView(store: store).tabItem { Label(AppTab.outfits.rawValue, systemImage: AppTab.outfits.symbol) }
             placeholder(for: .stylist).tabItem { Label(AppTab.stylist.rawValue, systemImage: AppTab.stylist.symbol) }
         }
     }
