@@ -47,7 +47,7 @@ final class StylistChatTests: XCTestCase {
 
         chat.send("What should I wear?")
         try await Task.sleep(for: .milliseconds(180))
-        XCTAssertTrue(chat.messages.last?.text.contains("owned-item outfit suggestions") == true)
+        XCTAssertTrue(chat.messages.last?.text.contains("Try: Blue shirt") == true)
     }
 
     func testConfirmedWearStartsANewToolBudget() throws {
