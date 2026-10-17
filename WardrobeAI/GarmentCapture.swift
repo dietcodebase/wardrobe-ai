@@ -159,7 +159,7 @@ struct GarmentPhotoSource: View {
     let onImage: (UIImage) -> Void
     @State private var selectedItem: PhotosPickerItem?
     @State private var isShowingCamera = false
-    @State private var error: GarmentCaptureError?
+    @State private var photoError: GarmentCaptureError?
 
     var body: some View {
         HStack {
@@ -176,16 +176,16 @@ struct GarmentPhotoSource: View {
             CameraPicker(onImage: { image in isShowingCamera = false; onImage(image) }, onCancel: { isShowingCamera = false })
                 .ignoresSafeArea()
         }
-        .alert("Couldn’t use camera", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+        .alert("Couldn’t use camera", isPresented: Binding(get: { photoError != nil }, set: { if !$0 { photoError = nil } })) {
             Button("OK", role: .cancel) {}
-        } message: { Text(error?.localizedDescription ?? "") }
+        } message: { Text(photoError?.localizedDescription ?? "") }
     }
 
     private func requestCamera() {
         Task {
             do { try await CameraAccess.request(); isShowingCamera = true }
-            catch let captureError as GarmentCaptureError { error = captureError }
-            catch { error = .cameraDenied }
+            catch let captureError as GarmentCaptureError { photoError = captureError }
+            catch { photoError = .cameraDenied }
         }
     }
 
@@ -193,12 +193,12 @@ struct GarmentPhotoSource: View {
         guard let selectedItem else { return }
         do {
             guard let data = try await selectedItem.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
-                error = .unreadableImage
+                photoError = .unreadableImage
                 return
             }
             onImage(image)
         } catch {
-            error = .unreadableImage
+            photoError = .unreadableImage
         }
     }
 }
