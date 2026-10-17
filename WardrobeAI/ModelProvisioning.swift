@@ -51,7 +51,7 @@ struct VerifiedModel: Equatable, Sendable {
     let verifiedAt: Date
 }
 
-protocol ModelFileVerifying: Sendable {
+protocol ModelFileVerifying {
     func verify(_ fileURL: URL, against descriptor: ModelDescriptor) throws
 }
 
@@ -79,7 +79,7 @@ struct SHA256ModelFileVerifier: ModelFileVerifying {
     }
 }
 
-struct ModelStore: Sendable {
+struct ModelStore {
     let rootURL: URL
     let fileManager: FileManager
     let verifier: any ModelFileVerifying
@@ -113,7 +113,7 @@ struct ModelStore: Sendable {
     }
 
     func importVerifiedFile(at sourceURL: URL, as descriptor: ModelDescriptor) throws -> VerifiedModel {
-        try requireSpace(for: descriptor)
+        try ensureCapacity(for: descriptor)
         try verifier.verify(sourceURL, against: descriptor)
         let destination = destination(for: descriptor)
         let temporary = rootURL.appending(path: ".\(UUID().uuidString).importing")
@@ -143,11 +143,206 @@ struct ModelStore: Sendable {
         rootURL.appending(path: "\(descriptor.id.rawValue).litertlm")
     }
 
-    private func requireSpace(for descriptor: ModelDescriptor) throws {
+    func ensureCapacity(for descriptor: ModelDescriptor) throws {
         let values = try rootURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         let available = values.volumeAvailableCapacityForImportantUsage ?? 0
         guard available >= descriptor.expectedBytes else {
             throw ModelProvisioningError.insufficientDiskSpace(required: descriptor.expectedBytes, available: available)
         }
+    }
+}
+
+enum ModelTransferStatus: Equatable {
+    case notPresent
+    case downloading(progress: Double)
+    case interrupted
+    case available(VerifiedModel)
+    case failed(String)
+}
+
+@MainActor
+final class ModelDownloadController: NSObject, ObservableObject {
+    @Published private(set) var statusByModel: [ModelID: ModelTransferStatus] = [:]
+
+    private let store: ModelStore
+    private lazy var session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }()
+    private var descriptorsByTaskID: [Int: ModelDescriptor] = [:]
+    private var tasksByModel: [ModelID: URLSessionDownloadTask] = [:]
+
+    init(store: ModelStore) {
+        self.store = store
+        super.init()
+    }
+
+    func refresh() {
+        for descriptor in ModelDescriptor.qualifiedCandidates {
+            statusByModel[descriptor.id] = (try? store.verifiedModel(for: descriptor)).flatMap { $0.map(ModelTransferStatus.available) } ?? .notPresent
+        }
+    }
+
+    func download(_ descriptor: ModelDescriptor) {
+        do {
+            try store.ensureCapacity(for: descriptor)
+            let task = session.downloadTask(with: descriptor.downloadURL)
+            descriptorsByTaskID[task.taskIdentifier] = descriptor
+            tasksByModel[descriptor.id] = task
+            statusByModel[descriptor.id] = .downloading(progress: 0)
+            task.resume()
+        } catch {
+            statusByModel[descriptor.id] = .failed(error.localizedDescription)
+        }
+    }
+
+    func cancel(_ descriptor: ModelDescriptor) {
+        guard let task = tasksByModel[descriptor.id] else { return }
+        let resumeURL = resumeDataURL(for: descriptor)
+        task.cancel(byProducingResumeData: { [weak self] data in
+            guard let self else { return }
+            if let data { try? data.write(to: resumeURL, options: .atomic) }
+            Task { @MainActor in self.statusByModel[descriptor.id] = .interrupted }
+        })
+    }
+
+    func resume(_ descriptor: ModelDescriptor) {
+        let resumeURL = resumeDataURL(for: descriptor)
+        guard let data = try? Data(contentsOf: resumeURL) else {
+            download(descriptor)
+            return
+        }
+        let task = session.downloadTask(withResumeData: data)
+        descriptorsByTaskID[task.taskIdentifier] = descriptor
+        tasksByModel[descriptor.id] = task
+        statusByModel[descriptor.id] = .downloading(progress: 0)
+        task.resume()
+    }
+
+    private func resumeDataURL(for descriptor: ModelDescriptor) -> URL {
+        store.rootURL.appending(path: "\(descriptor.id.rawValue).resume")
+    }
+
+    private func finishDownload(at location: URL, descriptor: ModelDescriptor) {
+        defer {
+            tasksByModel[descriptor.id] = nil
+            try? FileManager.default.removeItem(at: resumeDataURL(for: descriptor))
+        }
+        do {
+            statusByModel[descriptor.id] = .available(try store.importVerifiedFile(at: location, as: descriptor))
+        } catch {
+            statusByModel[descriptor.id] = .failed(error.localizedDescription)
+        }
+    }
+}
+
+extension ModelDownloadController: URLSessionDownloadDelegate, URLSessionTaskDelegate {
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard totalBytesExpectedToWrite > 0 else { return }
+        Task { @MainActor in
+            guard let descriptor = self.descriptorsByTaskID[downloadTask.taskIdentifier] else { return }
+            self.statusByModel[descriptor.id] = .downloading(progress: Double(totalBytesWritten) / Double(totalBytesExpectedToWrite))
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        Task { @MainActor in
+            guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else { return }
+            self.finishDownload(at: location, descriptor: descriptor)
+        }
+    }
+
+    nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let error else { return }
+        Task { @MainActor in
+            guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: task.taskIdentifier) else { return }
+            self.tasksByModel[descriptor.id] = nil
+            if (error as NSError).code == NSURLErrorCancelled {
+                self.statusByModel[descriptor.id] = .interrupted
+            } else {
+                self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
+            }
+        }
+    }
+}
+
+enum ModelRuntimeError: LocalizedError {
+    case unqualifiedRuntime
+
+    var errorDescription: String? {
+        "The local AI runtime has not passed device qualification yet. Your manual wardrobe remains available."
+    }
+}
+
+protocol ModelEngine: AnyObject, Sendable {
+    func unload() async
+}
+
+protocol ModelEngineLoading: Sendable {
+    func load(_ model: VerifiedModel) async throws -> any ModelEngine
+}
+
+struct UnqualifiedModelEngineLoader: ModelEngineLoading {
+    func load(_ model: VerifiedModel) async throws -> any ModelEngine {
+        throw ModelRuntimeError.unqualifiedRuntime
+    }
+}
+
+private actor InferenceGate {
+    private var isLocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func enter() async {
+        guard isLocked else { isLocked = true; return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func leave() {
+        if waiters.isEmpty { isLocked = false }
+        else { waiters.removeFirst().resume() }
+    }
+}
+
+actor ModelInferenceCoordinator {
+    private let loader: any ModelEngineLoading
+    private let gate = InferenceGate()
+    private var active: (model: VerifiedModel, engine: any ModelEngine)?
+
+    init(loader: any ModelEngineLoading = UnqualifiedModelEngineLoader()) {
+        self.loader = loader
+    }
+
+    func withEngine<Result: Sendable>(for model: VerifiedModel, operation: @Sendable (any ModelEngine) async throws -> Result) async throws -> Result {
+        await gate.enter()
+        do {
+            let engine = try await prepareEngine(for: model)
+            let result = try await operation(engine)
+            await gate.leave()
+            return result
+        } catch {
+            await gate.leave()
+            throw error
+        }
+    }
+
+    func unload() async {
+        await gate.enter()
+        if let active {
+            await active.engine.unload()
+            self.active = nil
+        }
+        await gate.leave()
+    }
+
+    private func prepareEngine(for model: VerifiedModel) async throws -> any ModelEngine {
+        if let active, active.model.descriptor.id == model.descriptor.id { return active.engine }
+        if let active {
+            await active.engine.unload()
+            self.active = nil
+        }
+        let engine = try await loader.load(model)
+        active = (model, engine)
+        return engine
     }
 }
