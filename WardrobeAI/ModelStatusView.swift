@@ -9,6 +9,7 @@ struct ModelStatusView: View {
         List {
             Section {
                 Label("Manual wardrobe is available without a model.", systemImage: "checkmark.circle")
+                    .accessibilityIdentifier("manual-wardrobe-status")
                 Label("Imported and downloaded models are verified before they are stored.", systemImage: "checkmark.shield")
                     .foregroundStyle(.secondary)
             } header: {
