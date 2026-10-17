@@ -52,7 +52,7 @@ struct ModelStatusView: View {
                 if case .downloading = status { Button("Cancel", role: .cancel) { manager.downloads?.cancel(descriptor) } }
             }
             .buttonStyle(.bordered)
-            .disabled(!ModelRuntimePolicy.deviceQualificationPassed || manager.downloads == nil)
+            .disabled(!ModelRuntimePolicy.deviceQualificationPassed || manager.downloads == nil || isDownloading(status))
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(descriptor.id.rawValue) model: \(statusDescription(status))")
@@ -71,6 +71,11 @@ struct ModelStatusView: View {
     private func downloadTitle(_ status: ModelTransferStatus) -> String {
         if case .interrupted = status { return "Resume" }
         return "Download"
+    }
+
+    private func isDownloading(_ status: ModelTransferStatus) -> Bool {
+        if case .downloading = status { return true }
+        return false
     }
 
     private func downloadAction(_ descriptor: ModelDescriptor, status: ModelTransferStatus) {

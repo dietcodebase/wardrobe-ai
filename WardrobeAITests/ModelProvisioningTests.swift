@@ -18,13 +18,13 @@ final class ModelProvisioningTests: XCTestCase {
         let directory = try temporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appending(path: "chosen.litertlm")
-        try Data([0, 1, 2]).write(to: source)
-        let descriptor = descriptor(bytes: 3, hash: "valid")
+        try Data("valid".utf8).write(to: source)
+        let descriptor = descriptor(bytes: 5, hash: "valid")
         let store = try ModelStore(rootURL: directory.appending(path: "Models"), verifier: StubVerifier())
 
         let imported = try store.importVerifiedFile(at: source, as: descriptor)
 
-        XCTAssertEqual(try Data(contentsOf: imported.fileURL), Data([0, 1, 2]))
+        XCTAssertEqual(try Data(contentsOf: imported.fileURL), Data("valid".utf8))
         XCTAssertTrue(FileManager.default.fileExists(atPath: source.path))
         XCTAssertTrue(try XCTUnwrap(imported.fileURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup))
     }
@@ -55,10 +55,14 @@ final class ModelProvisioningTests: XCTestCase {
 
 private struct StubVerifier: ModelFileVerifying {
     func verify(_ fileURL: URL, against descriptor: ModelDescriptor) throws {
+        let data = try Data(contentsOf: fileURL)
         let values = try fileURL.resourceValues(forKeys: [.fileSizeKey])
         let bytes = Int64(values.fileSize ?? 0)
         guard bytes == descriptor.expectedBytes else {
             throw ModelProvisioningError.incorrectSize(expected: descriptor.expectedBytes, actual: bytes)
+        }
+        guard String(data: data, encoding: .utf8) == descriptor.sha256 else {
+            throw ModelProvisioningError.incorrectChecksum
         }
     }
 }

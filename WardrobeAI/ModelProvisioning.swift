@@ -27,7 +27,7 @@ struct ModelDescriptor: Equatable, Sendable, Identifiable {
 
     static let qualifiedCandidates: [ModelDescriptor] = [
         ModelDescriptor(id: .e2b, filename: "gemma-4-E2B-it-gpu.litertlm", expectedBytes: 2_008_432_640, sha256: "a53a59001894c58e6bdb5b9b227709f91a2e3e556baa7d85acf9c55402ba5cf5", downloadURL: URL(string: "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it-gpu.litertlm")!),
-        ModelDescriptor(id: .embedding, filename: "embeddinggemma-2-740m.litertlm", expectedBytes: 484_622_336, sha256: "e7a8a2204f91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c", downloadURL: URL(string: "https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/24d962e906c7d332c6428e71c9676855024569e2/embeddinggemma-2-740m.litertlm")!),
+        ModelDescriptor(id: .embedding, filename: "embeddinggemma-2-740m.litertlm", expectedBytes: 484_622_336, sha256: "e7a8a2204b91e0f96e92960e84a09a89212e1633dcb7575a9bf3378b4df77f4c", downloadURL: URL(string: "https://huggingface.co/litert-community/embeddinggemma-2-740m-litert-lm/resolve/24d962e906c7d332c6428e71c9676855024569e2/embeddinggemma-2-740m.litertlm")!),
         ModelDescriptor(id: .e4b, filename: "gemma-4-E4B-it-gpu.litertlm", expectedBytes: 2_969_059_328, sha256: "4912bb5a9c30993c51a7711f763212077458529312175df0573a78323a2bb7ff", downloadURL: URL(string: "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/2eee7ac325f20eb8c9ac1d0e972f7c84663062da/gemma-4-E4B-it-gpu.litertlm")!)
     ]
 }
@@ -181,7 +181,7 @@ final class ModelManager: ObservableObject {
         self.store = store
         self.downloads = store.map(ModelDownloadController.init)
         if store == nil { provisioningMessage = "Secure model storage is unavailable. Your manual wardrobe is still available." }
-        downloads?.refresh()
+        downloads?.refreshInBackground()
         let center = NotificationCenter.default
         observers = [center.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.releaseForSystemPressure() } }]
 #if canImport(UIKit)
@@ -238,10 +238,20 @@ final class ModelDownloadController: NSObject, ObservableObject {
         super.init()
     }
 
-    func refresh() {
-        for descriptor in ModelDescriptor.qualifiedCandidates {
-            statusByModel[descriptor.id] = (try? store.verifiedModel(for: descriptor)).flatMap { $0.map(ModelTransferStatus.available) } ?? .notPresent
+    func refreshInBackground() {
+        let store = self.store
+        Task.detached(priority: .utility) { [weak self] in
+            var statuses: [ModelID: ModelTransferStatus] = [:]
+            for descriptor in ModelDescriptor.qualifiedCandidates {
+                statuses[descriptor.id] = (try? store.verifiedModel(for: descriptor))
+                    .flatMap { $0.map(ModelTransferStatus.available) } ?? .notPresent
+            }
+            await self?.apply(statuses)
         }
+    }
+
+    private func apply(_ statuses: [ModelID: ModelTransferStatus]) {
+        statusByModel.merge(statuses) { _, new in new }
     }
 
     func recordImported(_ model: VerifiedModel) {
@@ -249,6 +259,7 @@ final class ModelDownloadController: NSObject, ObservableObject {
     }
 
     func download(_ descriptor: ModelDescriptor) {
+        guard tasksByModel[descriptor.id] == nil else { return }
         do {
             try store.ensureCapacity(for: descriptor)
             let task = session.downloadTask(with: descriptor.downloadURL)
@@ -272,6 +283,7 @@ final class ModelDownloadController: NSObject, ObservableObject {
     }
 
     func resume(_ descriptor: ModelDescriptor) {
+        guard tasksByModel[descriptor.id] == nil else { return }
         let resumeURL = resumeDataURL(for: descriptor)
         guard let data = try? Data(contentsOf: resumeURL) else {
             download(descriptor)
@@ -311,9 +323,24 @@ extension ModelDownloadController: URLSessionDownloadDelegate, URLSessionTaskDel
     }
 
     nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        let ownedURL = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).litertlm")
+        do {
+            try FileManager.default.moveItem(at: location, to: ownedURL)
+        } catch {
+            Task { @MainActor in
+                guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else { return }
+                self.tasksByModel[descriptor.id] = nil
+                self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
+            }
+            return
+        }
         Task { @MainActor in
-            guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else { return }
-            self.finishDownload(at: location, descriptor: descriptor)
+            guard let descriptor = self.descriptorsByTaskID.removeValue(forKey: downloadTask.taskIdentifier) else {
+                try? FileManager.default.removeItem(at: ownedURL)
+                return
+            }
+            defer { try? FileManager.default.removeItem(at: ownedURL) }
+            self.finishDownload(at: ownedURL, descriptor: descriptor)
         }
     }
 

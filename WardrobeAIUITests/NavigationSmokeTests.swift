@@ -8,7 +8,7 @@ final class NavigationSmokeTests: XCTestCase {
         let destinations = [
             ("Wardrobe", "No garments yet"),
             ("Outfits", "No saved outfits"),
-            ("Stylist", "Your personal stylist is coming soon"),
+            ("Stylist", "Local AI status"),
             ("Wardrobe", "No garments yet")
         ]
         for (title, message) in destinations {

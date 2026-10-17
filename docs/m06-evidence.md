@@ -30,8 +30,17 @@ Recorded 17 October 2026.
 - `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -sdk iphoneos -configuration Debug -derivedDataPath /private/tmp/wardrobeai-m06-derived CODE_SIGNING_ALLOWED=NO build` — passed with Xcode 27.1 (27A9275).
 - `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -destination 'platform=iOS Simulator,id=56183167-984D-4BF9-9522-CB67E07B4ADD' -derivedDataPath /private/tmp/wardrobeai-m06-sim-derived CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES test` — passed on iPhone Duo, iOS 27.1.
 - The same simulator suite passed again after enabling provisioning under the M01 waiver.
+- The simulator suite passed after the PR review and CI fixes on Xcode 27.1,
+  iPhone Duo iOS 27.1. GitHub Actions runs the repository's pinned Xcode 16.4
+  workflow on the updated PR branch.
 - Unit tests cover rejected existing files, verified import semantics, wrong-size
   rejection and serial unload-before-switch behavior.
+
+PR review fixes: completed URLSession downloads are moved into an app-owned
+temporary file before the delegate returns; startup hashing runs off the main
+actor; the embedding SHA-256 matches `Qualification/artifacts.json`; duplicate
+downloads/resumes are ignored while a transfer is active; UI smoke coverage
+checks the Local AI status section.
 
 ## M01 waiver and outstanding validation
 
