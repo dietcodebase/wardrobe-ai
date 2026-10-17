@@ -56,6 +56,11 @@ struct GarmentEditor: View {
     @State private var capturedImage: GarmentCaptureCandidate?
     @State private var isCapturing = false
     @State private var errorMessage: String?
+    @State private var classification: ClassificationProvenance?
+    @State private var isClassifying = false
+    @State private var classificationMessage: String?
+    @State private var classificationTask: Task<Void, Never>?
+    private let classifier = GarmentClassificationCoordinator()
 
     init(store: WardrobeStore, item: GarmentItem? = nil) {
         self.store = store
@@ -65,6 +70,7 @@ struct GarmentEditor: View {
         _color = State(initialValue: item?.color ?? "")
         _tags = State(initialValue: item?.tags.joined(separator: ", ") ?? "")
         _notes = State(initialValue: item?.notes ?? "")
+        _classification = State(initialValue: item?.classification)
     }
 
     var body: some View {
@@ -92,6 +98,25 @@ struct GarmentEditor: View {
                     }
                     Button(capturedImage == nil ? "Add photo" : "Change photo") { isCapturing = true }
                 }
+                Section("Automatic suggestions") {
+                    if isClassifying {
+                        HStack { ProgressView(); Text("Finding editable suggestions…") }
+                        Button("Stop suggestions", role: .cancel) { cancelClassification() }
+                    } else if let classification {
+                        Text("Suggested locally by \(classification.modelID.uppercased()). Review and edit every field before saving.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        if let material = classification.suggestion.materialGuess {
+                            LabeledContent("Material guess", value: material + " — verify this")
+                                .font(.footnote)
+                        }
+                        Button("Try automatic suggestions again") { startClassification() }
+                    } else {
+                        Text(classificationMessage ?? "Suggestions are optional. Manual garment details always work.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Button("Suggest garment details") { startClassification() }
+                            .disabled(capturedImage == nil)
+                    }
+                }
                 Section("Occasion ideas") { Text(GarmentTaxonomy.occasions.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary) }
             }
             .navigationTitle(item == nil ? "Add garment" : "Edit garment")
@@ -100,12 +125,17 @@ struct GarmentEditor: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.accessibilityLabel("Save garment") }
             }
             .alert("Couldn’t save garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
-            .sheet(isPresented: $isCapturing) { GarmentCaptureSheet { candidate in capturedImage = candidate } }
+            .sheet(isPresented: $isCapturing) { GarmentCaptureSheet { candidate in
+                capturedImage = candidate
+                startClassification()
+            } }
+            .onDisappear { cancelClassification() }
         }
     }
 
     private func save() {
-        let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: tags.split(separator: ",").map(String.init), notes: notes.nilIfBlank, imagePath: item?.imagePath)
+        let userTags = tags.split(separator: ",").map(String.init)
+        let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: userTags, notes: notes.nilIfBlank, imagePath: item?.imagePath, classification: savedClassification())
         do {
             if var item {
                 item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes
@@ -113,6 +143,50 @@ struct GarmentEditor: View {
             } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func startClassification() {
+        guard let capturedImage else { return }
+        cancelClassification()
+        isClassifying = true
+        classification = nil
+        classificationMessage = nil
+        let data = capturedImage.data
+        classificationTask = Task {
+            do {
+                let result = try await classifier.classify(imageData: data)
+                guard !Task.isCancelled else { return }
+                classification = result
+                category = result.suggestion.category
+                color = result.suggestion.color ?? ""
+                tags = result.suggestion.tags.joined(separator: ", ")
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                classification = nil
+                classificationMessage = error.localizedDescription
+            }
+            guard !Task.isCancelled else { return }
+            isClassifying = false
+            classificationTask = nil
+        }
+    }
+
+    private func cancelClassification() {
+        classificationTask?.cancel()
+        classificationTask = nil
+        isClassifying = false
+    }
+
+    private func savedClassification() -> ClassificationProvenance? {
+        guard var classification else { return nil }
+        let editedTags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        classification.wasEditedBeforeSave = classification.wasEditedBeforeSave
+            || category != classification.suggestion.category
+            || color.nilIfBlank != classification.suggestion.color
+            || editedTags != classification.suggestion.tags
+        return classification
     }
 }
 
