@@ -10,7 +10,11 @@ struct OutfitView: View {
         NavigationStack {
             List {
                 if store.outfits.isEmpty {
-                    ContentUnavailableView("No saved outfits", systemImage: "square.grid.2x2", description: Text("Combine garments into an outfit, then record it only when you actually wear it.")) {
+                    ContentUnavailableView {
+                        Label("No saved outfits", systemImage: "square.grid.2x2")
+                    } description: {
+                        Text("Combine garments into an outfit, then record it only when you actually wear it.")
+                    } actions: {
                         Button("Create outfit") { isAdding = true }.buttonStyle(.borderedProminent)
                     }
                     .listRowBackground(Color.clear)
