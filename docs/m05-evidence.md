@@ -18,4 +18,4 @@ Recorded 17 October 2026.
 
 ## Blocking validation
 
-`xcodebuild -version` cannot run in this environment because the active developer directory is `/Library/Developer/CommandLineTools`, not the required full Xcode 16.4. The simulator build and XCTest suite in `scripts/check-ios.sh` are therefore unrun. The PR remains draft until those checks pass. No device validation is required for M05's local-storage behavior.
+`xcodebuild -version` cannot run in this environment because the active developer directory is `/Library/Developer/CommandLineTools`, not the required full Xcode 16.4. The simulator build and XCTest suite in `scripts/check-ios.sh` are therefore unrun. PR #6 is open for review; its simulator validation remains blocked until full Xcode 16.4 is available. No device validation is required for M05's local-storage behavior.
