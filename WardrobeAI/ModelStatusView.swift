@@ -2,6 +2,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ModelStatusView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @ObservedObject var manager: ModelManager
     @ObservedObject var store: WardrobeStore
     @State private var importingDescriptor: ModelDescriptor?
@@ -10,6 +11,7 @@ struct ModelStatusView: View {
     @State private var message: String?
     @AppStorage("weather-city") private var weatherCity = ""
     @State private var weatherState = WeatherContextState.unavailable(reason: "Choose a city to add optional weather context.")
+    @State private var weatherRefreshTask: Task<Void, Never>?
     private let weatherService = WeatherContextService(provider: OpenWeatherMapProvider())
 
     private var suggestions: [OutfitSuggestion] {
@@ -79,6 +81,17 @@ struct ModelStatusView: View {
             guard !weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             if let cached = await weatherService.cachedState(for: WeatherLocation(city: weatherCity)) { weatherState = cached }
         }
+        .task(id: weatherState.snapshot?.fetchedAt) {
+            while !Task.isCancelled {
+                weatherState = await weatherService.currentState(from: weatherState)
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task { weatherState = await weatherService.currentState(from: weatherState) }
+        }
+        .onDisappear { weatherRefreshTask?.cancel() }
     }
 
     @ViewBuilder
@@ -158,9 +171,7 @@ struct ModelStatusView: View {
             Text("Optional weather context").font(.headline)
             HStack {
                 TextField("City", text: $weatherCity).textInputAutocapitalization(.words)
-                Button("Refresh") {
-                    Task { weatherState = await weatherService.refresh(location: WeatherLocation(city: weatherCity)) }
-                }
+                Button("Refresh", action: refreshWeather)
                 .disabled(weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             Text(weatherDescription).font(.footnote).foregroundStyle(.secondary)
@@ -175,6 +186,19 @@ struct ModelStatusView: View {
         case let .cached(snapshot): return "Cached weather: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity)."
         case let .stale(snapshot, reason): return "Stale weather: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity). \(reason) Recommendations are not adjusted."
         case let .unavailable(reason): return "Weather unavailable: \(reason) Recommendations remain usable without it."
+        }
+    }
+
+    private func refreshWeather() {
+        weatherRefreshTask?.cancel()
+        let location = WeatherLocation(city: weatherCity)
+        let requestedCity = location.normalizedCity
+        weatherRefreshTask = Task {
+            let state = await weatherService.refresh(location: location)
+            guard !Task.isCancelled,
+                  weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(requestedCity) == .orderedSame
+            else { return }
+            weatherState = state
         }
     }
 }

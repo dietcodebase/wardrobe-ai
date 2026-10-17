@@ -125,6 +125,14 @@ actor WeatherContextService {
         return now().timeIntervalSince(snapshot.fetchedAt) <= freshFor ? .cached(snapshot) : .stale(snapshot, reason: "Update needed")
     }
 
+    func currentState(from state: WeatherContextState) -> WeatherContextState {
+        guard case let .fresh(snapshot) = state else { return state }
+        guard now().timeIntervalSince(snapshot.fetchedAt) <= freshFor else {
+            return .stale(snapshot, reason: "Update needed")
+        }
+        return state
+    }
+
     func refresh(location: WeatherLocation) async -> WeatherContextState {
         guard !location.normalizedCity.isEmpty else { return .unavailable(reason: WeatherError.invalidCity.localizedDescription) }
         do {

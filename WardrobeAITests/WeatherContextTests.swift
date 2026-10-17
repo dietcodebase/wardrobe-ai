@@ -14,9 +14,19 @@ final class WeatherContextTests: XCTestCase {
         let cache = InMemoryWeatherCache()
         await cache.save(WeatherSnapshot(location: location, temperatureCelsius: 24, condition: .clear, description: "clear", fetchedAt: now))
         let service = WeatherContextService(provider: FixtureProvider(), cache: cache, freshFor: 60, now: { now.addingTimeInterval(30) })
-        XCTAssertEqual(await service.cachedState(for: location), .cached(WeatherSnapshot(location: location, temperatureCelsius: 24, condition: .clear, description: "clear", fetchedAt: now)))
+        let cached = await service.cachedState(for: location)
+        XCTAssertEqual(cached, .cached(WeatherSnapshot(location: location, temperatureCelsius: 24, condition: .clear, description: "clear", fetchedAt: now)))
         let stale = WeatherContextService(provider: FixtureProvider(), cache: cache, freshFor: 60, now: { now.addingTimeInterval(61) })
         guard case .stale = await stale.cachedState(for: location) else { return XCTFail("Expected stale cache") }
+    }
+
+    func testFreshStateExpiresUsingTheConfiguredFreshnessWindow() async {
+        let fetchedAt = Date(timeIntervalSince1970: 1_000)
+        let snapshot = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 24, condition: .clear, description: "clear", fetchedAt: fetchedAt)
+        let service = WeatherContextService(provider: FixtureProvider(), freshFor: 60, now: { fetchedAt.addingTimeInterval(61) })
+
+        let expired = await service.currentState(from: .fresh(snapshot))
+        XCTAssertEqual(expired, .stale(snapshot, reason: "Update needed"))
     }
 
     func testFailedRefreshKeepsStaleWeatherAndEmptyCacheIsUnavailable() async {
