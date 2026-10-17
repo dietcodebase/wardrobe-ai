@@ -39,7 +39,7 @@ actor SemanticSearchCoordinator {
                 itemID: item.id, metadata: embedder.metadata, contentHash: contentHash(for: item),
                 vector: vector, indexedAt: Date()
             )
-            try repository.saveEmbedding(embedding)
+            _ = try repository.saveEmbedding(embedding, for: item)
         }
     }
 
@@ -49,7 +49,8 @@ actor SemanticSearchCoordinator {
         let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         return try repository.embeddings(compatibleWith: embedder.metadata)
             .compactMap { embedding in
-                guard let item = byID[embedding.itemID] else { return nil }
+                guard let item = byID[embedding.itemID],
+                      contentHash(for: item) == embedding.contentHash else { return nil }
                 return SemanticSearchResult(item: item, score: cosine(vector, embedding.vector))
             }
             .sorted { $0.score > $1.score }

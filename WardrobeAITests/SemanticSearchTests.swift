@@ -26,6 +26,18 @@ final class SemanticSearchTests: XCTestCase {
         XCTAssertTrue(try repository.embeddings(compatibleWith: metadata).isEmpty)
     }
 
+    func testStaleItemSnapshotCannotRestoreEmbeddingAfterEdit() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(name: "Coat", category: "Outerwear"))
+        var edited = item
+        edited.name = "Rain coat"
+        _ = try repository.updateItem(edited)
+
+        let staleEmbedding = GarmentEmbedding(itemID: item.id, metadata: metadata, contentHash: "old", vector: [1, 0, 0], indexedAt: .now)
+        XCTAssertFalse(try repository.saveEmbedding(staleEmbedding, for: item))
+        XCTAssertTrue(try repository.embeddings(compatibleWith: metadata).isEmpty)
+    }
+
     func testUnavailableEmbedderLeavesTextSearchFallbackUsable() async throws {
         let repository = try makeRepository()
         let item = try repository.createItem(GarmentDraft(name: "Linen shirt", category: "Top"))

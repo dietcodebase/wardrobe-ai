@@ -363,7 +363,34 @@ final class WardrobeRepository {
         guard isValid(embedding.vector, metadata: embedding.metadata) else { throw SemanticSearchError.invalidVector }
         try database.write { database in
             guard try itemExists(embedding.itemID, in: database) else { throw WardrobeRepositoryError.itemNotFound(embedding.itemID) }
-            try database.execute(sql: """
+            try upsertEmbedding(embedding, in: database)
+        }
+    }
+
+    /// Saves an embedding only if the item still has the content used to produce it.
+    /// The comparison and upsert share one write transaction so an edit cannot race
+    /// between validation and persistence.
+    @discardableResult
+    func saveEmbedding(_ embedding: GarmentEmbedding, for itemSnapshot: GarmentItem) throws -> Bool {
+        guard isValid(embedding.vector, metadata: embedding.metadata) else { throw SemanticSearchError.invalidVector }
+        guard embedding.itemID == itemSnapshot.id else { return false }
+        return try database.write { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM items WHERE id = ?", arguments: [itemSnapshot.id.uuidString]) else {
+                return false
+            }
+            let currentItem = try garmentItem(from: row)
+            guard currentItem.name == itemSnapshot.name,
+                  currentItem.category == itemSnapshot.category,
+                  currentItem.color == itemSnapshot.color,
+                  currentItem.tags == itemSnapshot.tags,
+                  currentItem.notes == itemSnapshot.notes else { return false }
+            try upsertEmbedding(embedding, in: database)
+            return true
+        }
+    }
+
+    private func upsertEmbedding(_ embedding: GarmentEmbedding, in database: Database) throws {
+        try database.execute(sql: """
                 INSERT INTO item_embeddings (item_id, model_id, model_revision, dimension, normalized, preprocessing_version, content_hash, vector, indexed_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(item_id) DO UPDATE SET
@@ -376,7 +403,6 @@ final class WardrobeRepository {
                     embedding.metadata.dimension, embedding.metadata.normalized, embedding.metadata.preprocessingVersion,
                     embedding.contentHash, vectorData(embedding.vector), embedding.indexedAt
                 ])
-        }
     }
 
     func embeddings(compatibleWith metadata: EmbeddingMetadata) throws -> [GarmentEmbedding] {
