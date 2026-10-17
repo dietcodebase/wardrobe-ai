@@ -1,7 +1,91 @@
 import AVFoundation
+import CoreImage
 import PhotosUI
 import SwiftUI
 import UIKit
+import Vision
+
+struct AverageSwatch: Equatable {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+
+    var color: Color { Color(red: red, green: green, blue: blue) }
+}
+
+struct GarmentCaptureCandidate: Identifiable {
+    enum Kind: String { case original, foreground }
+
+    let id = UUID()
+    let kind: Kind
+    let image: UIImage
+    let data: Data
+    let swatch: AverageSwatch
+}
+
+enum GarmentImagePreparation {
+    static func originalCandidate(from image: UIImage, maximumDimension: CGFloat = 1_600) throws -> GarmentCaptureCandidate {
+        let normalized = normalizedImage(from: image, maximumDimension: maximumDimension)
+        guard let data = normalized.jpegData(compressionQuality: 0.9) else { throw GarmentCaptureError.unreadableImage }
+        return GarmentCaptureCandidate(kind: .original, image: normalized, data: data, swatch: averageSwatch(for: normalized))
+    }
+
+    static func foregroundCandidates(from original: GarmentCaptureCandidate) throws -> [GarmentCaptureCandidate] {
+        guard let cgImage = original.image.cgImage else { return [] }
+        let request = VNGenerateForegroundInstanceMaskRequest()
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        try handler.perform([request])
+        guard let observation = request.results?.first, !observation.allInstances.isEmpty else { return [] }
+
+        let source = CIImage(cgImage: cgImage)
+        let clearBackground = CIImage(color: .clear).cropped(to: source.extent)
+        let context = CIContext(options: nil)
+        return try observation.allInstances.compactMap { instance in
+            let maskBuffer = try observation.generateScaledMaskForImage(forInstances: IndexSet(integer: instance), from: handler)
+            let cutout = source.applyingFilter(
+                "CIBlendWithMask",
+                parameters: [
+                    kCIInputBackgroundImageKey: clearBackground,
+                    kCIInputMaskImageKey: CIImage(cvPixelBuffer: maskBuffer)
+                ]
+            )
+            guard let output = context.createCGImage(cutout, from: source.extent) else { return nil }
+            let image = UIImage(cgImage: output)
+            guard let data = image.pngData() else { return nil }
+            return GarmentCaptureCandidate(kind: .foreground, image: image, data: data, swatch: averageSwatch(for: image))
+        }
+    }
+
+    static func averageSwatch(for image: UIImage) -> AverageSwatch {
+        guard let cgImage = image.cgImage else { return AverageSwatch(red: 0.5, green: 0.5, blue: 0.5) }
+        var pixels = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(
+            data: &pixels, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return AverageSwatch(red: 0.5, green: 0.5, blue: 0.5) }
+        context.interpolationQuality = .medium
+        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let alpha = CGFloat(pixels[3]) / 255
+        guard alpha > 0 else { return AverageSwatch(red: 0.5, green: 0.5, blue: 0.5) }
+        return AverageSwatch(
+            red: min(1, CGFloat(pixels[0]) / 255 / alpha),
+            green: min(1, CGFloat(pixels[1]) / 255 / alpha),
+            blue: min(1, CGFloat(pixels[2]) / 255 / alpha)
+        )
+    }
+
+    private static func normalizedImage(from image: UIImage, maximumDimension: CGFloat) -> UIImage {
+        let sourceSize = image.size
+        let scale = min(1, maximumDimension / max(sourceSize.width, sourceSize.height))
+        let targetSize = CGSize(width: max(1, floor(sourceSize.width * scale)), height: max(1, floor(sourceSize.height * scale)))
+        let format = UIGraphicsImageRendererFormat.default()
+        format.opaque = true
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: targetSize, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+}
 
 enum GarmentCaptureError: LocalizedError {
     case cameraUnavailable
