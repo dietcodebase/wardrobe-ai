@@ -45,16 +45,24 @@ private struct WardrobeView: View {
                         Button("Add garment") { isAdding = true }.buttonStyle(.borderedProminent)
                     }
                 } else {
-                    ScrollView { LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(store.items) { item in
-                            Button { selectedItem = item } label: { GarmentCard(item: item, store: store) }
-                                .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
+                    ScrollView {
+                        if let message = store.searchModeMessage {
+                            Label(message, systemImage: "text.magnifyingglass")
+                                .font(.footnote).foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.top, 8)
+                                .accessibilityLabel("Search mode: \(message)")
                         }
-                    }.padding() }
+                        LazyVGrid(columns: columns, spacing: 16) {
+                            ForEach(store.items) { item in
+                                Button { selectedItem = item } label: { GarmentCard(item: item, store: store) }
+                                    .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
+                            }
+                        }.padding()
+                    }
                 }
             }
             .navigationTitle("Wardrobe")
-            .searchable(text: $store.searchText, prompt: "Search garments, colors, tags")
+            .searchable(text: $store.searchText, prompt: "Search garments, colors, tags, or describe a garment")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu { Button("All categories") { store.selectedCategory = nil }; Divider(); ForEach(GarmentTaxonomy.categories, id: \.self) { category in Button(category) { store.selectedCategory = category } } } label: {

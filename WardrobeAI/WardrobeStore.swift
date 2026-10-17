@@ -18,6 +18,7 @@ final class WardrobeStore: ObservableObject {
     @Published private(set) var wearEvents: [WearEvent] = []
     @Published private(set) var underusedItems: [WearItemSummary] = []
     @Published private(set) var errorMessage: String?
+    @Published private(set) var searchModeMessage: String?
     @Published var searchText = "" { didSet { loadItems() } }
     @Published var selectedCategory: String? { didSet { loadItems() } }
     @Published var selectedTag: String? { didSet { loadItems() } }
@@ -45,6 +46,9 @@ final class WardrobeStore: ObservableObject {
     func loadItems() {
         do {
             items = try repository.items(matching: searchText, category: selectedCategory, tag: selectedTag)
+            searchModeMessage = searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? nil
+                : "Showing text matches. Semantic search will be available after this device passes the embedding qualification."
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription

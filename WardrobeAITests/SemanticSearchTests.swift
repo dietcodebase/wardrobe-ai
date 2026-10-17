@@ -12,7 +12,7 @@ final class SemanticSearchTests: XCTestCase {
         let coordinator = SemanticSearchCoordinator(repository: repository, embedder: FakeEmbedder(metadata: metadata, query: [1, 0, 0]))
         let results = try await coordinator.search(query: "breathable blue", items: [blue, black])
         XCTAssertEqual(results.map(\.item.id), [blue.id, black.id])
-        XCTAssertEqual(results.first?.score, 1, accuracy: 0.0001)
+        XCTAssertEqual(try XCTUnwrap(results.first).score, 1, accuracy: 0.0001)
     }
 
     func testRejectsInvalidVectorsAndEditingInvalidatesEmbedding() throws {
