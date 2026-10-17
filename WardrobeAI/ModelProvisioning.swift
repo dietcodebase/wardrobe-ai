@@ -1,5 +1,13 @@
 import CryptoKit
 import Foundation
+#if canImport(UIKit)
+import UIKit
+#endif
+
+enum ModelRuntimePolicy {
+    /// M01 must replace this only after its physical-device acceptance evidence is recorded.
+    static let deviceQualificationPassed = false
+}
 
 enum ModelID: String, CaseIterable, Identifiable, Sendable {
     case e2b
@@ -161,6 +169,57 @@ enum ModelTransferStatus: Equatable {
 }
 
 @MainActor
+final class ModelManager: ObservableObject {
+    @Published private(set) var provisioningMessage: String?
+    let downloads: ModelDownloadController?
+
+    private let store: ModelStore?
+    private var observers: [NSObjectProtocol] = []
+
+    init(store: ModelStore? = try? .applicationSupport()) {
+        self.store = store
+        self.downloads = store.map(ModelDownloadController.init)
+        if store == nil { provisioningMessage = "Secure model storage is unavailable. Your manual wardrobe is still available." }
+        downloads?.refresh()
+        let center = NotificationCenter.default
+        observers = [center.addObserver(forName: ProcessInfo.thermalStateDidChangeNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.releaseForSystemPressure() } }]
+#if canImport(UIKit)
+        observers.append(center.addObserver(forName: UIApplication.didReceiveMemoryWarningNotification, object: nil, queue: .main) { [weak self] _ in Task { @MainActor in self?.releaseForSystemPressure() } })
+#endif
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    func importModel(at fileURL: URL, descriptor: ModelDescriptor) {
+        guard ModelRuntimePolicy.deviceQualificationPassed else {
+            provisioningMessage = "Model provisioning stays disabled until M01 qualifies this device and runtime combination."
+            return
+        }
+        guard let store else { return }
+        let accessed = fileURL.startAccessingSecurityScopedResource()
+        defer { if accessed { fileURL.stopAccessingSecurityScopedResource() } }
+        do {
+            let model = try store.importVerifiedFile(at: fileURL, as: descriptor)
+            downloads?.recordImported(model)
+            provisioningMessage = "\(descriptor.id.rawValue.uppercased()) was verified and stored locally."
+        } catch {
+            provisioningMessage = error.localizedDescription
+        }
+    }
+
+    func releaseForSystemPressure() {
+        Task { await ModelRuntime.shared.unload() }
+        provisioningMessage = "Released the local model after memory or thermal pressure."
+    }
+
+    func reportProvisioningFailure(_ error: Error) {
+        provisioningMessage = error.localizedDescription
+    }
+}
+
+@MainActor
 final class ModelDownloadController: NSObject, ObservableObject {
     @Published private(set) var statusByModel: [ModelID: ModelTransferStatus] = [:]
 
@@ -182,6 +241,10 @@ final class ModelDownloadController: NSObject, ObservableObject {
         for descriptor in ModelDescriptor.qualifiedCandidates {
             statusByModel[descriptor.id] = (try? store.verifiedModel(for: descriptor)).flatMap { $0.map(ModelTransferStatus.available) } ?? .notPresent
         }
+    }
+
+    func recordImported(_ model: VerifiedModel) {
+        statusByModel[model.descriptor.id] = .available(model)
     }
 
     func download(_ descriptor: ModelDescriptor) {
@@ -345,4 +408,8 @@ actor ModelInferenceCoordinator {
         active = (model, engine)
         return engine
     }
+}
+
+enum ModelRuntime {
+    static let shared = ModelInferenceCoordinator()
 }

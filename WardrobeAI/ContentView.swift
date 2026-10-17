@@ -12,12 +12,14 @@ enum AppTab: String, CaseIterable, Identifiable {
 
 struct ContentView: View {
     @ObservedObject var store: WardrobeStore
+    @ObservedObject var modelManager: ModelManager
 
     var body: some View {
         TabView {
             WardrobeView(store: store).tabItem { Label(AppTab.wardrobe.rawValue, systemImage: AppTab.wardrobe.symbol) }
             OutfitView(store: store).tabItem { Label(AppTab.outfits.rawValue, systemImage: AppTab.outfits.symbol) }
-            placeholder(for: .stylist).tabItem { Label(AppTab.stylist.rawValue, systemImage: AppTab.stylist.symbol) }
+            NavigationStack { ModelStatusView(manager: modelManager).navigationTitle(AppTab.stylist.rawValue) }
+                .tabItem { Label(AppTab.stylist.rawValue, systemImage: AppTab.stylist.symbol) }
         }
     }
 
