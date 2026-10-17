@@ -72,6 +72,7 @@ final class WardrobeStore: ObservableObject {
             }
         }
         loadItems()
+        loadOutfitData()
     }
 
     func create(_ draft: GarmentDraft) throws {

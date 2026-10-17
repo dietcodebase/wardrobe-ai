@@ -92,29 +92,39 @@ private struct OutfitDetail: View {
     let outfit: Outfit
     @ObservedObject var store: WardrobeStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.calendar) private var calendar
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var errorMessage: String?
-    @State private var didWearToday = false
+
+    private var displayedOutfit: Outfit {
+        store.outfits.first(where: { $0.id == outfit.id }) ?? outfit
+    }
+
+    private var didWearToday: Bool {
+        store.wearEvents.contains { event in
+            event.outfitID == displayedOutfit.id && calendar.isDateInToday(event.wornAt)
+        }
+    }
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Garments") { ForEach(outfit.itemIDs, id: \.self) { id in Text(store.item(id: id)?.name ?? "Removed garment").foregroundStyle(store.item(id: id) == nil ? .secondary : .primary) } }
-                if let notes = outfit.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
+                Section("Garments") { ForEach(displayedOutfit.itemIDs, id: \.self) { id in Text(store.item(id: id)?.name ?? "Removed garment").foregroundStyle(store.item(id: id) == nil ? .secondary : .primary) } }
+                if let notes = displayedOutfit.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
                 Section { Button(didWearToday ? "Worn today" : "Wear today") { wearToday() }.buttonStyle(.borderedProminent).disabled(didWearToday) }
                 Section { Button("Delete outfit", role: .destructive) { isConfirmingDelete = true } }
             }
-            .navigationTitle(outfit.name)
+            .navigationTitle(displayedOutfit.name)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { isEditing = true } } }
-            .sheet(isPresented: $isEditing) { OutfitEditor(store: store, outfit: outfit) }
-            .confirmationDialog("Delete \(outfit.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) { Button("Delete", role: .destructive) { delete() } }
+            .sheet(isPresented: $isEditing) { OutfitEditor(store: store, outfit: displayedOutfit) }
+            .confirmationDialog("Delete \(displayedOutfit.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) { Button("Delete", role: .destructive) { delete() } }
             .alert("Couldn’t update outfit", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
     }
 
-    private func wearToday() { do { _ = try store.wearToday(outfit); didWearToday = true } catch { errorMessage = error.localizedDescription } }
-    private func delete() { do { try store.deleteOutfit(outfit); dismiss() } catch { errorMessage = error.localizedDescription } }
+    private func wearToday() { do { _ = try store.wearToday(displayedOutfit) } catch { errorMessage = error.localizedDescription } }
+    private func delete() { do { try store.deleteOutfit(displayedOutfit); dismiss() } catch { errorMessage = error.localizedDescription } }
 }
 
 private struct OutfitEditor: View {
