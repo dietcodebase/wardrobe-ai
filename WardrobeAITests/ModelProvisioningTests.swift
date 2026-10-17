@@ -100,6 +100,13 @@ final class ModelProvisioningTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
     }
 
+    func testResumeCapacityUsesOnlyBytesRemainingAfterTheResumeOffset() {
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 7_500), 2_500)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 0), 10_000)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: 12_000), 0)
+        XCTAssertEqual(ModelStore.remainingBytes(totalBytes: 10_000, receivedBytes: -1), 10_000)
+    }
+
     private func descriptor(bytes: Int64, hash: String) -> ModelDescriptor {
         ModelDescriptor(id: .e2b, filename: "test.litertlm", expectedBytes: bytes, sha256: hash, downloadURL: URL(string: "https://example.com/test")!)
     }
