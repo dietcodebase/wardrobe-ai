@@ -5,10 +5,22 @@ struct OutfitView: View {
     @State private var isAdding = false
     @State private var selectedOutfit: Outfit?
     @State private var errorMessage: String?
+    @State private var calendarAccess = CalendarAccessState.notDetermined
+    @State private var calendarEvents: [CalendarEventContext] = []
+    @Environment(\.scenePhase) private var scenePhase
+    private let calendarReader = EventKitCalendarReader()
 
     var body: some View {
         NavigationStack {
             List {
+                Section("Today’s context") {
+                    CalendarContextSummary(access: calendarAccess, events: calendarEvents) {
+                        Task {
+                            calendarAccess = await calendarReader.requestAccess()
+                            calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
+                        }
+                    }
+                }
                 if store.outfits.isEmpty {
                     ContentUnavailableView {
                         Label("No saved outfits", systemImage: "square.grid.2x2")
@@ -33,6 +45,21 @@ struct OutfitView: View {
                         }
                     }
                 }
+                if !store.outfitPlans.isEmpty {
+                    Section("Planned outfits") {
+                        ForEach(store.outfitPlans) { plan in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(store.outfits.first(where: { $0.id == plan.outfitID })?.name ?? "Removed outfit")
+                                    Text(plan.scheduledFor.formatted(date: .abbreviated, time: .shortened)).font(.footnote).foregroundStyle(.secondary)
+                                    if let occasion = plan.occasion, !occasion.isEmpty { Text(occasion).font(.footnote).foregroundStyle(.secondary) }
+                                }
+                                Spacer()
+                                Button("Remove", role: .destructive) { remove(plan) }.buttonStyle(.bordered)
+                            }
+                        }
+                    }
+                }
                 if !store.underusedItems.isEmpty {
                     Section("Wear less, wear more") {
                         ForEach(store.underusedItems) { summary in
@@ -47,6 +74,13 @@ struct OutfitView: View {
                 }
             }
             .navigationTitle("Outfits")
+            .task {
+                refreshCalendarContext()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                refreshCalendarContext()
+            }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { isAdding = true } label: { Label("Create outfit", systemImage: "plus") } } }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
             .sheet(item: $selectedOutfit) { outfit in OutfitDetail(outfit: outfit, store: store) }
@@ -56,6 +90,37 @@ struct OutfitView: View {
 
     private func undo(_ event: WearEvent) {
         do { try store.undoWear(event) } catch { errorMessage = error.localizedDescription }
+    }
+    private func remove(_ plan: OutfitPlan) { do { try store.removePlan(plan) } catch { errorMessage = error.localizedDescription } }
+
+    private func refreshCalendarContext() {
+        let access = calendarReader.accessState()
+        calendarAccess = access
+        guard access == .authorized else {
+            calendarEvents = []
+            return
+        }
+        calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
+    }
+}
+
+private struct CalendarContextSummary: View {
+    let access: CalendarAccessState
+    let events: [CalendarEventContext]
+    let request: () -> Void
+
+    var body: some View {
+        switch access {
+        case .authorized:
+            if events.isEmpty { Text("No calendar events today.").foregroundStyle(.secondary) }
+            else { ForEach(events) { event in Label(event.timeLabel, systemImage: event.isAllDay ? "calendar" : "clock") } }
+        case .notDetermined:
+            Button("Show calendar context", action: request)
+        case .denied:
+            Text("Calendar access is off. You can still plan outfits manually.").foregroundStyle(.secondary)
+        case .unavailable:
+            Text("Calendar context is unavailable. You can still plan outfits manually.").foregroundStyle(.secondary)
+        }
     }
 }
 
@@ -99,6 +164,7 @@ private struct OutfitDetail: View {
     @Environment(\.calendar) private var calendar
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
+    @State private var isScheduling = false
     @State private var errorMessage: String?
 
     private var displayedOutfit: Outfit {
@@ -117,11 +183,13 @@ private struct OutfitDetail: View {
                 Section("Garments") { ForEach(displayedOutfit.itemIDs, id: \.self) { id in Text(store.item(id: id)?.name ?? "Removed garment").foregroundStyle(store.item(id: id) == nil ? .secondary : .primary) } }
                 if let notes = displayedOutfit.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
                 Section { Button(didWearToday ? "Worn today" : "Wear today") { wearToday() }.buttonStyle(.borderedProminent).disabled(didWearToday) }
+                Section { Button("Plan outfit") { isScheduling = true } }
                 Section { Button("Delete outfit", role: .destructive) { isConfirmingDelete = true } }
             }
             .navigationTitle(displayedOutfit.name)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { isEditing = true } } }
             .sheet(isPresented: $isEditing) { OutfitEditor(store: store, outfit: displayedOutfit) }
+            .sheet(isPresented: $isScheduling) { OutfitPlanEditor(outfit: displayedOutfit, store: store) }
             .confirmationDialog("Delete \(displayedOutfit.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) { Button("Delete", role: .destructive) { delete() } }
             .alert("Couldn’t update outfit", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
@@ -129,6 +197,38 @@ private struct OutfitDetail: View {
 
     private func wearToday() { do { _ = try store.wearToday(displayedOutfit) } catch { errorMessage = error.localizedDescription } }
     private func delete() { do { try store.deleteOutfit(displayedOutfit); dismiss() } catch { errorMessage = error.localizedDescription } }
+}
+
+private struct OutfitPlanEditor: View {
+    let outfit: Outfit
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var date = Date.now
+    @State private var occasion = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Plan") {
+                    DatePicker("Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    Picker("Occasion", selection: $occasion) {
+                        Text("None").tag("")
+                        ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                Section { Text("This saves a private in-app plan. It does not create a wear record or change your calendar.").font(.footnote).foregroundStyle(.secondary) }
+            }
+            .navigationTitle("Plan \(outfit.name)")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }; ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } } }
+            .alert("Couldn’t save plan", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func save() {
+        do { try store.schedule(outfit, for: date, occasion: occasion.nilIfBlank); dismiss() }
+        catch { errorMessage = error.localizedDescription }
+    }
 }
 
 private struct OutfitEditor: View {

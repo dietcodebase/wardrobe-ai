@@ -276,6 +276,29 @@ final class WardrobeRepository {
         }
     }
 
+    func createPlan(outfitID: UUID, scheduledFor: Date, occasion: String? = nil, sourceEventID: String? = nil) throws -> OutfitPlan {
+        let timestamp = now()
+        let plan = OutfitPlan(id: UUID(), outfitID: outfitID, scheduledFor: scheduledFor, occasion: occasion?.trimmingCharacters(in: .whitespacesAndNewlines), sourceEventID: sourceEventID, createdAt: timestamp, updatedAt: timestamp)
+        try database.write { database in
+            guard try outfitExists(outfitID, in: database) else { throw WardrobeRepositoryError.outfitNotFound(outfitID) }
+            try database.execute(sql: "INSERT INTO outfit_plans (id, outfit_id, scheduled_for, occasion, source_event_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)", arguments: [plan.id.uuidString, plan.outfitID.uuidString, plan.scheduledFor, plan.occasion, plan.sourceEventID, plan.createdAt, plan.updatedAt])
+        }
+        return plan
+    }
+
+    func plans() throws -> [OutfitPlan] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT * FROM outfit_plans ORDER BY scheduled_for ASC").map(outfitPlan(from:))
+        }
+    }
+
+    func deletePlan(id: UUID) throws {
+        try database.write { database in
+            try database.execute(sql: "DELETE FROM outfit_plans WHERE id = ?", arguments: [id.uuidString])
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.planNotFound(id) }
+        }
+    }
+
     func logWear(itemID: UUID, outfitID: UUID? = nil, wornAt: Date? = nil) throws -> WearLog {
         let log = WearLog(id: UUID(), itemID: itemID, outfitID: outfitID, wornAt: wornAt ?? now(), createdAt: now())
         try database.write { database in
@@ -456,6 +479,10 @@ private func makeOutfit(from row: Row, in database: Database) throws -> Outfit {
         id: id, name: row["name"], notes: row["notes"], isFavorite: row["is_favorite"],
         createdAt: row["created_at"], updatedAt: row["updated_at"], itemIDs: itemIDs
     )
+}
+
+private func outfitPlan(from row: Row) throws -> OutfitPlan {
+    OutfitPlan(id: try uuid(row["id"]), outfitID: try uuid(row["outfit_id"]), scheduledFor: row["scheduled_for"], occasion: row["occasion"], sourceEventID: row["source_event_id"], createdAt: row["created_at"], updatedAt: row["updated_at"])
 }
 
 private func wearLog(from row: Row) throws -> WearLog {

@@ -82,6 +82,16 @@ struct WearEvent: Identifiable, Equatable, Sendable {
     var itemIDs: [UUID]
 }
 
+struct OutfitPlan: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var outfitID: UUID
+    var scheduledFor: Date
+    var occasion: String?
+    var sourceEventID: String?
+    let createdAt: Date
+    var updatedAt: Date
+}
+
 struct WearItemSummary: Identifiable, Equatable, Sendable {
     let item: GarmentItem
     let wearCount: Int
@@ -154,6 +164,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
     case duplicateOutfitItem(UUID)
     case emptyOutfit
     case corruptRecord
+    case planNotFound(UUID)
 
     var errorDescription: String? {
         switch self {
@@ -165,6 +176,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
         case .duplicateOutfitItem: "An outfit can include a garment only once."
         case .emptyOutfit: "Add at least one garment before saving this outfit."
         case .corruptRecord: "A local wardrobe record could not be read."
+        case .planNotFound: "That outfit plan no longer exists."
         }
     }
 }
