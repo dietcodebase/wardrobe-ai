@@ -40,6 +40,8 @@ struct ModelStatusView: View {
                 Section { Text(message).foregroundStyle(.secondary) }
             }
 
+            StylistChatView(store: store)
+
             Section("What should I wear?") {
                 Picker("Occasion", selection: $occasion) {
                     ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0) }
