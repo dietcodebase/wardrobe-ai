@@ -189,13 +189,21 @@ struct ModelStore {
         rootURL.appending(path: "\(descriptor.id.rawValue).litertlm")
     }
 
+    static func remainingBytes(totalBytes: Int64, receivedBytes: Int64) -> Int64 {
+        max(0, totalBytes - max(0, receivedBytes))
+    }
+
     func ensureCapacity(for descriptor: ModelDescriptor) throws {
+        try ensureCapacity(requiredBytes: descriptor.expectedBytes)
+    }
+
+    func ensureCapacity(requiredBytes: Int64) throws {
         let values = try rootURL.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
         let available = values.volumeAvailableCapacityForImportantUsage
             ?? values.volumeAvailableCapacity.map(Int64.init)
             ?? 0
-        guard available >= descriptor.expectedBytes else {
-            throw ModelProvisioningError.insufficientDiskSpace(required: descriptor.expectedBytes, available: available)
+        guard available >= requiredBytes else {
+            throw ModelProvisioningError.insufficientDiskSpace(required: requiredBytes, available: available)
         }
     }
 }
@@ -371,15 +379,16 @@ final class ModelDownloadController: NSObject, ObservableObject {
             return
         }
         statusByModel[descriptor.id] = .connecting
-        do {
-            try store.ensureCapacity(for: descriptor)
-            let task = session.downloadTask(withResumeData: data)
-            descriptorsByTaskID[task.taskIdentifier] = descriptor
-            tasksByModel[descriptor.id] = task
-            task.resume()
-        } catch {
-            statusByModel[descriptor.id] = .failed(error.localizedDescription)
-        }
+        let task = session.downloadTask(withResumeData: data)
+        descriptorsByTaskID[task.taskIdentifier] = descriptor
+        tasksByModel[descriptor.id] = task
+        task.resume()
+    }
+
+    func hasResumeData(for descriptor: ModelDescriptor) -> Bool {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resumeDataURL(for: descriptor).path),
+              let size = attributes[.size] as? NSNumber else { return false }
+        return size.intValue > 0
     }
 
     private func resumeDataURL(for descriptor: ModelDescriptor) -> URL {
@@ -391,6 +400,22 @@ final class ModelDownloadController: NSObject, ObservableObject {
         descriptorsByTaskID[task.taskIdentifier] = nil
         tasksByModel[descriptor.id] = nil
         statusByModel[descriptor.id] = .interrupted
+    }
+
+    private func cancelResumedDownloadForCapacity(_ task: URLSessionDownloadTask, descriptor: ModelDescriptor, error: Error) {
+        guard tasksByModel[descriptor.id]?.taskIdentifier == task.taskIdentifier else { return }
+        let resumeURL = resumeDataURL(for: descriptor)
+        statusByModel[descriptor.id] = .cancelling
+        task.cancel(byProducingResumeData: { [weak self] data in
+            guard let self else { return }
+            if let data { try? data.write(to: resumeURL, options: .atomic) }
+            Task { @MainActor in
+                guard self.tasksByModel[descriptor.id]?.taskIdentifier == task.taskIdentifier else { return }
+                self.descriptorsByTaskID[task.taskIdentifier] = nil
+                self.tasksByModel[descriptor.id] = nil
+                self.statusByModel[descriptor.id] = .failed(error.localizedDescription)
+            }
+        })
     }
 
     private func verifyAndStoreDownload(at location: URL, descriptor: ModelDescriptor, taskIdentifier: Int) {
@@ -425,6 +450,24 @@ final class ModelDownloadController: NSObject, ObservableObject {
 extension ModelDownloadController: URLSessionDownloadDelegate, URLSessionTaskDelegate {
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
         completionHandler(.performDefaultHandling, nil)
+    }
+
+    nonisolated func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didResumeAtOffset fileOffset: Int64, expectedTotalBytes: Int64) {
+        // Pause before checking capacity so the resumed task cannot consume
+        // more space while the main actor evaluates the remaining byte count.
+        downloadTask.suspend()
+        Task { @MainActor in
+            guard let descriptor = self.descriptorsByTaskID[downloadTask.taskIdentifier],
+                  self.tasksByModel[descriptor.id]?.taskIdentifier == downloadTask.taskIdentifier else { return }
+            let totalBytes = expectedTotalBytes > 0 ? expectedTotalBytes : descriptor.expectedBytes
+            let remainingBytes = ModelStore.remainingBytes(totalBytes: totalBytes, receivedBytes: fileOffset)
+            do {
+                try self.store.ensureCapacity(requiredBytes: remainingBytes)
+                downloadTask.resume()
+            } catch {
+                self.cancelResumedDownloadForCapacity(downloadTask, descriptor: descriptor, error: error)
+            }
+        }
     }
 
     nonisolated func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
