@@ -36,6 +36,13 @@ generation → image embedding → image generation cycles. This mode verifies b
 model artifacts before starting, records each step separately, and releases one
 engine before loading the next. Keep Instruments attached to the entire cycle;
 the JSON does not capture memory peaks or prove native allocations were reclaimed.
+For the real-camera stress check, select **capture**, choose the folder containing
+the verified E2B model, grant camera access when asked, and photograph a test
+garment ten times. The camera closes before each model load and image request.
+Each response and elapsed time is checkpointed. A failed operation can be retried
+at the same count; ending early marks the report incomplete. The probe removes
+each prepared JPEG after inference. Use synthetic or licensed garments and keep
+the exported report and Instruments trace outside the repository.
 Select MTP off/on in separate runs with identical fixtures. Only
 try E4B after E2B survives the device budget. Each run does two loads and ten
 operations per load. Every run has a new compilation cache; the second load

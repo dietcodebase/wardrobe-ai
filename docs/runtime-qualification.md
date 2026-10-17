@@ -20,7 +20,7 @@ the others. Do not infer device support from physical RAM. Keep manual/local mod
 | Tools | Fixed read-only echo probe; no device invocation | Untested; no tool support claim |
 | MTP off/on | Separate run setting implemented; no measurements | Untested; default off for evaluation |
 | E4B | Optional; artifact metadata only | Deferred until E2B resource safety is established |
-| Capture/model switching/repeated use | File fixture generation→embedding→generation cycles implemented; physical run and real-camera stress harness pending | Unmet acceptance requirement |
+| Capture/model switching/repeated use | File fixture switching and real-camera capture harnesses implemented; physical runs pending | Unmet acceptance requirement |
 
 M02–M05 may proceed independently per ROADMAP. No AI capability gate is passed.
 
@@ -69,8 +69,8 @@ state. Synthetic/licensed inputs only; no personal wardrobe photos or recordings
    inference and release. Record thermal state and termination/jetsam evidence.
    Proposed classification p95 <=2.5 s and total peak <=3.5 GB remain provisional.
    Revise with measured rationale before downstream code relies on them.
-4. Complete the missing real-camera capture + inference stress harness, then at
-   least ten repeated capture/inference operations. Run the implemented
+4. Run the real-camera capture + inference harness for at least ten separate photos.
+   Run the implemented
    generation→embedding→generation mode for ten cycles. Verify release, thermal recovery,
    missing/corrupt artifacts and termination behavior. The current isolated file
    probe does not implement this capture/switch acceptance test.
