@@ -77,6 +77,9 @@ final class StorageTests: XCTestCase {
 
         let item = try coordinator.createItem(GarmentDraft(name: "Jacket", category: "Outerwear"), imageData: Data([4, 5]))
         XCTAssertEqual(try imageStore.data(at: try XCTUnwrap(item.imagePath)), Data([4, 5]))
+        let replaced = try coordinator.replaceImage(for: item.id, with: Data([6, 7]))
+        XCTAssertNil(try imageStore.data(at: try XCTUnwrap(item.imagePath)))
+        XCTAssertEqual(try imageStore.data(at: try XCTUnwrap(replaced.imagePath)), Data([6, 7]))
         let orphan = try imageStore.store(Data([9]))
         XCTAssertEqual(try coordinator.recoverOrphanedImages(), [orphan])
         XCTAssertNil(try imageStore.data(at: orphan))

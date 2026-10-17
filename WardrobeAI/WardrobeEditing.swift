@@ -53,6 +53,8 @@ struct GarmentEditor: View {
     @State private var color: String
     @State private var tags: String
     @State private var notes: String
+    @State private var capturedImage: GarmentCaptureCandidate?
+    @State private var isCapturing = false
     @State private var errorMessage: String?
 
     init(store: WardrobeStore, item: GarmentItem? = nil) {
@@ -77,6 +79,19 @@ struct GarmentEditor: View {
                     TextField("Tags, separated by commas", text: $tags).textInputAutocapitalization(.never).accessibilityLabel("Tags, separated by commas")
                     TextField("Notes", text: $notes, axis: .vertical).lineLimit(3...6)
                 }
+                Section("Photo") {
+                    if let capturedImage {
+                        HStack {
+                            Image(uiImage: capturedImage.image).resizable().scaledToFill().frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 10))
+                            VStack(alignment: .leading) {
+                                Text(capturedImage.kind == .foreground ? "Foreground cutout" : "Original photo")
+                                HStack { Circle().fill(capturedImage.swatch.color).frame(width: 14, height: 14); Text("Average swatch") }
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    Button(capturedImage == nil ? "Add photo" : "Change photo") { isCapturing = true }
+                }
                 Section("Occasion ideas") { Text(GarmentTaxonomy.occasions.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary) }
             }
             .navigationTitle(item == nil ? "Add garment" : "Edit garment")
@@ -85,14 +100,17 @@ struct GarmentEditor: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.accessibilityLabel("Save garment") }
             }
             .alert("Couldn’t save garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+            .sheet(isPresented: $isCapturing) { GarmentCaptureSheet { candidate in capturedImage = candidate } }
         }
     }
 
     private func save() {
         let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: tags.split(separator: ",").map(String.init), notes: notes.nilIfBlank, imagePath: item?.imagePath)
         do {
-            if var item { item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes; try store.save(item) }
-            else { try store.create(draft) }
+            if var item {
+                item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes
+                try store.save(item, imageData: capturedImage?.data)
+            } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
         } catch { errorMessage = error.localizedDescription }
     }

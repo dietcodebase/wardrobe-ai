@@ -113,6 +113,25 @@ final class GarmentImageCoordinator {
         }
     }
 
+    func updateItem(_ item: GarmentItem, replacingImageWith data: Data) throws -> GarmentItem {
+        let oldImagePath = item.imagePath
+        let newImagePath = try imageStore.store(data)
+        var updatedItem = item
+        updatedItem.imagePath = newImagePath
+        do {
+            let updated = try repository.updateItem(updatedItem)
+            if let oldImagePath { try? imageStore.remove(oldImagePath) }
+            return updated
+        } catch {
+            try? imageStore.remove(newImagePath)
+            throw error
+        }
+    }
+
+    func imageData(at path: String) throws -> Data? {
+        try imageStore.data(at: path)
+    }
+
     func deleteItem(id: UUID) throws {
         let imagePath = try repository.item(id: id)?.imagePath
         try repository.deleteItem(id: id)
