@@ -82,6 +82,16 @@ final class StorageTests: XCTestCase {
         XCTAssertNil(try imageStore.data(at: orphan))
     }
 
+    func testSearchCombinesTextCategoryAndTagFilters() throws {
+        let repository = try makeRepository()
+        let shirt = try repository.createItem(GarmentDraft(name: "Navy Oxford", category: "Top", color: "Navy", tags: ["smart", "work"], notes: "Button-down"))
+        _ = try repository.createItem(GarmentDraft(name: "Navy trousers", category: "Bottom", color: "Navy", tags: ["work"]))
+
+        XCTAssertEqual(try repository.items(matching: "button", category: "Top").map(\.id), [shirt.id])
+        XCTAssertEqual(try repository.items(matching: "navy", tag: "smart").map(\.id), [shirt.id])
+        XCTAssertTrue(try repository.items(matching: "navy", category: "Shoes").isEmpty)
+    }
+
     private func makeRepository() throws -> WardrobeRepository {
         let queue = try WardrobeDatabase.makeInMemoryQueue()
         return WardrobeRepository(database: queue, now: { Date(timeIntervalSince1970: 1_700_000_000) })

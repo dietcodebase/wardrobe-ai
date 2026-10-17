@@ -77,6 +77,15 @@ struct StylePreferences: Equatable, Sendable {
     static let empty = StylePreferences(preferredCategories: [], preferredColors: [], notes: "")
 }
 
+enum GarmentTaxonomy {
+    static let categories = ["Top", "Bottom", "Dress", "One-piece outfit", "Outerwear", "Shoes", "Accessory"]
+    static let occasions = ["Everyday", "Work", "Casual", "Formal", "Exercise", "Travel", "Evening"]
+
+    static func isKnownCategory(_ category: String) -> Bool {
+        categories.contains(category)
+    }
+}
+
 enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
     case invalidName
     case invalidCategory

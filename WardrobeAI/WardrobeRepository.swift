@@ -98,6 +98,30 @@ final class WardrobeRepository {
         }
     }
 
+    func items(matching query: String, category: String? = nil, tag: String? = nil) throws -> [GarmentItem] {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try database.read { database in
+            var clauses: [String] = []
+            var arguments: [DatabaseValueConvertible?] = []
+            if !text.isEmpty {
+                clauses.append("(name LIKE ? COLLATE NOCASE OR color LIKE ? COLLATE NOCASE OR notes LIKE ? COLLATE NOCASE OR EXISTS (SELECT 1 FROM json_each(items.tags_json) WHERE json_each.value LIKE ? COLLATE NOCASE))")
+                let pattern = "%\(text)%"
+                arguments += [pattern, pattern, pattern, pattern]
+            }
+            if let category, !category.isEmpty {
+                clauses.append("category = ?")
+                arguments.append(category)
+            }
+            if let tag, !tag.isEmpty {
+                clauses.append("EXISTS (SELECT 1 FROM json_each(items.tags_json) WHERE json_each.value = ?)")
+                arguments.append(tag)
+            }
+            let whereClause = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
+            let rows = try Row.fetchAll(database, sql: "SELECT items.* FROM items \(whereClause) ORDER BY updated_at DESC", arguments: StatementArguments(arguments))
+            return try rows.map(garmentItem(from:))
+        }
+    }
+
     func updateItem(_ item: GarmentItem) throws -> GarmentItem {
         let draft = try validate(GarmentDraft(
             name: item.name, category: item.category, color: item.color, tags: item.tags,

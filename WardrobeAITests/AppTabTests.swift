@@ -7,4 +7,9 @@ final class AppTabTests: XCTestCase {
         XCTAssertEqual(Set(AppTab.allCases.map(\.id)).count, 3)
         XCTAssertTrue(AppTab.allCases.allSatisfy { !$0.message.isEmpty && !$0.symbol.isEmpty })
     }
+
+    func testGarmentTaxonomyIncludesOnePieceOutfits() {
+        XCTAssertTrue(GarmentTaxonomy.isKnownCategory("One-piece outfit"))
+        XCTAssertTrue(GarmentTaxonomy.occasions.contains("Work"))
+    }
 }
