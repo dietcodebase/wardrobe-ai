@@ -15,11 +15,11 @@ Recorded 17 October 2026.
   temporary download before it reaches permanent storage.
 - `ModelInferenceCoordinator` serializes load/use/unload. Switching a model
   unloads the previous engine first; memory or thermal notifications request an
-  unload. The runtime adapter intentionally throws an honest unavailable error
-  until M01 qualifies a concrete device/runtime route.
-- The Stylist tab shows the pinned candidates and their status. Provisioning
-  controls remain disabled while M01's physical-device gate is unresolved, and
-  the manual wardrobe remains usable.
+  unload. Its placeholder adapter reports that a production inference adapter is
+  not configured; model-specific inference begins in M07.
+- The Stylist tab shows the pinned candidates and their status. Provisioning is
+  enabled under the owner's explicit M06 waiver; the manual wardrobe remains
+  usable.
 
 ## Checks run
 
@@ -29,19 +29,17 @@ Recorded 17 October 2026.
 - `git diff --check` — passed before each commit.
 - `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -sdk iphoneos -configuration Debug -derivedDataPath /private/tmp/wardrobeai-m06-derived CODE_SIGNING_ALLOWED=NO build` — passed with Xcode 27.1 (27A9275).
 - `xcodebuild -project WardrobeAI.xcodeproj -scheme WardrobeAI -destination 'platform=iOS Simulator,id=56183167-984D-4BF9-9522-CB67E07B4ADD' -derivedDataPath /private/tmp/wardrobeai-m06-sim-derived CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES test` — passed on iPhone Duo, iOS 27.1.
+- The same simulator suite passed again after enabling provisioning under the M01 waiver.
 - Unit tests cover rejected existing files, verified import semantics, wrong-size
   rejection and serial unload-before-switch behavior.
 
-## Blocking validation
+## M01 waiver and outstanding validation
 
-M01's PR is merged, but its runtime qualification evidence remains explicitly
-blocked: no physical device has successfully run the chosen E2B image route,
-and combined application memory/thermal measurements do not exist. The roadmap
-forbids M06–M08 from treating this as an eligible local-AI configuration.
+The owner explicitly authorized M06 to proceed using M01's existing probe
+evidence: the named device has passed the adopted composite image route and
+text generation. Provisioning controls are enabled for that route.
 
-Consequently M06 is code-complete for the independent provisioning/lifecycle
-surface, but **not accepted**. Before enabling provisioning controls or closing
-this milestone, record M01's device configuration and pass its image route,
-repeat combined app memory/thermal measurement with capture/model switching,
-and repeat the full simulator/XCTest suite with the toolchain chosen in the M01
-device run sheet.
+Combined application memory/thermal measurements and real capture/model-switch
+stress remain outstanding. They must be recorded before any support claim or
+before enabling an additional runtime route. Embedding, audio, and tools remain
+separate gates for M09, M13, and M12 respectively.

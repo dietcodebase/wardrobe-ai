@@ -5,8 +5,9 @@ import UIKit
 #endif
 
 enum ModelRuntimePolicy {
-    /// M01 must replace this only after its physical-device acceptance evidence is recorded.
-    static let deviceQualificationPassed = false
+    /// M06 is authorized against the M01 probe results while combined memory and
+    /// capture-switch measurements remain outstanding. See docs/m06-evidence.md.
+    static let deviceQualificationPassed = true
 }
 
 enum ModelID: String, CaseIterable, Identifiable, Sendable {
@@ -334,7 +335,7 @@ enum ModelRuntimeError: LocalizedError {
     case unqualifiedRuntime
 
     var errorDescription: String? {
-        "The local AI runtime has not passed device qualification yet. Your manual wardrobe remains available."
+        "No production inference adapter is configured yet. Your manual wardrobe remains available."
     }
 }
 

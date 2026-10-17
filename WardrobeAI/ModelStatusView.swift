@@ -9,10 +9,8 @@ struct ModelStatusView: View {
         List {
             Section {
                 Label("Manual wardrobe is available without a model.", systemImage: "checkmark.circle")
-                if !ModelRuntimePolicy.deviceQualificationPassed {
-                    Label("Model provisioning is disabled until M01 qualifies this device/runtime combination.", systemImage: "lock")
-                        .foregroundStyle(.secondary)
-                }
+                Label("Imported and downloaded models are verified before they are stored.", systemImage: "checkmark.shield")
+                    .foregroundStyle(.secondary)
             } header: {
                 Text("Local AI status")
             }
@@ -65,7 +63,7 @@ struct ModelStatusView: View {
         case .notPresent: "Not installed"
         case let .downloading(progress): "Downloading \(Int(progress * 100)) percent"
         case .interrupted: "Download interrupted; resume is available"
-        case .available: "Verified and ready when the runtime is qualified"
+        case .available: "Verified and ready for a configured runtime"
         case let .failed(message): "Download failed: \(message)"
         }
     }
