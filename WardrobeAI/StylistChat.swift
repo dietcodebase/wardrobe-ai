@@ -4,6 +4,7 @@ enum StylistTool: String, Codable, CaseIterable, Sendable {
     case searchWardrobe
     case recentWear
     case context
+    case recommendations
     case wearToday
 
     var isWrite: Bool { self == .wearToday }
@@ -41,6 +42,7 @@ enum StylistToolResult: Equatable, Sendable {
     case garments([GarmentItem])
     case wear([WearEvent])
     case context(plans: [OutfitPlan])
+    case recommendations([OutfitSuggestion])
     case wearRecorded(WearEvent)
 }
 
@@ -56,6 +58,7 @@ final class StylistToolbox {
     }
 
     func resetCallCount() { callCount = 0 }
+    func itemName(_ id: UUID) -> String? { store.item(id: id)?.name }
 
     func execute(_ call: StylistToolCall, confirmedByUser: Bool = false) throws -> StylistToolResult {
         guard callCount < maximumCallCount else { throw StylistToolError.callLimitReached }
@@ -69,7 +72,10 @@ final class StylistToolbox {
         case .recentWear:
             return .wear(Array(store.wearEvents.prefix(5)))
         case .context:
-            return .context(plans: Array(store.outfitPlans.prefix(5)))
+            let upcoming = store.outfitPlans.filter { $0.scheduledFor >= Date() }.sorted { $0.scheduledFor < $1.scheduledFor }
+            return .context(plans: Array(upcoming.prefix(5)))
+        case .recommendations:
+            return .recommendations(try store.recommendations(for: nil).prefix(3).map { $0 })
         case .wearToday:
             guard confirmedByUser else { throw StylistToolError.writeRequiresConfirmation }
             guard let outfitID = call.outfitID else { throw StylistToolError.invalidArguments("Choose a saved outfit before recording wear.") }
@@ -94,6 +100,7 @@ final class StylistChat: ObservableObject {
 
     private let toolbox: StylistToolbox
     private var responseTask: Task<Void, Never>?
+    private var activeResponseID: UUID?
 
     init(store: WardrobeStore) { toolbox = StylistToolbox(store: store) }
 
@@ -103,23 +110,34 @@ final class StylistChat: ObservableObject {
         messages.append(.init(role: .user, text: request))
         toolbox.resetCallCount()
         isResponding = true
+        let responseID = UUID()
+        activeResponseID = responseID
         responseTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.isResponding = false }
+            defer {
+                if self.activeResponseID == responseID {
+                    self.activeResponseID = nil
+                    self.responseTask = nil
+                    self.isResponding = false
+                }
+            }
             let response: String
             if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
                 response = self.wearSummary()
             } else if request.localizedCaseInsensitiveContains("plan") || request.localizedCaseInsensitiveContains("calendar") {
                 response = self.contextSummary()
+            } else if Self.isRecommendationRequest(request) {
+                response = self.recommendationSummary()
             } else {
-                response = self.searchSummary(for: request)
+                response = self.searchSummary(for: Self.searchTerms(from: request))
             }
-            await self.stream(response)
+            await self.stream(response, responseID: responseID)
         }
     }
 
     func cancel() {
         responseTask?.cancel()
+        activeResponseID = nil
         responseTask = nil
         isResponding = false
     }
@@ -129,6 +147,7 @@ final class StylistChat: ObservableObject {
     func confirmWear() {
         guard let outfit = pendingWearOutfit else { return }
         defer { pendingWearOutfit = nil }
+        toolbox.resetCallCount()
         do {
             _ = try toolbox.execute(.init(tool: .wearToday, outfitID: outfit.id), confirmedByUser: true)
             messages.append(.init(role: .assistant, text: "Recorded \(outfit.name) as worn today."))
@@ -159,12 +178,34 @@ final class StylistChat: ObservableObject {
         } catch { return error.localizedDescription }
     }
 
-    private func stream(_ response: String) async {
+    private func recommendationSummary() -> String {
+        do {
+            guard case let .recommendations(suggestions) = try toolbox.execute(.init(tool: .recommendations)) else { return "" }
+            guard !suggestions.isEmpty else { return "Add a few garments to get owned-item outfit suggestions." }
+            return "Try: " + suggestions.map { suggestion in
+                suggestion.itemIDs.compactMap { toolbox.itemName($0) }.joined(separator: " + ")
+            }.filter { !$0.isEmpty }.joined(separator: "; ") + "."
+        } catch { return error.localizedDescription }
+    }
+
+    private static func isRecommendationRequest(_ request: String) -> Bool {
+        let normalized = request.lowercased()
+        return ["what should i wear", "recommend", "outfit", "style me"].contains(where: normalized.contains)
+    }
+
+    private static func searchTerms(from request: String) -> String {
+        let wordsToRemove: Set<String> = ["find", "search", "show", "look", "for", "my", "me", "do", "i", "own", "have", "a", "an", "the", "please", "some", "any", "in", "wardrobe"]
+        let terms = request.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+            .filter { !wordsToRemove.contains($0.lowercased()) }
+        return terms.joined(separator: " ")
+    }
+
+    private func stream(_ response: String, responseID: UUID) async {
         messages.append(.init(role: .assistant, text: ""))
-        let index = messages.index(before: messages.endIndex)
+        let messageID = messages[messages.index(before: messages.endIndex)].id
         for word in response.split(separator: " ") {
-            guard !Task.isCancelled else {
-                messages.remove(at: index)
+            guard !Task.isCancelled, activeResponseID == responseID,
+                  let index = messages.firstIndex(where: { $0.id == messageID }) else {
                 return
             }
             messages[index].text += (messages[index].text.isEmpty ? "" : " ") + word
