@@ -109,8 +109,7 @@ struct GarmentEditor: View {
         do {
             if var item {
                 item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes
-                try store.save(item)
-                if let capturedImage { _ = try store.replaceImage(for: item, with: capturedImage.data) }
+                try store.save(item, imageData: capturedImage?.data)
             } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
         } catch { errorMessage = error.localizedDescription }

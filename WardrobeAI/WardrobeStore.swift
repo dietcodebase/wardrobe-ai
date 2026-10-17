@@ -1,6 +1,16 @@
 import Foundation
 import Combine
 
+enum WardrobeStoreError: LocalizedError {
+    case imageStorageUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .imageStorageUnavailable: "Photo storage is unavailable. Your garment was not saved. Try again after freeing device storage or restarting the app."
+        }
+    }
+}
+
 @MainActor
 final class WardrobeStore: ObservableObject {
     @Published private(set) var items: [GarmentItem] = []
@@ -35,9 +45,14 @@ final class WardrobeStore: ObservableObject {
         }
     }
 
-    func save(_ item: GarmentItem?) throws {
+    func save(_ item: GarmentItem?, imageData: Data? = nil) throws {
         if let item {
-            _ = try repository.updateItem(item)
+            if let imageData {
+                guard let imageCoordinator else { throw WardrobeStoreError.imageStorageUnavailable }
+                _ = try imageCoordinator.updateItem(item, replacingImageWith: imageData)
+            } else {
+                _ = try repository.updateItem(item)
+            }
         }
         loadItems()
     }
@@ -48,7 +63,8 @@ final class WardrobeStore: ObservableObject {
     }
 
     func create(_ draft: GarmentDraft, imageData: Data?) throws {
-        if let imageData, let imageCoordinator {
+        if let imageData {
+            guard let imageCoordinator else { throw WardrobeStoreError.imageStorageUnavailable }
             _ = try imageCoordinator.createItem(draft, imageData: imageData)
         } else {
             _ = try repository.createItem(draft)
@@ -57,7 +73,8 @@ final class WardrobeStore: ObservableObject {
     }
 
     func replaceImage(for item: GarmentItem, with imageData: Data) throws -> GarmentItem {
-        let updated = try imageCoordinator?.replaceImage(for: item.id, with: imageData) ?? item
+        guard let imageCoordinator else { throw WardrobeStoreError.imageStorageUnavailable }
+        let updated = try imageCoordinator.replaceImage(for: item.id, with: imageData)
         loadItems()
         return updated
     }

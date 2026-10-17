@@ -13,7 +13,7 @@ struct AverageSwatch: Equatable {
     var color: Color { Color(red: red, green: green, blue: blue) }
 }
 
-struct GarmentCaptureCandidate: Identifiable {
+struct GarmentCaptureCandidate: Identifiable, @unchecked Sendable {
     enum Kind: String { case original, foreground }
 
     let id = UUID()
@@ -21,6 +21,10 @@ struct GarmentCaptureCandidate: Identifiable {
     let image: UIImage
     let data: Data
     let swatch: AverageSwatch
+}
+
+private struct ImagePreparationInput: @unchecked Sendable {
+    let image: UIImage
 }
 
 enum GarmentImagePreparation {
@@ -256,15 +260,26 @@ struct GarmentCaptureSheet: View {
 
     private func prepare(_ image: UIImage) {
         isPreparing = true
-        Task {
+        let input = ImagePreparationInput(image: image)
+        Task { @MainActor in
             defer { isPreparing = false }
-            do {
-                let original = try GarmentImagePreparation.originalCandidate(from: image)
-                let foreground = try GarmentImagePreparation.foregroundCandidates(from: original)
-                candidates = [original] + foreground
-                selection = original.id
-            } catch {
-                errorMessage = error.localizedDescription
+            let result = await Task.detached(priority: .userInitiated) { () -> (candidates: [GarmentCaptureCandidate]?, errorMessage: String?) in
+                do {
+                    let original = try GarmentImagePreparation.originalCandidate(from: input.image)
+                    do {
+                        return ([original] + (try GarmentImagePreparation.foregroundCandidates(from: original)), nil)
+                    } catch {
+                        return ([original], nil)
+                    }
+                } catch {
+                    return (nil, error.localizedDescription)
+                }
+            }.value
+            if let preparedCandidates = result.candidates {
+                candidates = preparedCandidates
+                selection = preparedCandidates.first?.id
+            } else {
+                errorMessage = result.errorMessage
             }
         }
     }

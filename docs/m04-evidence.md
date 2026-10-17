@@ -9,6 +9,8 @@ Status: in review at [PR #5](https://github.com/dietcodebase/wardrobe-ai/pull/5)
 - Foreground instance masks produce one selectable transparent PNG preview per returned instance. The original normalized photo is always a first-class selection, including when the API finds no mask or the selected mask is incomplete.
 - The preview labels its alpha-aware average swatch as an average, not a dominant color. Saving writes the selected image through the existing file/database rollback coordinator; cancelling before save never writes a temporary image.
 - Saved photos render on wardrobe cards. Replacing or deleting a saved photo removes the old file after its database update succeeds.
+- Image normalization, Vision segmentation and cutout encoding run in a detached background task. A Vision failure leaves the original photo available.
+- If photo storage cannot initialize, a save with a selected photo fails visibly and leaves the garment unsaved. Editing metadata with a replacement photo stages the image first, then updates metadata and the image path together; a failed database update removes the staged image.
 
 ## Verification
 
