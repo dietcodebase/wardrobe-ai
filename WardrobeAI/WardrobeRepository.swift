@@ -4,10 +4,12 @@ import GRDB
 final class WardrobeRepository {
     private let database: DatabaseWriter
     private let now: () -> Date
+    private let calendar: Calendar
 
-    init(database: DatabaseWriter, now: @escaping () -> Date = Date.init) {
+    init(database: DatabaseWriter, now: @escaping () -> Date = Date.init, calendar: Calendar = .autoupdatingCurrent) {
         self.database = database
         self.now = now
+        self.calendar = calendar
     }
 
     func createItem(_ draft: GarmentDraft, seedKey: String? = nil) throws -> GarmentItem {
@@ -204,6 +206,7 @@ final class WardrobeRepository {
             throw WardrobeRepositoryError.invalidName
         }
         if let duplicate = duplicateID(in: draft.itemIDs) { throw WardrobeRepositoryError.duplicateOutfitItem(duplicate) }
+        guard !draft.itemIDs.isEmpty else { throw WardrobeRepositoryError.emptyOutfit }
         let timestamp = now()
         let outfit = Outfit(
             id: UUID(), name: draft.name.trimmingCharacters(in: .whitespacesAndNewlines), notes: draft.notes,
@@ -236,6 +239,34 @@ final class WardrobeRepository {
         }
     }
 
+    func allOutfits() throws -> [Outfit] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT * FROM outfits ORDER BY is_favorite DESC, updated_at DESC")
+                .map { try makeOutfit(from: $0, in: database) }
+        }
+    }
+
+    func updateOutfit(_ outfit: Outfit) throws -> Outfit {
+        try database.write { database in
+            guard try outfitExists(outfit.id, in: database) else { throw WardrobeRepositoryError.outfitNotFound(outfit.id) }
+            guard !outfit.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw WardrobeRepositoryError.invalidName }
+            guard !outfit.itemIDs.isEmpty else { throw WardrobeRepositoryError.emptyOutfit }
+            if let duplicate = duplicateID(in: outfit.itemIDs) { throw WardrobeRepositoryError.duplicateOutfitItem(duplicate) }
+            for itemID in outfit.itemIDs where try !itemExists(itemID, in: database) { throw WardrobeRepositoryError.itemNotFound(itemID) }
+            let updatedAt = now()
+            try database.execute(
+                sql: "UPDATE outfits SET name = ?, notes = ?, is_favorite = ?, updated_at = ? WHERE id = ?",
+                arguments: [outfit.name.trimmingCharacters(in: .whitespacesAndNewlines), outfit.notes, outfit.isFavorite, updatedAt, outfit.id.uuidString]
+            )
+            try database.execute(sql: "DELETE FROM outfit_items WHERE outfit_id = ?", arguments: [outfit.id.uuidString])
+            for (position, itemID) in outfit.itemIDs.enumerated() {
+                try database.execute(sql: "INSERT INTO outfit_items (outfit_id, item_id, position) VALUES (?, ?, ?)", arguments: [outfit.id.uuidString, itemID.uuidString, position])
+            }
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM outfits WHERE id = ?", arguments: [outfit.id.uuidString]) else { throw WardrobeRepositoryError.outfitNotFound(outfit.id) }
+            return try makeOutfit(from: row, in: database)
+        }
+    }
+
     func deleteOutfit(id: UUID) throws {
         try database.write { database in
             try database.execute(sql: "DELETE FROM outfits WHERE id = ?", arguments: [id.uuidString])
@@ -256,6 +287,62 @@ final class WardrobeRepository {
         return log
     }
 
+    func wearToday(outfitID: UUID, wornAt: Date? = nil) throws -> WearEvent {
+        let timestamp = wornAt ?? now()
+        let day = localDay(for: timestamp)
+        return try database.write { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM outfits WHERE id = ?", arguments: [outfitID.uuidString]) else {
+                throw WardrobeRepositoryError.outfitNotFound(outfitID)
+            }
+            let outfit = try makeOutfit(from: row, in: database)
+            if let existing = try Row.fetchOne(database, sql: "SELECT * FROM wear_events WHERE outfit_id = ? AND local_day = ?", arguments: [outfitID.uuidString, day]) {
+                return try makeWearEvent(from: existing, in: database)
+            }
+            let eventID = UUID()
+            try database.execute(
+                sql: "INSERT INTO wear_events (id, outfit_id, local_day, worn_at, created_at) VALUES (?, ?, ?, ?, ?)",
+                arguments: [eventID.uuidString, outfitID.uuidString, day, timestamp, now()]
+            )
+            for itemID in outfit.itemIDs {
+                try database.execute(
+                    sql: "INSERT INTO wear_logs (id, item_id, outfit_id, worn_at, created_at, event_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    arguments: [UUID().uuidString, itemID.uuidString, outfitID.uuidString, timestamp, now(), eventID.uuidString]
+                )
+            }
+            guard let event = try Row.fetchOne(database, sql: "SELECT * FROM wear_events WHERE id = ?", arguments: [eventID.uuidString]) else { throw WardrobeRepositoryError.corruptRecord }
+            return try makeWearEvent(from: event, in: database)
+        }
+    }
+
+    func wearEvents() throws -> [WearEvent] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT * FROM wear_events ORDER BY worn_at DESC, created_at DESC")
+                .map { try makeWearEvent(from: $0, in: database) }
+        }
+    }
+
+    func undoWear(eventID: UUID) throws {
+        try database.write { database in
+            try database.execute(sql: "DELETE FROM wear_events WHERE id = ?", arguments: [eventID.uuidString])
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.corruptRecord }
+        }
+    }
+
+    func underusedItems(limit: Int = 8) throws -> [WearItemSummary] {
+        try database.read { database in
+            let rows = try Row.fetchAll(database, sql: """
+            SELECT items.*, COUNT(wear_logs.id) AS wear_count, MAX(wear_logs.worn_at) AS last_worn_at
+            FROM items LEFT JOIN wear_logs ON wear_logs.item_id = items.id
+            GROUP BY items.id
+            ORDER BY wear_count ASC, last_worn_at ASC, items.created_at DESC
+            LIMIT ?
+            """, arguments: [limit])
+            return try rows.map { row in
+                WearItemSummary(item: try garmentItem(from: row), wearCount: row["wear_count"], lastWornAt: row["last_worn_at"])
+            }
+        }
+    }
+
     func wearLogs(for itemID: UUID) throws -> [WearLog] {
         try database.read { database in
             try Row.fetchAll(
@@ -268,6 +355,11 @@ final class WardrobeRepository {
         try database.write { database in
             try database.execute(sql: "DELETE FROM wear_logs WHERE id = ?", arguments: [id.uuidString])
         }
+    }
+
+    private func localDay(for date: Date) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
     }
 
     private func validate(_ draft: GarmentDraft) throws -> GarmentDraft {
@@ -307,6 +399,13 @@ private func wearLog(from row: Row) throws -> WearLog {
         id: try uuid(row["id"]), itemID: try uuid(row["item_id"]), outfitID: try optionalUUID(row["outfit_id"]),
         wornAt: row["worn_at"], createdAt: row["created_at"]
     )
+}
+
+private func makeWearEvent(from row: Row, in database: Database) throws -> WearEvent {
+    let id = try uuid(row["id"])
+    let itemIDs = try String.fetchAll(database, sql: "SELECT item_id FROM wear_logs WHERE event_id = ? ORDER BY id", arguments: [id.uuidString])
+        .compactMap(UUID.init(uuidString:))
+    return WearEvent(id: id, outfitID: try optionalUUID(row["outfit_id"]), wornAt: row["worn_at"], localDay: row["local_day"], createdAt: row["created_at"], itemIDs: itemIDs)
 }
 
 private func itemExists(_ id: UUID, in database: Database) throws -> Bool {
