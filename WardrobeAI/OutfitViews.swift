@@ -7,6 +7,7 @@ struct OutfitView: View {
     @State private var errorMessage: String?
     @State private var calendarAccess = CalendarAccessState.notDetermined
     @State private var calendarEvents: [CalendarEventContext] = []
+    @Environment(\.scenePhase) private var scenePhase
     private let calendarReader = EventKitCalendarReader()
 
     var body: some View {
@@ -74,8 +75,11 @@ struct OutfitView: View {
             }
             .navigationTitle("Outfits")
             .task {
-                calendarAccess = calendarReader.accessState()
-                calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
+                refreshCalendarContext()
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                refreshCalendarContext()
             }
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { isAdding = true } label: { Label("Create outfit", systemImage: "plus") } } }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
@@ -88,6 +92,16 @@ struct OutfitView: View {
         do { try store.undoWear(event) } catch { errorMessage = error.localizedDescription }
     }
     private func remove(_ plan: OutfitPlan) { do { try store.removePlan(plan) } catch { errorMessage = error.localizedDescription } }
+
+    private func refreshCalendarContext() {
+        let access = calendarReader.accessState()
+        calendarAccess = access
+        guard access == .authorized else {
+            calendarEvents = []
+            return
+        }
+        calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
+    }
 }
 
 private struct CalendarContextSummary: View {
