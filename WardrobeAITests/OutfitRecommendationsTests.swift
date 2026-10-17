@@ -66,6 +66,16 @@ final class OutfitRecommendationsTests: XCTestCase {
         XCTAssertTrue(allResults.contains { $0.itemIDs.contains(shoesB.id) })
     }
 
+    func testFreshRainContextFavorsOuterwearAndLabelsTheSource() {
+        let top = item("Top", "Top")
+        let bottom = item("Bottom", "Bottom")
+        let coat = item("Coat", "Outerwear")
+        let weather = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 18, condition: .rain, description: "light rain", fetchedAt: .now)
+        let results = OutfitRecommendationEngine().suggestions(items: [top, bottom, coat], preferences: .empty, wearEvents: [], context: .init(occasion: nil, preferredColors: [], weather: weather))
+        XCTAssertEqual(results.first?.itemIDs, [top.id, bottom.id, coat.id])
+        XCTAssertTrue(results.first?.explanation.contains("Weather context: light rain") == true)
+    }
+
     private func item(_ name: String, _ category: String, tags: [String] = [], color: String? = nil) -> GarmentItem {
         GarmentItem(id: UUID(), name: name, category: category, color: color, tags: tags, notes: nil, imagePath: nil, classification: nil, createdAt: .now, updatedAt: .now)
     }

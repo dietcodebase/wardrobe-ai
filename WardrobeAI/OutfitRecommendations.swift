@@ -4,8 +4,9 @@ struct RecommendationContext: Equatable, Sendable {
     var occasion: String?
     var preferredColors: [String]
     var anchorItemID: UUID? = nil
+    var weather: WeatherSnapshot? = nil
 
-    static let everyday = RecommendationContext(occasion: nil, preferredColors: [], anchorItemID: nil)
+    static let everyday = RecommendationContext(occasion: nil, preferredColors: [], anchorItemID: nil, weather: nil)
 }
 
 struct OutfitSuggestion: Identifiable, Equatable, Sendable {
@@ -100,13 +101,25 @@ struct OutfitRecommendationEngine {
         }.count
         let preferredCategories = items.filter { preferences.preferredCategories.contains($0.category) }.count
         let recentPenalty = items.filter { recentIDs.contains($0.id) }.count
-        let score = occasionMatches * 4 + colorMatches * 2 + preferredCategories - recentPenalty * 3
+        let weatherScore = weatherAdjustment(for: items, weather: context.weather)
+        let score = occasionMatches * 4 + colorMatches * 2 + preferredCategories + weatherScore - recentPenalty * 3
         let names = items.map(\.name).joined(separator: " with ")
         let explanation: String
         if occasionMatches > 0, let occasion { explanation = "Uses your \(occasion) pieces: \(names)." }
         else if recentPenalty == 0 { explanation = "A less-recently worn combination: \(names)." }
         else { explanation = "A simple combination from your wardrobe: \(names)." }
-        return OutfitSuggestion(id: stableID(for: ids), itemIDs: ids, score: score, explanation: explanation)
+        let weatherNote = context.weather.map { " Weather context: \($0.description), \(Int($0.temperatureCelsius.rounded()))°C in \($0.location.normalizedCity)." } ?? ""
+        return OutfitSuggestion(id: stableID(for: ids), itemIDs: ids, score: score, explanation: explanation + weatherNote)
+    }
+
+    private func weatherAdjustment(for items: [GarmentItem], weather: WeatherSnapshot?) -> Int {
+        guard let weather else { return 0 }
+        let categories = items.map(\.category)
+        var adjustment = 0
+        if weather.temperatureCelsius < 15, categories.contains("Outerwear") { adjustment += 2 }
+        if weather.temperatureCelsius > 24, categories.contains("Outerwear") { adjustment -= 2 }
+        if weather.condition == .rain || weather.condition == .thunderstorm, categories.contains("Outerwear") { adjustment += 2 }
+        return adjustment
     }
 
     private func stableID(for ids: [UUID]) -> UUID {
