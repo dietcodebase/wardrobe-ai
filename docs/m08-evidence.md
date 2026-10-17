@@ -13,7 +13,8 @@ remain pending.
   increase it.
 - A ranking integration can only reorder the bounded candidate ID set. Unknown
   and repeated IDs are discarded, and rule order remains the fallback when no
-  ranker is configured.
+  ranker is configured. The store accepts a ranker dependency at the
+  recommendation boundary.
 - The Stylist tab accepts manual occasion context, shows concise item-grounded
   explanations, and provides separate Save outfit and explicit Wear today
   actions. Saving never records a wear event.
@@ -23,10 +24,13 @@ remain pending.
 ## Verification
 
 - Build passed on 17 October 2026 using the project’s iOS simulator scheme.
-- The full unit-test suite, including OutfitRecommendationsTests, passed on the
-  iPhone Duo iOS 27.1 simulator on 17 October 2026. The recommendation tests
-  cover top/bottom and one-piece candidates, sparse wardrobes, an invalid
-  ranking response, and ten fixed wardrobe/context cases.
+- The unit-test target passed on the iPhone Duo iOS 27.1 simulator on
+  17 October 2026: 26 tests, zero failures. The recommendation tests cover
+  top/bottom and one-piece candidates, sparse wardrobes, invalid ranking
+  responses, anchored suggestions, optional alternatives, and ten fixed
+  wardrobe/context cases.
+- The UI navigation smoke test failed because XCTest could not locate the
+  simulator tab bar. This remains an outstanding UI verification result.
 
 ## Still required for milestone acceptance
 
@@ -35,4 +39,6 @@ wardrobe/context cases on the intended device. Record ranking quality
 separately from retrieval similarity. Exercise save and Wear today against the
 real app and confirm duplicate taps do not create duplicate wear events. The
 qualified M01 local route must remain available; otherwise the deterministic
-rules and manual wardrobe continue without a model ranker.
+rules and manual wardrobe continue without a model ranker. M06 currently has
+no production inference loader, so a real local model ranker cannot be
+configured until that prerequisite is implemented.

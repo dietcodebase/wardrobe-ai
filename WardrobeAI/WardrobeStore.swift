@@ -138,18 +138,19 @@ final class WardrobeStore: ObservableObject {
         loadOutfitData()
     }
 
-    func recommendations(for occasion: String?) throws -> [OutfitSuggestion] {
+    func recommendations(for occasion: String?, anchorItemID: UUID? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
         let preferences = try repository.preferences()
-        return OutfitRecommendationEngine().suggestions(
+        return OutfitRecommendationEngine(ranker: ranker).suggestions(
             items: allGarments,
             preferences: preferences,
             wearEvents: wearEvents,
-            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors)
+            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, anchorItemID: anchorItemID)
         )
     }
 
     func saveSuggestion(_ suggestion: OutfitSuggestion) throws -> Outfit {
-        if let existing = try repository.allOutfits().first(where: { $0.itemIDs == suggestion.itemIDs }) {
+        let suggestionItems = Set(suggestion.itemIDs)
+        if let existing = try repository.allOutfits().first(where: { Set($0.itemIDs) == suggestionItems }) {
             return existing
         }
         let names = suggestion.itemIDs.compactMap { item(id: $0)?.name }.joined(separator: " + ")

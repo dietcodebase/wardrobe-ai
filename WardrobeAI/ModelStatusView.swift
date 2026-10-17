@@ -6,10 +6,11 @@ struct ModelStatusView: View {
     @ObservedObject var store: WardrobeStore
     @State private var importingDescriptor: ModelDescriptor?
     @State private var occasion = "Everyday"
+    @State private var anchorItemID: UUID?
     @State private var message: String?
 
     private var suggestions: [OutfitSuggestion] {
-        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion)) ?? []
+        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion, anchorItemID: anchorItemID)) ?? []
     }
 
     var body: some View {
@@ -35,7 +36,14 @@ struct ModelStatusView: View {
 
             Section("What should I wear?") {
                 Picker("Occasion", selection: $occasion) {
-                    ForEach(["Everyday"] + GarmentTaxonomy.occasions, id: \.self) { Text($0) }
+                    ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0) }
+                }
+                .pickerStyle(.menu)
+                Picker("What goes with this?", selection: $anchorItemID) {
+                    Text("Any garment").tag(Optional<UUID>.none)
+                    ForEach(store.allGarments) { item in
+                        Text(item.name).tag(Optional(item.id))
+                    }
                 }
                 .pickerStyle(.menu)
                 if suggestions.isEmpty {

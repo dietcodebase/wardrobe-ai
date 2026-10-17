@@ -3,8 +3,9 @@ import Foundation
 struct RecommendationContext: Equatable, Sendable {
     var occasion: String?
     var preferredColors: [String]
+    var anchorItemID: UUID? = nil
 
-    static let everyday = RecommendationContext(occasion: nil, preferredColors: [])
+    static let everyday = RecommendationContext(occasion: nil, preferredColors: [], anchorItemID: nil)
 }
 
 struct OutfitSuggestion: Identifiable, Equatable, Sendable {
@@ -22,6 +23,7 @@ protocol OutfitCandidateRanker {
 struct OutfitRecommendationEngine {
     private let ranker: OutfitCandidateRanker?
     private let maximumCandidates = 24
+    private let maximumCandidateEvaluations = 240
 
     init(ranker: OutfitCandidateRanker? = nil) {
         self.ranker = ranker
@@ -35,22 +37,47 @@ struct OutfitRecommendationEngine {
     ) -> [OutfitSuggestion] {
         let byCategory = Dictionary(grouping: items, by: \.category)
         let recentIDs = Set(wearEvents.prefix(3).flatMap(\.itemIDs))
-        var candidates: [[GarmentItem]] = []
-
-        for onePiece in (byCategory["Dress"] ?? []) + (byCategory["One-piece outfit"] ?? []) {
-            candidates.append(completing(primary: [onePiece], categories: byCategory))
+        var bounded: [OutfitSuggestion] = []
+        var evaluations = 0
+        func consider(_ candidate: [GarmentItem]) {
+            guard evaluations < maximumCandidateEvaluations else { return }
+            evaluations += 1
+            guard !candidate.isEmpty, Set(candidate.map(\.id)).count == candidate.count else { return }
+            if let anchorID = context.anchorItemID, !candidate.contains(where: { $0.id == anchorID }) { return }
+            let suggestion = makeSuggestion(candidate, preferences: preferences, recentIDs: recentIDs, context: context)
+            bounded.append(suggestion)
+            bounded.sort { $0.score == $1.score ? $0.explanation < $1.explanation : $0.score > $1.score }
+            if bounded.count > maximumCandidates { bounded.removeLast() }
         }
-        for top in byCategory["Top"] ?? [] {
-            for bottom in byCategory["Bottom"] ?? [] {
-                candidates.append(completing(primary: [top, bottom], categories: byCategory))
+
+        generation: do {
+            let dresses = (byCategory["Dress"] ?? []) + (byCategory["One-piece outfit"] ?? [])
+            for onePiece in dresses {
+                consider([onePiece])
+                if evaluations >= maximumCandidateEvaluations { break generation }
+                for category in ["Outerwear", "Shoes", "Accessory"] {
+                    for optional in byCategory[category] ?? [] {
+                        consider([onePiece, optional])
+                        if evaluations >= maximumCandidateEvaluations { break generation }
+                    }
+                }
+            }
+            for top in byCategory["Top"] ?? [] {
+                for bottom in byCategory["Bottom"] ?? [] {
+                    consider([top, bottom])
+                    if evaluations >= maximumCandidateEvaluations { break generation }
+                    for category in ["Outerwear", "Shoes", "Accessory"] {
+                        for optional in byCategory[category] ?? [] {
+                            consider([top, bottom, optional])
+                            if evaluations >= maximumCandidateEvaluations { break generation }
+                        }
+                    }
+                }
             }
         }
-        if candidates.isEmpty { candidates = items.map { [$0] } }
-
-        let scored = candidates
-            .map { candidate in makeSuggestion(candidate, preferences: preferences, recentIDs: recentIDs, context: context) }
-            .sorted { $0.score == $1.score ? $0.explanation < $1.explanation : $0.score > $1.score }
-        let bounded = Array(scored.prefix(maximumCandidates))
+        if bounded.isEmpty {
+            for item in items { consider([item]) }
+        }
         guard let rankedIDs = ranker?.rank(candidateIDs: bounded.map(\.id), context: context) else { return bounded }
 
         let valid = Dictionary(uniqueKeysWithValues: bounded.map { ($0.id, $0) })
@@ -61,14 +88,6 @@ struct OutfitRecommendationEngine {
         }
         let missing = bounded.filter { !Set(reranked.map(\.id)).contains($0.id) }
         return reranked + missing
-    }
-
-    private func completing(primary: [GarmentItem], categories: [String: [GarmentItem]]) -> [GarmentItem] {
-        var result = primary
-        for category in ["Outerwear", "Shoes", "Accessory"] {
-            if let item = categories[category]?.first { result.append(item) }
-        }
-        return result
     }
 
     private func makeSuggestion(_ items: [GarmentItem], preferences: StylePreferences, recentIDs: Set<UUID>, context: RecommendationContext) -> OutfitSuggestion {

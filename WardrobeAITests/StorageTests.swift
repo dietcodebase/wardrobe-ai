@@ -139,6 +139,7 @@ final class StorageTests: XCTestCase {
         let repository = try makeRepository()
         let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))
         let bottom = try repository.createItem(GarmentDraft(name: "Bottom", category: "Bottom"))
+        _ = try repository.createOutfit(OutfitDraft(name: "Saved in reverse order", itemIDs: [bottom.id, top.id]))
         let store = WardrobeStore(repository: repository)
         let suggestion = OutfitSuggestion(id: UUID(), itemIDs: [top.id, bottom.id], score: 0, explanation: "Owned items")
 

@@ -10,9 +10,11 @@
 ### Verification
 
 - [x] Simulator build passes.
-- [x] Unit tests pass on the iPhone Duo iOS 27.1 simulator.
+- [x] Unit-test target passes on the iPhone Duo iOS 27.1 simulator (26 tests).
+- [ ] UI navigation smoke test cannot locate the simulator tab bar.
 - [ ] Device ranking evaluation and explicit Wear today validation remain
   required before merge.
+- [ ] M06 does not yet provide a production inference loader for model ranking.
 
 ### Evidence
 
