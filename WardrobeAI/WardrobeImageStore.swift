@@ -113,6 +113,10 @@ final class GarmentImageCoordinator {
         }
     }
 
+    func imageData(at path: String) throws -> Data? {
+        try imageStore.data(at: path)
+    }
+
     func deleteItem(id: UUID) throws {
         let imagePath = try repository.item(id: id)?.imagePath
         try repository.deleteItem(id: id)

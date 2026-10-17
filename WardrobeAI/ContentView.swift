@@ -45,7 +45,7 @@ private struct WardrobeView: View {
                 } else {
                     ScrollView { LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(store.items) { item in
-                            Button { selectedItem = item } label: { GarmentCard(item: item) }
+                            Button { selectedItem = item } label: { GarmentCard(item: item, store: store) }
                                 .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
                         }
                     }.padding() }
@@ -84,13 +84,30 @@ private struct TagFilter: View {
 
 private struct GarmentCard: View {
     let item: GarmentItem
+    @ObservedObject var store: WardrobeStore
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .tertiarySystemFill)).frame(height: 132)
-                .overlay(Image(systemName: "tshirt").font(.largeTitle).foregroundStyle(.secondary)).accessibilityHidden(true)
+            GarmentThumbnail(item: item, store: store).frame(height: 132)
             Text(item.name).font(.headline).lineLimit(2)
             Text(item.category).font(.subheadline).foregroundStyle(.secondary)
             if let color = item.color, !color.isEmpty { Text(color).font(.caption).foregroundStyle(.secondary) }
         }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+private struct GarmentThumbnail: View {
+    let item: GarmentItem
+    @ObservedObject var store: WardrobeStore
+    @State private var image: UIImage?
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .tertiarySystemFill))
+            .overlay {
+                if let image { Image(uiImage: image).resizable().scaledToFill().clipShape(RoundedRectangle(cornerRadius: 16)) }
+                else { Image(systemName: "tshirt").font(.largeTitle).foregroundStyle(.secondary) }
+            }
+            .clipped()
+            .task(id: item.imagePath) { image = store.imageData(for: item).flatMap(UIImage.init(data:)) }
+            .accessibilityHidden(true)
     }
 }

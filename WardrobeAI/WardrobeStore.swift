@@ -10,9 +10,11 @@ final class WardrobeStore: ObservableObject {
     @Published var selectedTag: String? { didSet { loadItems() } }
 
     let repository: WardrobeRepository
+    private let imageCoordinator: GarmentImageCoordinator?
 
-    init(repository: WardrobeRepository) {
+    init(repository: WardrobeRepository, imageStore: WardrobeImageStore? = nil) {
         self.repository = repository
+        self.imageCoordinator = imageStore.map { GarmentImageCoordinator(repository: repository, imageStore: $0) }
         loadItems()
     }
 
@@ -45,8 +47,29 @@ final class WardrobeStore: ObservableObject {
         loadItems()
     }
 
+    func create(_ draft: GarmentDraft, imageData: Data?) throws {
+        if let imageData, let imageCoordinator {
+            _ = try imageCoordinator.createItem(draft, imageData: imageData)
+        } else {
+            _ = try repository.createItem(draft)
+        }
+        loadItems()
+    }
+
+    func replaceImage(for item: GarmentItem, with imageData: Data) throws -> GarmentItem {
+        let updated = try imageCoordinator?.replaceImage(for: item.id, with: imageData) ?? item
+        loadItems()
+        return updated
+    }
+
+    func imageData(for item: GarmentItem) -> Data? {
+        guard let path = item.imagePath, let imageCoordinator else { return nil }
+        return try? imageCoordinator.imageData(at: path)
+    }
+
     func delete(_ item: GarmentItem) throws {
-        try repository.deleteItem(id: item.id)
+        if let imageCoordinator { try imageCoordinator.deleteItem(id: item.id) }
+        else { try repository.deleteItem(id: item.id) }
         loadItems()
     }
 }

@@ -198,3 +198,74 @@ struct GarmentPhotoSource: View {
         }
     }
 }
+
+struct GarmentCaptureSheet: View {
+    let onSelect: (GarmentCaptureCandidate) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var candidates: [GarmentCaptureCandidate] = []
+    @State private var selection: UUID?
+    @State private var isPreparing = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if candidates.isEmpty {
+                    ContentUnavailableView {
+                        Label("Add a garment photo", systemImage: "camera")
+                    } description: {
+                        Text("Take a single-item photo or choose one from your library. You can keep the full photo if no cutout is useful.")
+                    } actions: {
+                        GarmentPhotoSource(onImage: prepare)
+                    }
+                } else {
+                    List {
+                        Section("Choose preview") {
+                            ForEach(candidates) { candidate in
+                                Button { selection = candidate.id } label: {
+                                    HStack {
+                                        Image(uiImage: candidate.image).resizable().scaledToFill().frame(width: 76, height: 76).clipShape(RoundedRectangle(cornerRadius: 10))
+                                        VStack(alignment: .leading) {
+                                            Text(candidate.kind == .foreground ? "Foreground selection" : "Use original photo")
+                                            HStack { Circle().fill(candidate.swatch.color).frame(width: 12, height: 12); Text("Average swatch") }
+                                                .font(.caption).foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if selection == candidate.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }
+                                    }
+                                }.buttonStyle(.plain).accessibilityLabel(candidate.kind == .foreground ? "Select foreground cutout" : "Select original photo")
+                            }
+                        }
+                        Section { GarmentPhotoSource(onImage: prepare) } footer: { Text("If the foreground choices are wrong or incomplete, choose the original photo and continue editing manually.") }
+                    }
+                }
+            }
+            .overlay { if isPreparing { ProgressView("Preparing photo…").padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12)) } }
+            .navigationTitle("Garment photo")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                if let selectedCandidate { ToolbarItem(placement: .confirmationAction) { Button("Use photo") { onSelect(selectedCandidate); dismiss() } } }
+            }
+            .alert("Couldn’t prepare photo", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private var selectedCandidate: GarmentCaptureCandidate? {
+        candidates.first { $0.id == selection }
+    }
+
+    private func prepare(_ image: UIImage) {
+        isPreparing = true
+        Task {
+            defer { isPreparing = false }
+            do {
+                let original = try GarmentImagePreparation.originalCandidate(from: image)
+                let foreground = try GarmentImagePreparation.foregroundCandidates(from: original)
+                candidates = [original] + foreground
+                selection = original.id
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+}

@@ -9,7 +9,8 @@ struct WardrobeAIApp: App {
         let url = directory?.appending(path: "WardrobeAI/wardrobe.sqlite") ?? FileManager.default.temporaryDirectory.appending(path: "wardrobe.sqlite")
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let database = try! WardrobeDatabase.makeQueue(at: url)
-        _store = StateObject(wrappedValue: WardrobeStore(repository: WardrobeRepository(database: database)))
+        let imageStore = try? WardrobeImageStore.applicationSupport()
+        _store = StateObject(wrappedValue: WardrobeStore(repository: WardrobeRepository(database: database), imageStore: imageStore))
     }
 
     var body: some Scene {
