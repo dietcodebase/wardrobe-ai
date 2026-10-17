@@ -31,7 +31,12 @@ outside Git alongside each run. Embedding mode requires its own model and the
 same images. No automatic download occurs.
 
 Run E2B text first, then image, tools and audio separately. Run embeddings
-separately. Select MTP off/on in separate runs with identical fixtures. Only
+separately. After those modes pass, select **switching** to run ten sequential
+generation → image embedding → image generation cycles. This mode verifies both
+model artifacts before starting, records each step separately, and releases one
+engine before loading the next. Keep Instruments attached to the entire cycle;
+the JSON does not capture memory peaks or prove native allocations were reclaimed.
+Select MTP off/on in separate runs with identical fixtures. Only
 try E4B after E2B survives the device budget. Each run does two loads and ten
 operations per load. Every run has a new compilation cache; the second load
 reuses it. For a true cold-device measurement, reboot/relaunch and record cache

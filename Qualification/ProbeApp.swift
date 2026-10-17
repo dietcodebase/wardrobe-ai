@@ -23,7 +23,7 @@ struct ProbeView: View {
                 }
                 Toggle("MTP (separate on/off runs)", isOn: $mtp)
                 Toggle("E4B (optional, after E2B)", isOn: $e4b)
-                Button("Select folder and run 20 operations") { importing = true }
+                Button(mode == .switching ? "Select folder and run 10 switching cycles" : "Select folder and run 20 operations") { importing = true }
                 Text(status)
                 if let report { ShareLink("Export measurements", item: report) }
             }

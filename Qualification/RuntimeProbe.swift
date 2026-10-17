@@ -15,7 +15,7 @@ struct ProbeManifest: Decodable {
 }
 
 enum ProbeMode: String, CaseIterable, Identifiable {
-    case text, image, audio, tools, embedding
+    case text, image, audio, tools, embedding, switching
     var id: String { rawValue }
 }
 
@@ -51,7 +51,7 @@ actor RuntimeProbe {
                        "startedUTC": ISO8601DateFormatter().string(from: Date()),
                        "mode": mode.rawValue, "mtp": String(mtp), "e4b": String(e4b),
                        "backend": "Metal", "contextTokens": "4096",
-                       "visionBackend": mode == .image ? "cpu" : (mode == .embedding ? "gpu" : "disabled"),
+                       "visionBackend": mode == .image || mode == .switching ? "cpu" : (mode == .embedding ? "gpu" : "disabled"),
                        "audioBackend": mode == .audio ? "cpu" : "disabled"]
         var system = utsname()
         uname(&system)
@@ -65,16 +65,25 @@ actor RuntimeProbe {
         let artifact = manifest.models.first { $0.id == id }!
         try verify(folder.appendingPathComponent(artifact.filename), artifact: artifact)
         try record("verified-\(id)-\(artifact.sha256)-mtp-\(mtp)", 0, 0, "metadata only")
+        let embeddingArtifact = mode == .switching ? manifest.models.first { $0.id == "embedding" } : nil
+        if let embeddingArtifact {
+            try verify(folder.appendingPathComponent(embeddingArtifact.filename), artifact: embeddingArtifact)
+            try record("verified-embedding-\(embeddingArtifact.sha256)", 0, 0, "metadata only")
+        }
         ExperimentalFlags.optIntoExperimentalAPIs()
         ExperimentalFlags.enableSpeculativeDecoding = mtp
         // The first load uses a new cache; the second reuses it. Neither implies OS page-cache eviction.
         do {
-            for pass in 0..<2 {
-                try Task.checkCancellation()
-                if mode == .embedding {
-                    try await embeddings(folder: folder, artifact: artifact, pass: pass)
-                } else {
-                    try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+            if let embeddingArtifact {
+                try await switching(folder: folder, generationArtifact: artifact, embeddingArtifact: embeddingArtifact)
+            } else {
+                for pass in 0..<2 {
+                    try Task.checkCancellation()
+                    if mode == .embedding {
+                        try await embeddings(folder: folder, artifact: artifact, pass: pass)
+                    } else {
+                        try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+                    }
                 }
             }
             try record("suite-complete", 0, 0, "Review semantic quality and external memory evidence")
@@ -165,6 +174,62 @@ actor RuntimeProbe {
                 }
                 try record("embedding-\(pass)", iteration, ProcessInfo.processInfo.systemUptime - started, "two valid 768D vectors; relevance untested")
             }
+            await engine.close()
+        } catch {
+            await engine.close()
+            throw error
+        }
+    }
+
+    // Ten complete generation → embedding → generation cycles. Each helper releases its
+    // engine before the next one is constructed, so peak memory reflects sequential use.
+    private func switching(folder: URL, generationArtifact: Artifact, embeddingArtifact: Artifact) async throws {
+        for iteration in 1...10 {
+            try Task.checkCancellation()
+            let image = try preparedImage(folder: folder, iteration: iteration)
+            try await switchingGeneration(folder: folder, artifact: generationArtifact,
+                                          iteration: iteration, image: nil, phase: "before-embedding")
+            try await switchingEmbedding(folder: folder, artifact: embeddingArtifact,
+                                         iteration: iteration, image: image)
+            try await switchingGeneration(folder: folder, artifact: generationArtifact,
+                                          iteration: iteration, image: image, phase: "after-embedding")
+        }
+    }
+
+    private func switchingGeneration(folder: URL, artifact: Artifact, iteration: Int,
+                                     image: URL?, phase: String) async throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let config = try EngineConfig(
+            modelPath: folder.appendingPathComponent(artifact.filename).path,
+            backend: .gpu, visionBackend: image == nil ? nil : .cpu(),
+            maxNumTokens: 4096, cacheDir: cache.path)
+        let engine = Engine(engineConfig: config)
+        try await engine.initialize()
+        let conversation = try await engine.createConversation(with: ConversationConfig(
+            thinkingConfig: ThinkingConfig(enableThinking: false, thinkingTokenBudget: 0)))
+        let contents: [Content] = image.map {
+            [.imageFile($0.path), .text("Describe the garment category and color in one sentence.")]
+        } ?? [.text("Reply with the word ready.")]
+        let response = try await conversation.sendMessage(Message(contents: contents), maxOutputTokens: 128)
+        try record("switch-generation-\(phase)", iteration,
+                   ProcessInfo.processInfo.systemUptime - started, response.toString)
+    }
+
+    private func switchingEmbedding(folder: URL, artifact: Artifact, iteration: Int,
+                                    image: URL) async throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let engine = EmbeddingEngine(config: .init(
+            modelPath: folder.appendingPathComponent(artifact.filename).path,
+            backend: .gpu, visionBackend: .gpu, cacheDir: cache.path))
+        do {
+            try await engine.initialize()
+            let response = try await engine.computeEmbedding(contents: [.imageFile(image.path)],
+                                                             options: .init(normalize: true))
+            guard response.embedding.count == 768,
+                  response.embedding.allSatisfy({ $0.isFinite }),
+                  response.embedding.contains(where: { $0 != 0 }) else { throw ProbeError.invalidEmbedding }
+            try record("switch-embedding", iteration,
+                       ProcessInfo.processInfo.systemUptime - started, "valid 768D image vector")
             await engine.close()
         } catch {
             await engine.close()
