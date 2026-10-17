@@ -46,7 +46,7 @@ private struct WardrobeView: View {
                     ScrollView { LazyVGrid(columns: columns, spacing: 16) {
                         ForEach(store.items) { item in
                             Button { selectedItem = item } label: { GarmentCard(item: item) }
-                                .buttonStyle(.plain).accessibilityLabel("\\(item.name), \\(item.category)")
+                                .buttonStyle(.plain).accessibilityLabel("\(item.name), \(item.category)")
                         }
                     }.padding() }
                 }

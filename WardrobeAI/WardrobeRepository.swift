@@ -105,7 +105,7 @@ final class WardrobeRepository {
             var arguments: [DatabaseValueConvertible?] = []
             if !text.isEmpty {
                 clauses.append("(name LIKE ? COLLATE NOCASE OR color LIKE ? COLLATE NOCASE OR notes LIKE ? COLLATE NOCASE OR EXISTS (SELECT 1 FROM json_each(items.tags_json) WHERE json_each.value LIKE ? COLLATE NOCASE))")
-                let pattern = "%\\(text)%"
+                let pattern = "%\(text)%"
                 arguments += [pattern, pattern, pattern, pattern]
             }
             if let category, !category.isEmpty {
@@ -117,7 +117,7 @@ final class WardrobeRepository {
                 arguments.append(tag)
             }
             let whereClause = clauses.isEmpty ? "" : "WHERE " + clauses.joined(separator: " AND ")
-            let rows = try Row.fetchAll(database, sql: "SELECT items.* FROM items \\(whereClause) ORDER BY updated_at DESC", arguments: StatementArguments(arguments))
+            let rows = try Row.fetchAll(database, sql: "SELECT items.* FROM items \(whereClause) ORDER BY updated_at DESC", arguments: StatementArguments(arguments))
             return try rows.map(garmentItem(from:))
         }
     }

@@ -4,32 +4,43 @@ struct GarmentDetail: View {
     let item: GarmentItem
     @ObservedObject var store: WardrobeStore
     @Environment(\.dismiss) private var dismiss
+    @State private var displayedItem: GarmentItem
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var errorMessage: String?
+
+    init(item: GarmentItem, store: WardrobeStore) {
+        self.item = item
+        self.store = store
+        _displayedItem = State(initialValue: item)
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Garment") {
-                    LabeledContent("Name", value: item.name)
-                    LabeledContent("Category", value: item.category)
-                    if let color = item.color, !color.isEmpty { LabeledContent("Color", value: color) }
+                    LabeledContent("Name", value: displayedItem.name)
+                    LabeledContent("Category", value: displayedItem.category)
+                    if let color = displayedItem.color, !color.isEmpty { LabeledContent("Color", value: color) }
                 }
-                if !item.tags.isEmpty { Section("Tags") { Text(item.tags.joined(separator: ", ")) } }
-                if let notes = item.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
+                if !displayedItem.tags.isEmpty { Section("Tags") { Text(displayedItem.tags.joined(separator: ", ")) } }
+                if let notes = displayedItem.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
                 Section { Button("Delete garment", role: .destructive) { isConfirmingDelete = true } }
             }
-            .navigationTitle(item.name)
+            .navigationTitle(displayedItem.name)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { isEditing = true } } }
-            .sheet(isPresented: $isEditing) { GarmentEditor(store: store, item: item) }
-            .confirmationDialog("Delete \\(item.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+            .sheet(isPresented: $isEditing, onDismiss: refreshItem) { GarmentEditor(store: store, item: displayedItem) }
+            .confirmationDialog("Delete \(displayedItem.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
-                    do { try store.delete(item); dismiss() } catch { errorMessage = error.localizedDescription }
+                    do { try store.delete(displayedItem); dismiss() } catch { errorMessage = error.localizedDescription }
                 }
             } message: { Text("This cannot be undone. Garments used by an outfit or wear history must be removed there first.") }
             .alert("Couldn’t delete garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
+    }
+
+    private func refreshItem() {
+        if let latest = store.item(id: item.id) { displayedItem = latest }
     }
 }
 

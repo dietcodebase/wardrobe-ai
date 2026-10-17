@@ -6,10 +6,10 @@ final class NavigationSmokeTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
         let destinations = [
-            ("Wardrobe", "Your wardrobe starts here"),
+            ("Wardrobe", "No garments yet"),
             ("Outfits", "Your saved outfits will appear here"),
             ("Stylist", "Your personal stylist is coming soon"),
-            ("Wardrobe", "Your wardrobe starts here")
+            ("Wardrobe", "No garments yet")
         ]
         for (title, message) in destinations {
             app.tabBars.buttons[title].tap()

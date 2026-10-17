@@ -1,4 +1,5 @@
 import Foundation
+import Combine
 
 @MainActor
 final class WardrobeStore: ObservableObject {
@@ -17,6 +18,10 @@ final class WardrobeStore: ObservableObject {
 
     var availableTags: [String] {
         Array(Set(items.flatMap(\.tags))).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    func item(id: UUID) -> GarmentItem? {
+        try? repository.item(id: id)
     }
 
     func loadItems() {

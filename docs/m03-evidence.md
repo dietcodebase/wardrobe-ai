@@ -10,6 +10,7 @@ Status: code complete; full XCTest and visual acceptance verification are blocke
 - Text search matches name, color, notes and tags. Category and tag filtering compose with search through parameterized database queries.
 - A style-profile sheet persists preferred categories, colors and notes. The application opens its SQLite database below Application Support, so local changes survive a restart.
 - Native controls include explicit accessibility labels for filter/search/save actions and adapt to Dynamic Type.
+- PR review fixes interpolate parameterized search SQL correctly, keep the detail sheet synchronized with the stored garment after edits, and expose each grid card's actual name and category to VoiceOver. The navigation smoke test now expects the wardrobe's empty state.
 
 ## Verification
 
