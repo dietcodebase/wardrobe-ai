@@ -134,6 +134,20 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try repository.wearEvents().count, 2)
     }
 
+    @MainActor
+    func testRepeatedWearSuggestionReusesOutfitAndWearEvent() throws {
+        let repository = try makeRepository()
+        let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))
+        let bottom = try repository.createItem(GarmentDraft(name: "Bottom", category: "Bottom"))
+        _ = try repository.createOutfit(OutfitDraft(name: "Saved in reverse order", itemIDs: [bottom.id, top.id]))
+        let store = WardrobeStore(repository: repository)
+        let suggestion = OutfitSuggestion(id: UUID(), itemIDs: [top.id, bottom.id], score: 0, explanation: "Owned items")
+
+        XCTAssertEqual(try store.wearSuggestion(suggestion), try store.wearSuggestion(suggestion))
+        XCTAssertEqual(try repository.allOutfits().count, 1)
+        XCTAssertEqual(try repository.wearEvents().count, 1)
+    }
+
     private func makeRepository(calendar: Calendar = .autoupdatingCurrent) throws -> WardrobeRepository {
         let queue = try WardrobeDatabase.makeInMemoryQueue()
         return WardrobeRepository(database: queue, now: { Date(timeIntervalSince1970: 1_700_000_000) }, calendar: calendar)
