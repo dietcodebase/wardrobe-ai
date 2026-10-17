@@ -7,7 +7,7 @@ final class NavigationSmokeTests: XCTestCase {
         app.launch()
         let destinations = [
             ("Wardrobe", "No garments yet"),
-            ("Outfits", "Your saved outfits will appear here"),
+            ("Outfits", "No saved outfits"),
             ("Stylist", "Your personal stylist is coming soon"),
             ("Wardrobe", "No garments yet")
         ]
