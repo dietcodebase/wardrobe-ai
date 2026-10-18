@@ -41,6 +41,16 @@ final class StylistChatTests: XCTestCase {
         XCTAssertEqual(transport.request?.url?.path, "/api/tags")
     }
 
+    func testPhysicalDeviceCanReachOllamaWhenEndpointIsProvided() async throws {
+        guard let endpoint = ProcessInfo.processInfo.environment["OLLAMA_TEST_ENDPOINT"], !endpoint.isEmpty else {
+            throw XCTSkip("Set OLLAMA_TEST_ENDPOINT to run the LAN Ollama smoke test.")
+        }
+        let status = try await OllamaClient().verifyConnection(
+            configuration: OllamaConfiguration(endpointText: endpoint, model: "gemma4:latest")
+        )
+        XCTAssertEqual(status, "Connected to Ollama • gemma4:latest is ready")
+    }
+
     func testSearchRejectsEmptyArgumentsAndHonorsCallLimit() throws {
         let toolbox = StylistToolbox(store: try makeStore(), maximumCallCount: 1)
         XCTAssertThrowsError(try toolbox.execute(.init(tool: .searchWardrobe, query: "  "))) {

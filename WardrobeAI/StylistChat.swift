@@ -38,7 +38,7 @@ struct OllamaConfiguration: Equatable, Sendable {
         // Accept either an Ollama server root or a copied /api URL.
         return base.path.hasSuffix("/api/") || base.path.hasSuffix("/api")
             ? base.appendingPathComponent(route)
-            : base.appendingPathComponent("api/(route)")
+            : base.appendingPathComponent("api/" + route)
     }
 
     var chatURL: URL? { apiURL("chat") }
@@ -88,7 +88,8 @@ struct OllamaClient: Sendable {
         guard let http = response as? HTTPURLResponse else { throw OllamaError.invalidResponse }
         guard (200...299).contains(http.statusCode) else {
             let message = (try? JSONDecoder().decode(OllamaErrorResponse.self, from: data).error) ?? "Request failed"
-            throw OllamaError.server(statusCode: http.statusCode, message: message)
+            let server = http.value(forHTTPHeaderField: "Server") ?? "unknown server"
+            throw OllamaError.server(statusCode: http.statusCode, message: "\(message) at \(url.absoluteString) [\(server)]")
         }
         let models = try JSONDecoder().decode(OllamaTagsResponse.self, from: data).models
         guard models.contains(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
