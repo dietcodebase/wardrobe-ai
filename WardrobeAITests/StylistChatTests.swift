@@ -41,14 +41,22 @@ final class StylistChatTests: XCTestCase {
         XCTAssertEqual(transport.request?.url?.path, "/api/tags")
     }
 
-    func testPhysicalDeviceCanReachOllamaWhenEndpointIsProvided() async throws {
-        guard let endpoint = ProcessInfo.processInfo.environment["OLLAMA_TEST_ENDPOINT"], !endpoint.isEmpty else {
-            throw XCTSkip("Set OLLAMA_TEST_ENDPOINT to run the LAN Ollama smoke test.")
+    func testProductionTransportRejectsRemoteRequests() async {
+        let request = URLRequest(url: URL(string: "https://ollama.example.net/api/chat")!)
+        do {
+            _ = try await URLSessionOllamaTransport().send(request)
+            XCTFail("Production transport must not send a request")
+        } catch {
+            XCTAssertEqual(error as? OllamaError, .disabled)
         }
-        let status = try await OllamaClient().verifyConnection(
-            configuration: OllamaConfiguration(endpointText: endpoint, model: "gemma4:latest")
-        )
-        XCTAssertEqual(status, "Connected to Ollama • gemma4:latest is ready")
+    }
+
+    func testSavedEndpointCannotEnableRemoteInference() {
+        let suite = UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("https://ollama.example.net", forKey: OllamaConfiguration.endpointKey)
+        XCTAssertFalse(OllamaConfiguration.saved(defaults: defaults).isConfigured)
     }
 
     func testSearchRejectsEmptyArgumentsAndHonorsCallLimit() throws {

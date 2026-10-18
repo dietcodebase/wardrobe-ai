@@ -30,7 +30,7 @@ struct ModelStatusView: View {
             }
 
             Section("How this affects suggestions") {
-                Text("Model setup is optional. Today always starts with complete outfit candidates from your own wardrobe, then a configured local model can refine their order and explanation.")
+                Text("Today uses owned-item outfit rules. Gemma refinement remains unavailable until the iPhone 17 runtime and memory checks pass.")
                     .foregroundStyle(.secondary)
             }
         }

@@ -36,9 +36,10 @@ and local credentials in `.env` or `Config/Local.xcconfig`. No sample private
 photos or runtime artifacts belong in this repository. Service protocols and
 fakes will be introduced with their first consumer; this static shell has none.
 
-## Remote Ollama
+## On-device privacy
 
-The Stylist can use a remote Ollama server as its default AI responder, with
-`gemma4` selected by default. Enter the server URL in **Stylist → Remote AI**;
-the connection design, privacy boundary, and deployment notes are in
-[docs/remote-ollama.md](docs/remote-ollama.md).
+The v1 build keeps garment images and stylist prompts on the phone. The previous
+remote Ollama path is disabled; saved endpoints are ignored and the production
+transport rejects remote AI requests. The stylist uses owned-item rules while
+the iPhone 17 Gemma runtime gate remains open. See the
+[legacy integration note](docs/remote-ollama.md) and [validation tracker](docs/final-validation.md).

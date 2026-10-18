@@ -58,7 +58,7 @@ struct ContentView: View {
                     showLooks: { selectedTab = .looks },
                     addGarment: { showingAddGarment = true },
                     askStylist: { showingStylist = true },
-                    configureOllama: { showingAISettings = true }
+                    showAIStatus: { showingAISettings = true }
                 )
             }
             .tabItem { Label { Text("Today") } icon: { IconoirIcon(.sparks, size: 16) } }
@@ -104,7 +104,7 @@ private struct TodayView: View {
     let showLooks: () -> Void
     let addGarment: () -> Void
     let askStylist: () -> Void
-    let configureOllama: () -> Void
+    let showAIStatus: () -> Void
 
     @AppStorage("recommendation.weatherCity") private var weatherCity = ""
     @State private var contextExpanded = false
@@ -203,8 +203,8 @@ private struct TodayView: View {
         .navigationTitle("Today")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button(action: configureOllama) { IconoirIcon(.settings, size: 20) }
-                    .accessibilityLabel("Configure Ollama server")
+                Button(action: showAIStatus) { IconoirIcon(.settings, size: 20) }
+                    .accessibilityLabel("On-device AI status")
             }
         }
         .alert("Outfit update", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
@@ -419,8 +419,8 @@ private struct TodayView: View {
                 Button(action: showLooks) { IconoirLabel(title: "Saved looks", icon: .viewGrid).frame(maxWidth: .infinity) }
                     .buttonStyle(.bordered)
             }
-            Button(action: configureOllama) {
-                IconoirLabel(title: OllamaConfiguration.saved().isConfigured ? "Ollama server configured" : "Connect an Ollama server", icon: .network)
+            Button(action: showAIStatus) {
+                IconoirLabel(title: "On-device AI status", icon: .shieldCheck)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
@@ -457,25 +457,9 @@ private struct TodayView: View {
         adjustedSuggestions = []
         refinedSuggestions = []
         let candidates = heuristicSuggestions
-            localSuggestions = Array(candidates.prefix(3))
+        localSuggestions = Array(candidates.prefix(3))
         let recommendationContext = self.recommendationContext
         try? store.recordRecommendation(candidates, context: recommendationContext, source: candidates.first?.source ?? .noContext, outcome: candidates.isEmpty ? .failedToGenerate : .generated)
-        guard !candidates.isEmpty else { return }
-        isRefining = true
-        defer { if suggestionInputID == inputID { isRefining = false } }
-        do {
-            let contextOccasion = occasion == "Everyday" ? "unspecified everyday" : occasion
-            let lockedContext = recommendationContext.lockedItemIDs.compactMap { store.item(id: $0) }.map { "\($0.name) (\($0.category))" }.joined(separator: ", ")
-            let calendarContext = recommendationContext.calendarBusyPeriods.isEmpty ? "none" : "\(recommendationContext.calendarBusyPeriods.count) selected busy period(s), titles hidden"
-            let context = "occasion=\(contextOccasion); dress code=\(recommendationContext.dressCodeNote ?? "none"); locked pieces=\(lockedContext); open slot=\(requestedSlot.rawValue); warmth=\(warmth.rawValue); rain-ready=\(tolerateRain); walking comfort=\(prioritizeWalkingComfort); recent-repeat preference=\(repeatFrequency.rawValue); weather=\(weatherDescription); calendar=\(calendarContext)"
-            let refined = try await OllamaOutfitAdvisor().recommendations(candidates: candidates, items: store.allGarments, context: context)
-            guard !Task.isCancelled, suggestionInputID == inputID else { return }
-            try store.recordRecommendation(refined, context: recommendationContext, source: .ollamaRanking, outcome: .generated)
-            refinedSuggestions = refined
-        } catch {
-            try? store.recordRecommendation(candidates, context: recommendationContext, source: .ollamaRanking, outcome: .failedToGenerate)
-            // The deterministic planner remains visible when optional ranking is unavailable.
-        }
     }
 
     private func validateLocks(_ ids: [UUID], slot: RecommendationSlot) -> String? {
@@ -748,7 +732,7 @@ private struct WardrobeView: View {
                         Button("Enter manually") { isAdding = true }
                         Button("Add several photos") { isBatchCapturing = true }
                         Divider()
-                        Button(isLoadingDemo ? "Loading demo and tagging…" : "Load demo wardrobe + Gemma tags") { loadDemoWardrobe() }
+                        Button(isLoadingDemo ? "Loading demo and tagging…" : "Load demo wardrobe + local tags") { loadDemoWardrobe() }
                             .disabled(isLoadingDemo)
                     } label: { IconoirIcon(.plus, size: 22) }
                     .accessibilityLabel("Add a garment")
@@ -774,10 +758,10 @@ private struct WardrobeView: View {
             defer { isLoadingDemo = false }
             do {
                 let count = try await store.tagDemoWardrobe()
-                demoMessage = "Loaded the bundled demo wardrobe and saved Gemma tags for \(count) garments."
+                demoMessage = "Loaded the bundled demo wardrobe and saved on-device tags for \(count) garments."
             } catch {
                 let loaded = WardrobeSeed.entries.compactMap { try? store.repository.item(seedKey: $0.key) }.filter { $0.imagePath != nil }.count
-                demoMessage = "Loaded the demo wardrobe (\(loaded) photos). Gemma tagging stopped: \(error.localizedDescription)"
+                demoMessage = "Loaded the demo wardrobe (\(loaded) photos). Local tagging stopped: \(error.localizedDescription)"
             }
         }
     }

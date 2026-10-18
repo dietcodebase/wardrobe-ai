@@ -141,9 +141,9 @@ final class WardrobeStore: ObservableObject {
         return items
     }
 
-    /// Runs one serialized Gemma vision request per stored photo. Tags are
-    /// additive so the demo remains useful if a later model response is sparse.
-    func tagDemoWardrobe(classifier: any GarmentClassifying = OllamaGarmentClassifier()) async throws -> Int {
+    /// Runs on-device Vision classification for bundled photos. Tags are
+    /// additive so the demo remains useful if a result is sparse.
+    func tagDemoWardrobe(classifier: any GarmentClassifying = VisionGarmentClassifier()) async throws -> Int {
         _ = try installDemoWardrobeAssets()
         let seedIDs = Set(WardrobeSeed.entries.compactMap { try? repository.item(seedKey: $0.key)?.id })
         let candidates = allGarments.filter { seedIDs.contains($0.id) && $0.imagePath != nil && $0.classification == nil }

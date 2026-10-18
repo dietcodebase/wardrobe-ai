@@ -25,10 +25,9 @@ struct OllamaConfiguration: Equatable, Sendable {
     }
 
     static func saved(defaults: UserDefaults = .standard) -> OllamaConfiguration {
-        OllamaConfiguration(
-            endpointText: defaults.string(forKey: endpointKey) ?? "",
-            model: defaults.string(forKey: modelKey) ?? defaultModel
-        )
+        // Existing installs may have saved a server URL. The v1 privacy rule
+        // never promotes it into a live inference configuration.
+        OllamaConfiguration(endpointText: "")
     }
 
     var isConfigured: Bool { endpoint != nil }
@@ -48,13 +47,15 @@ struct OllamaConfiguration: Equatable, Sendable {
 
 enum OllamaError: LocalizedError, Equatable {
     case notConfigured
+    case disabled
     case invalidResponse
     case server(statusCode: Int, message: String)
     case modelUnavailable(String)
 
     var errorDescription: String? {
         switch self {
-        case .notConfigured: "Add your remote Ollama server URL to use Gemma 4."
+        case .notConfigured: "Remote AI is unavailable in this build."
+        case .disabled: "Remote AI is disabled for the on-device Wardrobe AI build."
         case .invalidResponse: "Ollama returned an unreadable response."
         case let .server(statusCode, message): "Ollama returned HTTP \(statusCode): \(message)"
         case let .modelUnavailable(model): "The server is reachable, but \(model) is not installed. Run: ollama pull \(model)"
@@ -68,7 +69,7 @@ protocol OllamaTransport: Sendable {
 
 struct URLSessionOllamaTransport: OllamaTransport {
     func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
-        try await URLSession.shared.data(for: request)
+        throw OllamaError.disabled
     }
 }
 
@@ -489,21 +490,7 @@ final class StylistChat: ObservableObject {
     }
 
     private func response(for request: String) async -> String {
-        let configuration = OllamaConfiguration.saved()
-        guard configuration.isConfigured else { return localResponse(for: request) }
-        do {
-            return try await ollama.reply(
-                to: request,
-                configuration: configuration,
-                wardrobeContext: wardrobeContext()
-            )
-        } catch is CancellationError {
-            return ""
-        } catch {
-            // The local responder keeps core wardrobe actions useful during a
-            // transient server outage, while making the source unambiguous.
-            return "Gemma 4 is unavailable (\(error.localizedDescription)). \(localResponse(for: request))"
-        }
+        localResponse(for: request)
     }
 
     private func localResponse(for request: String) -> String {
@@ -590,8 +577,6 @@ struct StylistChatView: View {
     @StateObject private var chat: StylistChat
     @State private var draft = ""
     @StateObject private var voice = VoiceInput()
-    @AppStorage(OllamaConfiguration.endpointKey) private var ollamaEndpoint = ""
-    @AppStorage(OllamaConfiguration.modelKey) private var ollamaModel = OllamaConfiguration.defaultModel
 
     init(store: WardrobeStore) {
         self.store = store
@@ -599,27 +584,9 @@ struct StylistChatView: View {
     }
 
     var body: some View {
-        Section("Remote AI") {
-            TextField("Ollama server URL", text: $ollamaEndpoint)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .keyboardType(.URL)
-                .accessibilityIdentifier("ollama-endpoint")
-            TextField("Model", text: $ollamaModel)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier("ollama-model")
-            let configuration = OllamaConfiguration(endpointText: ollamaEndpoint, model: ollamaModel)
-            if ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                Text("Gemma 4 is the default once you enter your remote Ollama server URL. Until then, the stylist uses its offline wardrobe rules.")
-                    .font(.footnote).foregroundStyle(.secondary)
-            } else if configuration.isConfigured {
-                IconoirLabel(title: "Gemma 4 is the preferred stylist responder.", icon: .network)
-                    .font(.footnote).foregroundStyle(.secondary)
-            } else {
-                IconoirLabel(title: "Enter a full HTTP(S) server URL, such as https://ollama.example.net.", icon: .warningTriangle)
-                    .font(.footnote).foregroundStyle(WardrobeDesign.Color.quiet)
-            }
+        Section("On-device stylist") {
+            Text("Wardrobe search, outfit ideas and wear history stay on this phone. Gemma responses are pending iPhone 17 qualification.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
 
         Section("Ask your stylist") {
@@ -665,7 +632,7 @@ struct StylistChatView: View {
                     }
                 }
             }
-            Text("The remote stylist receives only the wardrobe names, categories, colors, and upcoming in-app plans needed to answer. It cannot record wear until you confirm a saved outfit.")
+            Text("Your wardrobe requests stay on this phone. Recording wear still requires your confirmation.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .confirmationDialog("Record this outfit as worn today?", isPresented: Binding(get: { chat.pendingWearOutfit != nil }, set: { if !$0 { chat.dismissWearConfirmation() } }), titleVisibility: .visible) {

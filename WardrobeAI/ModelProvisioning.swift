@@ -6,9 +6,9 @@ import UIKit
 #endif
 
 enum ModelRuntimePolicy {
-    /// M06 is authorized against the M01 probe results while combined memory and
-    /// capture-switch measurements remain outstanding. See docs/m06-evidence.md.
-    static let deviceQualificationPassed = true
+    /// The isolated probe builds, but no iPhone 17 runtime report or Instruments
+    /// trace has passed M01. Keep model provisioning gated until that evidence exists.
+    static let deviceQualificationPassed = false
 }
 
 enum ModelID: String, CaseIterable, Identifiable, Sendable {
