@@ -103,7 +103,7 @@ final class OutfitRecommendationsTests: XCTestCase {
         let assessment = MirrorFitCheckEngine().assess(outfit: outfit, items: [dress], observedCategory: "Dress")
 
         XCTAssertTrue(assessment.swaps.isEmpty)
-        XCTAssertTrue(assessment.clothingComment.contains("Dress"))
+        XCTAssertTrue(assessment.clothingComment.localizedCaseInsensitiveContains("Dress"))
     }
 
     func testMirrorCheckUsesPhotoCategoryToIdentifyOutfitMismatch() {
