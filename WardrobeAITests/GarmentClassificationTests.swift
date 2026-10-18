@@ -28,8 +28,9 @@ final class GarmentClassificationTests: XCTestCase {
 
     func testDecoderRejectsMalformedAndUnknownCategoryOutput() {
         XCTAssertThrowsError(try GarmentClassificationResponse.decode("not json")) { XCTAssertEqual($0 as? GarmentClassificationError, .malformedResponse) }
-        XCTAssertThrowsError(try GarmentClassificationResponse.decode(#"{"category":"Hat"}"#)) { error in
-            XCTAssertEqual(error as? GarmentClassificationError, .unknownCategory("Hat"))
+        XCTAssertEqual(try? GarmentClassificationResponse.decode(#"{"category":"Hat"}"#).category, "Accessory")
+        XCTAssertThrowsError(try GarmentClassificationResponse.decode(#"{"category":"Unknown item"}"#)) { error in
+            XCTAssertEqual(error as? GarmentClassificationError, .unknownCategory("Unknown item"))
         }
     }
 
@@ -77,7 +78,9 @@ final class GarmentClassificationTests: XCTestCase {
     }
 
     func testOllamaVisionRequestUsesJSONAndDisablesThinking() async throws {
-        let transport = CapturingVisionTransport(response: #"{"message":{"content":"{\\\"category\\\":\\\"Top\\\",\\\"suggestedName\\\":\\\"Navy Oxford Shirt\\\",\\\"color\\\":\\\"Navy\\\",\\\"tags\\\":[\\\"work\\\"],\\\"garmentType\\\":\\\"Oxford shirt\\\",\\\"pattern\\\":\\\"solid\\\",\\\"fit\\\":\\\"regular\\\",\\\"formality\\\":\\\"smart casual\\\",\\\"seasons\\\":[\\\"spring\\\"],\\\"occasions\\\":[\\\"work\\\"]}"}}"#)
+        let modelContent = #"{"category":"Top","suggestedName":"Navy Oxford Shirt","color":"Navy","tags":["work"],"garmentType":"Oxford shirt","pattern":"solid","fit":"regular","formality":"smart casual","seasons":["spring"],"occasions":["work"]}"#
+        let response = try JSONSerialization.data(withJSONObject: ["message": ["content": modelContent]])
+        let transport = CapturingVisionTransport(response: String(decoding: response, as: UTF8.self))
         let classifier = OllamaGarmentClassifier(
             configuration: OllamaConfiguration(endpointText: "http://192.168.1.20:11434"),
             transport: transport

@@ -2,16 +2,16 @@ import XCTest
 
 final class NavigationSmokeTests: XCTestCase {
     @MainActor
-    func testAssistantConversationIsThePrimaryScreen() {
+    func testTodayOpensWardrobe() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.navigationBars["Wardrobe AI"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["assistant-welcome"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.textFields["assistant-prompt"].exists)
-        XCTAssertFalse(app.tabBars.firstMatch.exists)
+        let browseWardrobe = app.buttons["Browse wardrobe"]
+        XCTAssertTrue(browseWardrobe.waitForExistence(timeout: 10))
+        browseWardrobe.tap()
+        XCTAssertTrue(app.navigationBars["Wardrobe"].waitForExistence(timeout: 5))
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
-        screenshot.name = "Chat-first wardrobe assistant"
+        screenshot.name = "Wardrobe navigation"
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }

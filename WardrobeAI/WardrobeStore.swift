@@ -134,8 +134,8 @@ final class WardrobeStore: ObservableObject {
         _ = try installDemoWardrobeAssets()
     }
 
-    private func installDemoWardrobeAssets() throws -> [GarmentItem] {
-        let items = try WardrobeSeed.install(in: repository, imageStore: imageStore)
+    private func installDemoWardrobeAssets(bundle: Bundle = .main) throws -> [GarmentItem] {
+        let items = try WardrobeSeed.install(in: repository, imageStore: imageStore, bundle: bundle)
         loadItems()
         loadOutfitData()
         return items
@@ -143,11 +143,13 @@ final class WardrobeStore: ObservableObject {
 
     /// Runs one serialized Gemma vision request per stored photo. Tags are
     /// additive so the demo remains useful if a later model response is sparse.
-    func tagDemoWardrobe(classifier: any GarmentClassifying = OllamaGarmentClassifier()) async throws -> Int {
-        _ = try installDemoWardrobeAssets()
+    func tagDemoWardrobe(classifier: any GarmentClassifying = OllamaGarmentClassifier(), bundle: Bundle = .main) async throws -> Int {
+        _ = try installDemoWardrobeAssets(bundle: bundle)
         let seedIDs = Set(WardrobeSeed.entries.compactMap { try? repository.item(seedKey: $0.key)?.id })
-        let candidates = allGarments.filter { seedIDs.contains($0.id) && $0.imagePath != nil && $0.classification == nil }
-        guard !candidates.isEmpty else { throw WardrobeStoreError.noDemoPhotos }
+        let photographed = allGarments.filter { seedIDs.contains($0.id) && $0.imagePath != nil }
+        guard !photographed.isEmpty else { throw WardrobeStoreError.noDemoPhotos }
+        let candidates = photographed.filter { $0.classification == nil }
+        guard !candidates.isEmpty else { return 0 }
         let coordinator = GarmentClassificationCoordinator(classifier: classifier)
         var tagged = 0
         for item in candidates {
