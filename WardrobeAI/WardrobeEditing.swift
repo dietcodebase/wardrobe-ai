@@ -115,7 +115,7 @@ struct GarmentEditor: View {
     @State private var classificationTask: Task<Void, Never>?
     private let classifier = GarmentClassificationCoordinator()
 
-    init(store: WardrobeStore, item: GarmentItem? = nil) {
+    init(store: WardrobeStore, item: GarmentItem? = nil, initialCapture: GarmentCaptureCandidate? = nil) {
         self.store = store
         self.item = item
         _name = State(initialValue: item?.name ?? "")
@@ -139,6 +139,7 @@ struct GarmentEditor: View {
         _pairingNotes = State(initialValue: item?.classification?.suggestion.pairingNotes.joined(separator: ", ") ?? "")
         _notes = State(initialValue: item?.notes ?? "")
         _classification = State(initialValue: item?.classification)
+        _capturedImage = State(initialValue: initialCapture)
     }
 
     var body: some View {
@@ -220,6 +221,11 @@ struct GarmentEditor: View {
                 capturedImage = candidate
                 startClassification()
             } }
+            .onAppear {
+                if item == nil, capturedImage != nil, classification == nil, !isClassifying {
+                    startClassification()
+                }
+            }
             .onDisappear { cancelClassification() }
         }
     }

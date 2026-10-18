@@ -213,8 +213,10 @@ struct AssistantConversationView: View {
             } else {
                 Button(action: { ask(draft) }) {
                     Image(systemName: "arrow.up").fontWeight(.bold)
+                        .foregroundStyle(WardrobeDesign.Color.canvas)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(WardrobeDesign.Color.ink)
                 .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel("Send prompt")
             }
@@ -276,7 +278,7 @@ private struct MessageBubble: View {
             if message.role == .user { Spacer(minLength: 48) }
             Text(message.text)
                 .padding(.horizontal, 14).padding(.vertical, 11)
-                .foregroundStyle(message.role == .user ? .white : .primary)
+                .foregroundStyle(message.role == .user ? WardrobeDesign.Color.canvas : WardrobeDesign.Color.ink)
                 .background(message.role == .user ? WardrobeDesign.Color.ink : WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
             if message.role == .assistant { Spacer(minLength: 48) }
         }
@@ -326,6 +328,7 @@ private struct OutfitRecommendationCard: View {
             HStack(spacing: WardrobeDesign.Space.sm) {
                 Button(action: save) {
                     Label("Save outfit", systemImage: "bookmark")
+                        .foregroundStyle(WardrobeDesign.Color.canvas)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(WardrobeDesign.Color.ink)
