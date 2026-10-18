@@ -221,7 +221,7 @@ struct BatchGarmentCaptureSheet: View {
             }
             let candidates = await task.value
             guard preparationRunID == runID, !Task.isCancelled else { return }
-            entries = candidates.map(BatchClassificationEntry.init)
+            entries = candidates.map { BatchClassificationEntry(candidate: $0) }
             for index in entries.indices {
                 entries[index].name = "Garment \(index + 1)"
             }
