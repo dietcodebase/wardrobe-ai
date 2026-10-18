@@ -7,7 +7,7 @@ import SwiftUI
 struct OllamaConfiguration: Equatable, Sendable {
     static let endpointKey = "ollama-endpoint"
     static let modelKey = "ollama-model"
-    static let defaultModel = "gemma4"
+    static let defaultModel = "gemma4:latest"
 
     let endpoint: URL?
     let model: String

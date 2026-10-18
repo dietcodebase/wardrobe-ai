@@ -5,7 +5,7 @@ import XCTest
 final class StylistChatTests: XCTestCase {
     func testOllamaConfigurationUsesGemma4AndNormalizesTheChatEndpoint() {
         let root = OllamaConfiguration(endpointText: "https://ollama.example.net")
-        XCTAssertEqual(root.model, "gemma4")
+        XCTAssertEqual(root.model, "gemma4:latest")
         XCTAssertEqual(root.chatURL?.absoluteString, "https://ollama.example.net/api/chat")
 
         let api = OllamaConfiguration(endpointText: "https://ollama.example.net/api/")

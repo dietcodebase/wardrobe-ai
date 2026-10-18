@@ -53,6 +53,12 @@ struct GarmentEditor: View {
     @State private var color: String
     @State private var tags: String
     @State private var materialGuess: String
+    @State private var garmentType: String
+    @State private var pattern: String
+    @State private var fit: String
+    @State private var formality: String
+    @State private var seasons: String
+    @State private var suggestedOccasions: String
     @State private var notes: String
     @State private var capturedImage: GarmentCaptureCandidate?
     @State private var isCapturing = false
@@ -71,6 +77,12 @@ struct GarmentEditor: View {
         _color = State(initialValue: item?.color ?? "")
         _tags = State(initialValue: item?.tags.joined(separator: ", ") ?? "")
         _materialGuess = State(initialValue: item?.classification?.suggestion.materialGuess ?? "")
+        _garmentType = State(initialValue: item?.classification?.suggestion.garmentType ?? "")
+        _pattern = State(initialValue: item?.classification?.suggestion.pattern ?? "")
+        _fit = State(initialValue: item?.classification?.suggestion.fit ?? "")
+        _formality = State(initialValue: item?.classification?.suggestion.formality ?? "")
+        _seasons = State(initialValue: item?.classification?.suggestion.seasons.joined(separator: ", ") ?? "")
+        _suggestedOccasions = State(initialValue: item?.classification?.suggestion.occasions.joined(separator: ", ") ?? "")
         _notes = State(initialValue: item?.notes ?? "")
         _classification = State(initialValue: item?.classification)
     }
@@ -115,6 +127,14 @@ struct GarmentEditor: View {
                             TextField("Material", text: $materialGuess)
                                 .textInputAutocapitalization(.words)
                                 .accessibilityLabel("Material")
+                        }
+                        DisclosureGroup("More suggested attributes") {
+                            TextField("Garment type", text: $garmentType).textInputAutocapitalization(.words)
+                            TextField("Pattern", text: $pattern).textInputAutocapitalization(.words)
+                            TextField("Fit", text: $fit).textInputAutocapitalization(.words)
+                            TextField("Formality", text: $formality).textInputAutocapitalization(.words)
+                            TextField("Seasons, separated by commas", text: $seasons).textInputAutocapitalization(.words)
+                            TextField("Occasions, separated by commas", text: $suggestedOccasions).textInputAutocapitalization(.words)
                         }
                         Button("Try automatic suggestions again") { startClassification() }
                             .disabled(capturedImage == nil)
@@ -169,6 +189,12 @@ struct GarmentEditor: View {
                 color = result.suggestion.color ?? ""
                 tags = result.suggestion.tags.joined(separator: ", ")
                 materialGuess = result.suggestion.materialGuess ?? ""
+                garmentType = result.suggestion.garmentType ?? ""
+                pattern = result.suggestion.pattern ?? ""
+                fit = result.suggestion.fit ?? ""
+                formality = result.suggestion.formality ?? ""
+                seasons = result.suggestion.seasons.joined(separator: ", ")
+                suggestedOccasions = result.suggestion.occasions.joined(separator: ", ")
             } catch is CancellationError {
                 return
             } catch {
@@ -192,12 +218,30 @@ struct GarmentEditor: View {
         guard var classification else { return nil }
         let editedTags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let editedMaterial = materialGuess.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-        if editedMaterial != classification.suggestion.materialGuess,
+        let editedSeasons = seasons.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let editedOccasions = suggestedOccasions.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let editedGarmentType = garmentType.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedPattern = pattern.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedFit = fit.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedFormality = formality.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        if editedMaterial != classification.suggestion.materialGuess
+            || editedGarmentType != classification.suggestion.garmentType
+            || editedPattern != classification.suggestion.pattern
+            || editedFit != classification.suggestion.fit
+            || editedFormality != classification.suggestion.formality
+            || editedSeasons != classification.suggestion.seasons
+            || editedOccasions != classification.suggestion.occasions,
            let updatedSuggestion = try? GarmentClassificationSuggestion(
                 category: classification.suggestion.category,
                 color: classification.suggestion.color,
                 tags: classification.suggestion.tags,
-                materialGuess: editedMaterial
+                materialGuess: editedMaterial,
+                garmentType: editedGarmentType,
+                pattern: editedPattern,
+                fit: editedFit,
+                formality: editedFormality,
+                seasons: editedSeasons,
+                occasions: editedOccasions
            ) {
             classification = ClassificationProvenance(
                 modelID: classification.modelID,

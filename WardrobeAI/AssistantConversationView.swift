@@ -13,6 +13,8 @@ struct AssistantConversationView: View {
     @State private var draft = ""
     @State private var showingSettings = false
     @State private var shouldShowIdeas = false
+    @State private var isTaggingDemo = false
+    @State private var demoStatus: String?
 
     init(
         store: WardrobeStore,
@@ -47,6 +49,10 @@ struct AssistantConversationView: View {
                     Button("Your wardrobe", action: showWardrobe)
                     Button("Saved outfits", action: showOutfits)
                     Button("Add a garment", action: showAddGarment)
+                    Divider()
+                    Button("Load photo demo", action: loadDemoWardrobe)
+                    Button("Tag stored photos with Gemma", action: tagDemoWardrobe)
+                        .disabled(isTaggingDemo || !OllamaConfiguration.saved().isConfigured)
                     Divider()
                     Button("Local AI status", action: showModelStatus)
                 } label: {
@@ -132,8 +138,26 @@ struct AssistantConversationView: View {
                 PromptChip("Find something blue", icon: "magnifyingglass") { ask("Find something blue") }
             }
             if store.allGarments.isEmpty {
-                Button("Add your first garment", action: showAddGarment)
-                    .buttonStyle(.borderedProminent)
+                HStack {
+                    Button("Load 13 demo photos") { loadDemoWardrobe() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Add a garment", action: showAddGarment)
+                        .buttonStyle(.bordered)
+                }
+            } else {
+                HStack(spacing: 10) {
+                    Button(isTaggingDemo ? "Gemma is tagging…" : "Auto-tag photos with Gemma") { tagDemoWardrobe() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isTaggingDemo || !OllamaConfiguration.saved().isConfigured)
+                    if isTaggingDemo { ProgressView().controlSize(.small) }
+                }
+                if !OllamaConfiguration.saved().isConfigured {
+                    Text("Add your Ollama URL in Assistant settings to run Gemma vision tagging.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            if let demoStatus {
+                Text(demoStatus).font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(20)
@@ -195,6 +219,32 @@ struct AssistantConversationView: View {
     private static func isRecommendationPrompt(_ prompt: String) -> Bool {
         let lowercased = prompt.lowercased()
         return ["wear", "dress", "outfit", "style", "recommend"].contains { lowercased.contains($0) }
+    }
+
+    private func loadDemoWardrobe() {
+        do {
+            try store.installDemoWardrobe()
+            demoStatus = "13 demo photos are ready. Add the Ollama URL, then ask Gemma to enrich their tags."
+        } catch {
+            demoStatus = error.localizedDescription
+        }
+    }
+
+    private func tagDemoWardrobe() {
+        guard !isTaggingDemo else { return }
+        isTaggingDemo = true
+        demoStatus = "Gemma is reviewing each stored garment photo…"
+        Task {
+            do {
+                let count = try await store.tagDemoWardrobe()
+                demoStatus = "Gemma enriched (count) demo photo\(count == 1 ? "" : "s") with editable attributes."
+            } catch is CancellationError {
+                demoStatus = "Gemma tagging was cancelled. Existing tags are kept."
+            } catch {
+                demoStatus = error.localizedDescription
+            }
+            isTaggingDemo = false
+        }
     }
 }
 
