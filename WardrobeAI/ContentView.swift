@@ -31,6 +31,7 @@ struct ContentView: View {
 private struct WardrobeView: View {
     @ObservedObject var store: WardrobeStore
     @State private var isAdding = false
+    @State private var isBatchCapturing = false
     @State private var isShowingPreferences = false
     @State private var selectedItem: GarmentItem?
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
@@ -54,7 +55,10 @@ private struct WardrobeView: View {
                         }
                     } actions: {
                         if store.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                            Button("Add garment") { isAdding = true }.buttonStyle(.borderedProminent)
+                            VStack(spacing: 12) {
+                                Button("Add garment") { isAdding = true }.buttonStyle(.borderedProminent)
+                                Button("Capture batch") { isBatchCapturing = true }.buttonStyle(.bordered)
+                            }
                         }
                     }
                 } else {
@@ -83,10 +87,12 @@ private struct WardrobeView: View {
                     }.accessibilityLabel("Filter by category")
                 }
                 ToolbarItem(placement: .topBarTrailing) { Button { isShowingPreferences = true } label: { Label("Style profile", systemImage: "person.crop.circle") } }
+                ToolbarItem(placement: .topBarTrailing) { Button { isBatchCapturing = true } label: { Label("Capture batch", systemImage: "rectangle.3.group") } }
                 ToolbarItem(placement: .topBarTrailing) { Button { isAdding = true } label: { Label("Add garment", systemImage: "plus") } }
             }
             .safeAreaInset(edge: .bottom) { if !store.availableTags.isEmpty { TagFilter(tags: store.availableTags, selected: $store.selectedTag) } }
             .sheet(isPresented: $isAdding) { GarmentEditor(store: store) }
+            .sheet(isPresented: $isBatchCapturing) { BatchGarmentCaptureSheet(store: store) }
             .sheet(item: $selectedItem) { item in GarmentDetail(item: item, store: store) }
             .sheet(isPresented: $isShowingPreferences) { StyleProfileEditor(store: store) }
         }
