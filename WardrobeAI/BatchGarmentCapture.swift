@@ -269,13 +269,22 @@ struct BatchGarmentCaptureSheet: View {
     }
 
     private func cancelClassification() {
+        guard classificationTask != nil else { return }
         classificationTask?.cancel()
+        classificationTask = nil
+        classificationRunID = nil
+        isClassifying = false
+        for index in entries.indices where entries[index].state == .classifying {
+            entries[index].state = .cancelled
+        }
     }
 
     private func cancelAllWork() {
         cancelClassification()
         preparationTask?.cancel()
+        preparationTask = nil
         preparationRunID = nil
+        isPreparing = false
     }
 
     private func saveSelected() {

@@ -66,6 +66,56 @@ final class OutfitRecommendationsTests: XCTestCase {
         XCTAssertTrue(allResults.contains { $0.itemIDs.contains(shoesB.id) })
     }
 
+    func testOptionalAnchorBeyondSampleLimitStillBuildsACompleteLook() {
+        let top = item("Top", "Top")
+        let bottom = item("Bottom", "Bottom")
+        let shoes = (0..<8).map { item("Shoe \($0)", "Shoes") }
+        let anchor = shoes[7]
+        let results = OutfitRecommendationEngine().suggestions(
+            items: [top, bottom] + shoes,
+            preferences: .empty,
+            wearEvents: [],
+            context: .init(occasion: nil, preferredColors: [], anchorItemID: anchor.id)
+        )
+
+        XCTAssertTrue(results.contains { Set($0.itemIDs).isSuperset(of: [top.id, bottom.id, anchor.id]) })
+    }
+
+    func testOccasionConflictDoesNotOutrankMatchingCompleteLook() {
+        let workTop = item("Work top", "Top", tags: ["work"])
+        let workBottom = item("Work bottom", "Bottom", tags: ["work"])
+        let eveningDress = item("Evening dress", "Dress", tags: ["evening"])
+        let results = OutfitRecommendationEngine().suggestions(
+            items: [workTop, workBottom, eveningDress],
+            preferences: .empty,
+            wearEvents: [],
+            context: .init(occasion: "Work", preferredColors: [])
+        )
+
+        XCTAssertEqual(Set(results.first?.itemIDs ?? []), Set([workTop.id, workBottom.id]))
+    }
+
+    func testAnchorFromLaterWardrobeItemsStillGetsCompleteBaseOutfit() {
+        var items: [GarmentItem] = []
+        for index in 0..<20 {
+            items.append(item("Top \(index)", "Top"))
+            items.append(item("Bottom \(index)", "Bottom"))
+        }
+        let anchor = items.last!
+
+        let results = OutfitRecommendationEngine().suggestions(
+            items: items,
+            preferences: .empty,
+            wearEvents: [],
+            context: .init(occasion: nil, preferredColors: [], anchorItemID: anchor.id)
+        )
+
+        XCTAssertTrue(results.contains { suggestion in
+            let categories = suggestion.itemIDs.compactMap { id in items.first(where: { $0.id == id })?.category }
+            return suggestion.itemIDs.contains(anchor.id) && categories.contains("Top")
+        })
+    }
+
     func testFreshRainContextFavorsOuterwearAndLabelsTheSource() {
         let top = item("Top", "Top")
         let bottom = item("Bottom", "Bottom")
@@ -74,6 +124,30 @@ final class OutfitRecommendationsTests: XCTestCase {
         let results = OutfitRecommendationEngine().suggestions(items: [top, bottom, coat], preferences: .empty, wearEvents: [], context: .init(occasion: nil, preferredColors: [], weather: weather))
         XCTAssertEqual(results.first?.itemIDs, [top.id, bottom.id, coat.id])
         XCTAssertTrue(results.first?.explanation.contains("Weather context: light rain") == true)
+    }
+
+    func testBuildsCompleteLayeredOutfit() {
+        let top = item("Shirt", "Top")
+        let bottom = item("Trousers", "Bottom")
+        let coat = item("Coat", "Outerwear")
+        let shoes = item("Loafers", "Shoes")
+        let bag = item("Bag", "Accessory")
+
+        let results = OutfitRecommendationEngine().suggestions(items: [top, bottom, coat, shoes, bag], preferences: .empty, wearEvents: [])
+
+        XCTAssertTrue(results.contains { Set($0.itemIDs) == Set([top.id, bottom.id, coat.id, shoes.id, bag.id]) })
+    }
+
+    func testOccasionUsesClassificationMetadata() throws {
+        let suggestion = try GarmentClassificationSuggestion(category: "Top", color: "White", tags: [], occasions: ["Work"])
+        let workTop = GarmentItem(id: UUID(), name: "Work shirt", category: "Top", color: "White", tags: [], notes: nil, imagePath: nil,
+                                  classification: ClassificationProvenance(modelID: "test", modelRevision: "test", route: "test", classifiedAt: .now, suggestion: suggestion, wasEditedBeforeSave: false),
+                                  createdAt: .now, updatedAt: .now)
+        let bottom = item("Trousers", "Bottom")
+
+        let results = OutfitRecommendationEngine().suggestions(items: [workTop, bottom], preferences: .empty, wearEvents: [], context: .init(occasion: "Work", preferredColors: []))
+
+        XCTAssertEqual(results.first?.itemIDs, [workTop.id, bottom.id])
     }
 
     func testMirrorCheckOffersOnlyVerifiedOwnedSameCategorySwaps() {

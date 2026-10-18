@@ -1,0 +1,14 @@
+{
+  "originHash" : "61c5f6e5b0bf1e145ccada78a69acf42a79ac9da727984a65e4517dc4667671f",
+  "pins" : [
+    {
+      "identity" : "litert-lm-minimal",
+      "kind" : "remoteSourceControl",
+      "location" : "file:///private/tmp/litert-lm-minimal/",
+      "state" : {
+        "revision" : "6affb0b426136a65cda9ff0012322233bec3ec56"
+      }
+    }
+  ],
+  "version" : 3
+}

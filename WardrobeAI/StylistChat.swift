@@ -147,6 +147,125 @@ struct OllamaClient: Sendable {
         guard !text.isEmpty else { throw OllamaError.invalidResponse }
         return text
     }
+
+    /// Uses the configured remote model for a bounded, machine-readable decision.
+    /// Callers must validate every returned identifier against their own input.
+    func structuredReply(to requestText: String, configuration: OllamaConfiguration, systemPrompt: String) async throws -> String {
+        guard let url = configuration.chatURL else { throw OllamaError.notConfigured }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(OllamaChatRequest(
+            model: configuration.model,
+            stream: false,
+            messages: [
+                .init(role: "system", content: systemPrompt),
+                .init(role: "user", content: requestText)
+            ]
+        ))
+        let (data, response) = try await transport.send(request)
+        guard let http = response as? HTTPURLResponse else { throw OllamaError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(OllamaErrorResponse.self, from: data).error) ?? "Request failed"
+            throw OllamaError.server(statusCode: http.statusCode, message: message)
+        }
+        let text = try JSONDecoder().decode(OllamaChatResponse.self, from: data).message.content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { throw OllamaError.invalidResponse }
+        return text
+    }
+}
+
+struct OllamaOutfitAdvisor: Sendable {
+    var client = OllamaClient()
+    var configuration = OllamaConfiguration.saved()
+
+    func recommendations(candidates: [OutfitSuggestion], items: [GarmentItem], context: String) async throws -> [OutfitSuggestion] {
+        guard configuration.isConfigured, !candidates.isEmpty else { throw OllamaError.notConfigured }
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let allowedCandidates = Array(candidates.prefix(12))
+        let candidateText = allowedCandidates.map { candidate in
+            let garments = candidate.itemIDs.compactMap { byID[$0] }.map(Self.describe)
+            return "id=\(candidate.id.uuidString); score=\(candidate.score); garments=[\(garments.joined(separator: " | "))]"
+        }.joined(separator: "\n")
+        let response = try await client.structuredReply(
+            to: "Context: \(String(context.prefix(500)))\nCandidates:\n\(candidateText)",
+            configuration: configuration,
+            systemPrompt: "You are a wardrobe stylist ranking pre-built, owned-item outfit candidates. Return only one JSON object in exactly this shape: {\"outfits\":[{\"id\":\"candidate UUID\"}]}. Select up to three IDs that appear in Candidates, in best-first order. Consider the supplied context, occasion evidence, formality, layering, weather, and recent wear. Never invent garments, facts, wearer details, explanations, or IDs."
+        )
+        return try Self.decodeRecommendations(response, candidates: allowedCandidates)
+    }
+
+    static func decodeRecommendations(_ text: String, candidates: [OutfitSuggestion]) throws -> [OutfitSuggestion] {
+        struct Payload: Decodable {
+            struct Choice: Decodable { let id: UUID }
+            let outfits: [Choice]
+        }
+        let payload = try JSONDecoder().decode(Payload.self, from: jsonObjectData(from: text))
+        let allowed = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
+        var seen = Set<UUID>()
+        let results = payload.outfits.prefix(3).compactMap { choice -> OutfitSuggestion? in
+            guard let candidate = allowed[choice.id], seen.insert(choice.id).inserted else { return nil }
+            // The local planner owns the explanation because it is traceable to
+            // known wardrobe metadata. The model is permitted to rank only.
+            return candidate
+        }
+        guard !results.isEmpty else { throw OllamaError.invalidResponse }
+        // A valid response may choose fewer than three. Keep the remaining
+        // deterministic candidates so the Today screen does not collapse to a
+        // single option just because the model was terse.
+        let selected = Set(results.map(\.id))
+        return Array((results + candidates.filter { !selected.contains($0.id) }).prefix(3))
+    }
+
+    private static func describe(_ item: GarmentItem) -> String {
+        let classification = item.classification?.suggestion
+        var values = ["name=\(String(item.name.prefix(80)))", "category=\(item.category)"]
+        if let color = item.color { values.append("color=\(String(color.prefix(40)))") }
+        if let formality = classification?.formality { values.append("formality=\(String(formality.prefix(40)))") }
+        if let layering = classification?.layering { values.append("layering=\(String(layering.prefix(40)))") }
+        if let warmth = classification?.warmth { values.append("warmth=\(String(warmth.prefix(40)))") }
+        if let classification, !classification.occasions.isEmpty { values.append("occasions=\(classification.occasions.prefix(4).joined(separator: ","))") }
+        if let classification, !classification.seasons.isEmpty { values.append("seasons=\(classification.seasons.prefix(4).joined(separator: ","))") }
+        if !item.tags.isEmpty { values.append("tags=\(item.tags.prefix(6).joined(separator: ","))") }
+        return values.joined(separator: ", ")
+    }
+}
+
+private func jsonObjectData(from text: String) throws -> Data {
+    let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let source: String
+    if trimmed.hasPrefix("```") {
+        guard let line = trimmed.firstIndex(of: "\n"), trimmed.hasSuffix("```") else { throw OllamaError.invalidResponse }
+        source = String(trimmed[trimmed.index(after: line)...].dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+    } else {
+        source = trimmed
+    }
+    guard let start = source.firstIndex(of: "{") else { throw OllamaError.invalidResponse }
+    var depth = 0
+    var inString = false
+    var escaping = false
+    for index in source.indices[start...] {
+        let character = source[index]
+        if inString {
+            if escaping { escaping = false }
+            else if character == "\\" { escaping = true }
+            else if character == "\"" { inString = false }
+            continue
+        }
+        if character == "\"" { inString = true }
+        else if character == "{" { depth += 1 }
+        else if character == "}" {
+            depth -= 1
+            if depth == 0 {
+                guard let data = String(source[start...index]).data(using: .utf8) else { throw OllamaError.invalidResponse }
+                return data
+            }
+        }
+    }
+    throw OllamaError.invalidResponse
 }
 
 private struct OllamaChatRequest: Encodable {

@@ -303,7 +303,15 @@ final class WardrobeRepository {
         let log = WearLog(id: UUID(), itemID: itemID, outfitID: outfitID, wornAt: wornAt ?? now(), createdAt: now())
         try database.write { database in
             guard try itemExists(itemID, in: database) else { throw WardrobeRepositoryError.itemNotFound(itemID) }
-            if let outfitID, try !outfitExists(outfitID, in: database) { throw WardrobeRepositoryError.outfitNotFound(outfitID) }
+            if let outfitID {
+                guard try outfitExists(outfitID, in: database) else { throw WardrobeRepositoryError.outfitNotFound(outfitID) }
+                let belongsToOutfit = try Bool.fetchOne(
+                    database,
+                    sql: "SELECT EXISTS(SELECT 1 FROM outfit_items WHERE outfit_id = ? AND item_id = ?)",
+                    arguments: [outfitID.uuidString, itemID.uuidString]
+                ) ?? false
+                guard belongsToOutfit else { throw WardrobeRepositoryError.itemNotInOutfit(itemID: itemID, outfitID: outfitID) }
+            }
             try database.execute(
                 sql: "INSERT INTO wear_logs (id, item_id, outfit_id, worn_at, created_at) VALUES (?, ?, ?, ?, ?)",
                 arguments: [log.id.uuidString, log.itemID.uuidString, log.outfitID?.uuidString, log.wornAt, log.createdAt]
@@ -378,7 +386,12 @@ final class WardrobeRepository {
 
     func deleteWearLog(id: UUID) throws {
         try database.write { database in
+            if let eventID: String = try String.fetchOne(database, sql: "SELECT event_id FROM wear_logs WHERE id = ?", arguments: [id.uuidString]),
+               let eventUUID = UUID(uuidString: eventID) {
+                throw WardrobeRepositoryError.wearEventLogRequiresUndo(eventUUID)
+            }
             try database.execute(sql: "DELETE FROM wear_logs WHERE id = ?", arguments: [id.uuidString])
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.corruptRecord }
         }
     }
 
@@ -452,13 +465,23 @@ final class WardrobeRepository {
         let name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { throw WardrobeRepositoryError.invalidName }
         let category = draft.category.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !category.isEmpty else { throw WardrobeRepositoryError.invalidCategory }
+        guard GarmentTaxonomy.isKnownCategory(category) else { throw WardrobeRepositoryError.invalidCategory }
+        var seenTags = Set<String>()
+        let tags = draft.tags.compactMap { tag -> String? in
+            let normalized = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty, seenTags.insert(normalized.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)).inserted else { return nil }
+            return normalized
+        }.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
         return GarmentDraft(
-            name: name, category: category, color: draft.color?.trimmingCharacters(in: .whitespacesAndNewlines),
-            tags: Array(Set(draft.tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty })).sorted(),
-            notes: draft.notes?.trimmingCharacters(in: .whitespacesAndNewlines), imagePath: draft.imagePath,
+            name: name, category: category, color: normalizedOptional(draft.color),
+            tags: tags, notes: normalizedOptional(draft.notes), imagePath: draft.imagePath,
             classification: draft.classification
         )
+    }
+
+    private func normalizedOptional(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

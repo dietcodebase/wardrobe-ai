@@ -203,6 +203,8 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
     case emptyOutfit
     case corruptRecord
     case planNotFound(UUID)
+    case itemNotInOutfit(itemID: UUID, outfitID: UUID)
+    case wearEventLogRequiresUndo(UUID)
 
     var errorDescription: String? {
         switch self {
@@ -215,6 +217,8 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
         case .emptyOutfit: "Add at least one garment before saving this outfit."
         case .corruptRecord: "A local wardrobe record could not be read."
         case .planNotFound: "That outfit plan no longer exists."
+        case .itemNotInOutfit: "That garment is not part of the selected outfit."
+        case .wearEventLogRequiresUndo: "Undo the wear event instead of removing one of its garment records."
         }
     }
 }

@@ -164,9 +164,12 @@ struct OpenWeatherMapProvider: WeatherProvider {
     func weather(for location: WeatherLocation) async throws -> WeatherSnapshot {
         guard !location.normalizedCity.isEmpty else { throw WeatherError.invalidCity }
         guard let apiKey, !apiKey.isEmpty else { throw WeatherError.missingAPIKey }
-        var components = URLComponents(string: "https://api.openweathermap.org/data/2.5/weather")!
+        guard var components = URLComponents(string: "https://api.openweathermap.org/data/2.5/weather") else {
+            throw WeatherError.unavailable
+        }
         components.queryItems = [URLQueryItem(name: "q", value: location.normalizedCity), URLQueryItem(name: "units", value: "metric"), URLQueryItem(name: "appid", value: apiKey)]
-        let response = try await transport.data(from: components.url!)
+        guard let url = components.url else { throw WeatherError.unavailable }
+        let response = try await transport.data(from: url)
         if response.statusCode == 429 { throw WeatherError.rateLimited }
         guard (200...299).contains(response.statusCode) else { throw WeatherError.unavailable }
         let payload = try JSONDecoder().decode(OpenWeatherResponse.self, from: response.data)

@@ -7,9 +7,13 @@ final class VoiceInputTests: XCTestCase {
         XCTAssertTrue(VoiceInputError.runtimeUnavailable.errorDescription?.contains("can still type") == true)
     }
 
+    @MainActor
     func testVoiceFormatContractIsSixteenKilohertzMono() {
-        XCTAssertEqual(VoiceInput.targetSampleRate, 16_000)
-        XCTAssertEqual(VoiceInput.targetChannels, 1)
-        XCTAssertEqual(VoiceInput.maximumDuration, 10)
+        let sampleRate = VoiceInput.targetSampleRate
+        let channels = VoiceInput.targetChannels
+        let duration = VoiceInput.maximumDuration
+        XCTAssertEqual(sampleRate, 16_000)
+        XCTAssertEqual(channels, 1)
+        XCTAssertEqual(duration, 10)
     }
 }

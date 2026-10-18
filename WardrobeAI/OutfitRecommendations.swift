@@ -138,30 +138,29 @@ struct OutfitRecommendationEngine {
             if bounded.count > maximumCandidates { bounded.removeLast() }
         }
 
-        generation: do {
-            let dresses = (byCategory["Dress"] ?? []) + (byCategory["One-piece outfit"] ?? [])
-            for onePiece in dresses {
-                consider([onePiece])
-                if evaluations >= maximumCandidateEvaluations { break generation }
-                for category in ["Outerwear", "Shoes", "Accessory"] {
-                    for optional in byCategory[category] ?? [] {
-                        consider([onePiece, optional])
-                        if evaluations >= maximumCandidateEvaluations { break generation }
-                    }
-                }
+        var candidateSets: [[[GarmentItem]]] = []
+        let dresses = (byCategory["Dress"] ?? []) + (byCategory["One-piece outfit"] ?? [])
+        for onePiece in dresses {
+            candidateSets.append(layeredCandidates(base: [onePiece], byCategory: byCategory, anchorItemID: context.anchorItemID))
+        }
+        for top in byCategory["Top"] ?? [] {
+            for bottom in byCategory["Bottom"] ?? [] {
+                candidateSets.append(layeredCandidates(base: [top, bottom], byCategory: byCategory, anchorItemID: context.anchorItemID))
             }
-            for top in byCategory["Top"] ?? [] {
-                for bottom in byCategory["Bottom"] ?? [] {
-                    consider([top, bottom])
-                    if evaluations >= maximumCandidateEvaluations { break generation }
-                    for category in ["Outerwear", "Shoes", "Accessory"] {
-                        for optional in byCategory[category] ?? [] {
-                            consider([top, bottom, optional])
-                            if evaluations >= maximumCandidateEvaluations { break generation }
-                        }
-                    }
-                }
+        }
+        // Evaluate one variation from every base outfit before adding the next
+        // layer variation. A nested loop used to spend the entire budget on the
+        // first dress or top/bottom pair in a large wardrobe.
+        var variation = 0
+        while evaluations < maximumCandidateEvaluations {
+            var consideredAny = false
+            for candidates in candidateSets where variation < candidates.count {
+                consider(candidates[variation])
+                consideredAny = true
+                if evaluations >= maximumCandidateEvaluations { break }
             }
+            guard consideredAny else { break }
+            variation += 1
         }
         if bounded.isEmpty {
             for item in items { consider([item]) }
@@ -178,10 +177,61 @@ struct OutfitRecommendationEngine {
         return reranked + missing
     }
 
+    /// Generates complete, owned-item outfits while retaining a hard evaluation bound.
+    /// An outer layer, footwear and one accessory may coexist; the previous loop
+    /// considered each optional category independently and never produced that set.
+    private func layeredCandidates(
+        base: [GarmentItem],
+        byCategory: [String: [GarmentItem]],
+        anchorItemID: UUID?
+    ) -> [[GarmentItem]] {
+        let outerwear = candidateOptions(byCategory["Outerwear"] ?? [], limit: 6, anchorItemID: anchorItemID)
+        let shoes = candidateOptions(byCategory["Shoes"] ?? [], limit: 6, anchorItemID: anchorItemID)
+        let accessories = candidateOptions(byCategory["Accessory"] ?? [], limit: 4, anchorItemID: anchorItemID)
+        let layers: [GarmentItem?] = [nil] + outerwear
+        let footwear: [GarmentItem?] = [nil] + shoes
+        let accents: [GarmentItem?] = [nil] + accessories
+
+        var candidates = [base]
+        // Ensure a complete option is evaluated early. With a large wardrobe,
+        // the bounded search otherwise spends its budget on bare base outfits.
+        if let layer = layers.dropFirst().first, let shoe = footwear.dropFirst().first, let accent = accents.dropFirst().first {
+            candidates.append(base + [layer, shoe, accent].compactMap { $0 })
+        }
+        candidates += shoes.map { base + [$0] }
+        candidates += outerwear.map { base + [$0] }
+        candidates += accessories.map { base + [$0] }
+        for layer in layers.dropFirst() {
+            for shoe in footwear.dropFirst() {
+                candidates.append(base + [layer, shoe].compactMap { $0 })
+            }
+        }
+        for accent in accents.dropFirst() {
+            for layer in layers {
+                for shoe in footwear {
+                    candidates.append(base + [layer, shoe, accent].compactMap { $0 })
+                }
+            }
+        }
+        return candidates
+    }
+
+    /// Retain the requested piece even when it falls beyond the bounded optional
+    /// category sample. This keeps “what goes with this?” literal and reliable.
+    private func candidateOptions(_ items: [GarmentItem], limit: Int, anchorItemID: UUID?) -> [GarmentItem] {
+        guard let anchorItemID, let anchor = items.first(where: { $0.id == anchorItemID }) else {
+            return Array(items.prefix(limit))
+        }
+        return [anchor] + Array(items.filter { $0.id != anchor.id }.prefix(max(0, limit - 1)))
+    }
+
     private func makeSuggestion(_ items: [GarmentItem], preferences: StylePreferences, recentIDs: Set<UUID>, context: RecommendationContext) -> OutfitSuggestion {
         let ids = items.map(\.id)
         let occasion = context.occasion?.lowercased()
-        let occasionMatches = occasion.map { requested in items.filter { $0.tags.contains { $0.caseInsensitiveCompare(requested) == .orderedSame } }.count } ?? 0
+        let occasionMatches = occasion.map { requested in items.filter { matchesOccasion($0, requested: requested) }.count } ?? 0
+        let occasionConflicts = occasion.map { requested in
+            items.filter { hasOccasionSignal($0) && !matchesOccasion($0, requested: requested) }.count
+        } ?? 0
         let colorMatches = items.filter { item in
             guard let color = item.color?.lowercased() else { return false }
             return (context.preferredColors + preferences.preferredColors).contains { $0.lowercased() == color }
@@ -190,11 +240,13 @@ struct OutfitRecommendationEngine {
         let recentPenalty = items.filter { recentIDs.contains($0.id) }.count
         let weatherScore = weatherAdjustment(for: items, weather: context.weather)
         let practicality = practicalityAdjustment(for: items)
-        let score = occasionMatches * 4 + colorMatches * 2 + preferredCategories + weatherScore + practicality.score - recentPenalty * 3
+        let formality = formalityAdjustment(for: items)
+        let score = occasionMatches * 4 - occasionConflicts * 3 + colorMatches * 2 + preferredCategories + weatherScore + practicality.score + formality.score - recentPenalty * 3
         let names = items.map(\.name).joined(separator: " with ")
         let explanation: String
         var reasons: [String] = []
-        if occasionMatches > 0, let occasion { reasons.append("fits your \(occasion) plan") }
+        if occasionMatches > 0, let occasion { reasons.append("has \(occasionMatches) piece\(occasionMatches == 1 ? "" : "s") suited to \(occasion)") }
+        if formality.score > 0 { reasons.append(formality.note) }
         if practicality.score > 0 { reasons.append(practicality.note) }
         if recentPenalty == 0 { reasons.append("gives recently worn pieces a break") }
         explanation = "\((reasons.first ?? "a simple combination from your wardrobe").capitalized) with \(names)."
@@ -234,9 +286,39 @@ struct OutfitRecommendationEngine {
         return adjustment
     }
 
+    private func matchesOccasion(_ item: GarmentItem, requested: String) -> Bool {
+        let classification = item.classification?.suggestion
+        let values = item.tags
+            + (classification?.occasions ?? [])
+            + [classification?.formality, classification?.garmentType].compactMap { $0 }
+        return values.contains { $0.caseInsensitiveCompare(requested) == .orderedSame }
+    }
+
+    private func hasOccasionSignal(_ item: GarmentItem) -> Bool {
+        if !(item.classification?.suggestion.occasions ?? []).isEmpty { return true }
+        let knownOccasions = Set(GarmentTaxonomy.occasions.map { $0.lowercased() })
+        return item.tags.contains { knownOccasions.contains($0.lowercased()) }
+    }
+
+    private func formalityAdjustment(for items: [GarmentItem]) -> (score: Int, note: String) {
+        let values = items.compactMap { $0.classification?.suggestion.formality?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        guard values.count >= 2, Set(values).count == 1, let value = values.first else { return (0, "") }
+        return (2, "keeps the formality consistently \(value)")
+    }
+
     private func stableID(for ids: [UUID]) -> UUID {
-        var bytes = Array(repeating: UInt8(0), count: 16)
-        for (index, byte) in ids.flatMap({ Array($0.uuidString.utf8) }).enumerated() { bytes[index % 16] ^= byte }
+        let canonical = ids.map(\.uuidString).sorted().joined(separator: ",")
+        var first: UInt64 = 0xcbf29ce484222325
+        var second: UInt64 = 0x84222325cbf29ce4
+        for byte in canonical.utf8 {
+            first = (first ^ UInt64(byte)) &* 0x100000001b3
+            second = (second ^ UInt64(byte)) &* 0x100000001b3
+        }
+        let words = [first.bigEndian, second.bigEndian]
+        let bytes = words.flatMap { value in
+            withUnsafeBytes(of: value) { Array($0) }
+        }
         return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
     }
 }

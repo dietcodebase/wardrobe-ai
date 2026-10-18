@@ -15,8 +15,6 @@ struct AssistantConversationView: View {
     @State private var draft = ""
     @State private var showingSettings = false
     @State private var shouldShowIdeas = false
-    @State private var isTaggingDemo = false
-    @State private var demoStatus: String?
 
     init(
         store: WardrobeStore,
@@ -51,10 +49,6 @@ struct AssistantConversationView: View {
                     Button("Your wardrobe", action: showWardrobe)
                     Button("Saved outfits", action: showOutfits)
                     Button("Add a garment", action: showAddGarment)
-                    Divider()
-                    Button("Load photo demo", action: loadDemoWardrobe)
-                    Button("Tag stored photos with Gemma", action: tagDemoWardrobe)
-                        .disabled(isTaggingDemo || !OllamaConfiguration.saved().isConfigured)
                     Divider()
                     Button("Local AI status", action: showModelStatus)
                 } label: {
@@ -134,7 +128,7 @@ struct AssistantConversationView: View {
     }
 
     private var connectionLabel: String {
-        OllamaConfiguration.saved().isConfigured ? "Gemma 4 is ready to help" : "Private wardrobe context • offline fallback ready"
+        OllamaConfiguration.saved().isConfigured ? "Local model connected" : "Private wardrobe context"
     }
 
     private var welcome: some View {
@@ -151,27 +145,14 @@ struct AssistantConversationView: View {
             }
             if store.allGarments.isEmpty {
                 HStack {
-                    Button("Load 33 demo photos") { loadDemoWardrobe() }
-                        .buttonStyle(.borderedProminent)
                     Button("Add a garment", action: showAddGarment)
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                 }
             } else {
-                HStack(spacing: 10) {
-                    Button("Update demo library") { loadDemoWardrobe() }
-                        .buttonStyle(.bordered)
-                    Button(isTaggingDemo ? "Gemma is tagging…" : "Auto-tag photos with Gemma") { tagDemoWardrobe() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(isTaggingDemo || !OllamaConfiguration.saved().isConfigured)
-                    if isTaggingDemo { ProgressView().controlSize(.small) }
-                }
                 if !OllamaConfiguration.saved().isConfigured {
-                    Text("Add your Ollama URL in Assistant settings to run Gemma vision tagging.")
+                    Text("Connect a local model in Assistant settings for a second opinion. Outfit ideas remain grounded in your wardrobe either way.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-            }
-            if let demoStatus {
-                Text(demoStatus).font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(WardrobeDesign.Space.xl)
@@ -241,36 +222,6 @@ struct AssistantConversationView: View {
         return ["wear", "dress", "outfit", "style", "recommend"].contains { lowercased.contains($0) }
     }
 
-    private func loadDemoWardrobe() {
-        do {
-            try store.installDemoWardrobe()
-            guard OllamaConfiguration.saved().isConfigured else {
-                demoStatus = "33 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
-                return
-            }
-            demoStatus = "33 demo photos are ready. Gemma is enriching their tags…"
-            tagDemoWardrobe()
-        } catch {
-            demoStatus = error.localizedDescription
-        }
-    }
-
-    private func tagDemoWardrobe() {
-        guard !isTaggingDemo else { return }
-        isTaggingDemo = true
-        demoStatus = "Gemma is reviewing each stored garment photo…"
-        Task {
-            do {
-                let count = try await store.tagDemoWardrobe()
-                demoStatus = "Gemma enriched " + String(count) + " demo photo" + (count == 1 ? "" : "s") + " with editable attributes."
-            } catch is CancellationError {
-                demoStatus = "Gemma tagging was cancelled. Existing tags are kept."
-            } catch {
-                demoStatus = error.localizedDescription
-            }
-            isTaggingDemo = false
-        }
-    }
 }
 
 private struct MessageBubble: View {
@@ -513,7 +464,7 @@ private struct PromptChip: View {
     }
 }
 
-private struct AssistantSettingsView: View {
+struct AssistantSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(OllamaConfiguration.endpointKey) private var endpoint = ""
     @AppStorage(OllamaConfiguration.modelKey) private var model = OllamaConfiguration.defaultModel
@@ -523,8 +474,9 @@ private struct AssistantSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Remote Ollama") {
-                    TextField("Server URL", text: $endpoint)
+                Section("Ollama server") {
+                    TextField("Ollama server URL", text: $endpoint)
+                        .accessibilityIdentifier("ollama-server-url")
                         .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
                     TextField("Model", text: $model)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -543,7 +495,7 @@ private struct AssistantSettingsView: View {
                             .font(.footnote)
                             .foregroundStyle(WardrobeDesign.Color.ink)
                     }
-                    Text("Use a reachable HTTP(S) URL. Your wardrobe context is sent only to this configured server.")
+                    Text("Enter the server root, for example http://192.168.1.50:11434 or https://ollama.example.net. A copied /api URL also works. Your wardrobe context is sent only to this configured server.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }

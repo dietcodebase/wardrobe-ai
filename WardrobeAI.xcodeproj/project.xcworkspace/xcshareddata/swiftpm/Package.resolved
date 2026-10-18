@@ -1,0 +1,24 @@
+{
+  "originHash" : "1b0e0f2ca15b02383bd56d99a794667234b671868cd77f98befba13f072a9d3f",
+  "pins" : [
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift.git",
+      "state" : {
+        "revision" : "b83108d10f42680d78f23fe4d4d80fc88dab3212",
+        "version" : "7.11.1"
+      }
+    },
+    {
+      "identity" : "iconoir-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/iconoir-icons/iconoir-swift.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "66391f61281c4c203ae2003ebf66627dc849f233"
+      }
+    }
+  ],
+  "version" : 3
+}

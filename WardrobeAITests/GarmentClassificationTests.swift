@@ -45,6 +45,18 @@ final class GarmentClassificationTests: XCTestCase {
         XCTAssertEqual(suggestion.tags.count, 8)
     }
 
+    func testOutfitAdvisorRecoversJSONObjectAfterModelPrefaceAndRejectsUnknownIDs() throws {
+        let validID = UUID()
+        let candidate = OutfitSuggestion(id: validID, itemIDs: [UUID()], score: 3, explanation: "Fallback")
+        let response = "Here is the requested result:\n{\"outfits\":[{\"id\":\"\(UUID().uuidString)\",\"reason\":\"Made up\"},{\"id\":\"\(validID.uuidString)\",\"reason\":\"Owned pieces work together.\"}]}"
+
+        let result = try OllamaOutfitAdvisor.decodeRecommendations(response, candidates: [candidate])
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.id, validID)
+        XCTAssertEqual(result.first?.explanation, "Fallback")
+    }
+
     func testCoordinatorSurfacesUnavailableFallback() async {
         let coordinator = GarmentClassificationCoordinator(classifier: UnavailableGarmentClassifier())
         do {

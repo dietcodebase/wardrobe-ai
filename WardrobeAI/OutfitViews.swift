@@ -8,33 +8,21 @@ struct OutfitView: View {
     @State private var selectedOutfit: Outfit?
     @State private var errorMessage: String?
     @State private var isCheckingMirror = false
-    @State private var calendarAccess = CalendarAccessState.notDetermined
-    @State private var calendarEvents: [CalendarEventContext] = []
-    @Environment(\.scenePhase) private var scenePhase
-    private let calendarReader = EventKitCalendarReader()
 
     var body: some View {
         NavigationStack {
             List {
-                Section("Today’s context") {
-                    CalendarContextSummary(access: calendarAccess, events: calendarEvents) {
-                        Task {
-                            calendarAccess = await calendarReader.requestAccess()
-                            calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
-                        }
-                    }
-                }
                 if store.outfits.isEmpty {
                     ContentUnavailableView {
-                        IconoirLabel(title: "No saved outfits", icon: .viewGrid)
+                        IconoirLabel(title: "No saved looks", icon: .viewGrid)
                     } description: {
-                        Text("Combine garments into an outfit, then record it only when you actually wear it.")
+                        Text("Save an idea from Today, or make a look manually when you want to keep a combination.")
                     } actions: {
-                        Button("Create outfit") { isAdding = true }.buttonStyle(.borderedProminent)
+                        Button("Create a look") { isAdding = true }.buttonStyle(.borderedProminent)
                     }
                     .listRowBackground(Color.clear)
                 } else {
-                    Section("Saved outfits") {
+                    Section("Saved looks") {
                         ForEach(store.outfits) { outfit in
                             Button { selectedOutfit = outfit } label: { OutfitRow(outfit: outfit, store: store) }
                                 .buttonStyle(.plain)
@@ -49,7 +37,7 @@ struct OutfitView: View {
                     }
                 }
                 if !store.outfitPlans.isEmpty {
-                    Section("Planned outfits") {
+                    Section("Planned looks") {
                         ForEach(store.outfitPlans) { plan in
                             HStack {
                                 VStack(alignment: .leading) {
@@ -76,20 +64,13 @@ struct OutfitView: View {
                     }
                 }
             }
-            .navigationTitle("Outfits")
-            .task {
-                refreshCalendarContext()
-            }
-            .onChange(of: scenePhase) { _, phase in
-                guard phase == .active else { return }
-                refreshCalendarContext()
-            }
+            .navigationTitle("Looks")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { isCheckingMirror = true } label: { IconoirLabel(title: "Mirror fit check", icon: .camera) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isAdding = true } label: { IconoirLabel(title: "Create outfit", icon: .plus) }
+                    Button { isAdding = true } label: { IconoirLabel(title: "Create look", icon: .plus) }
                 }
             }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
@@ -104,15 +85,6 @@ struct OutfitView: View {
     }
     private func remove(_ plan: OutfitPlan) { do { try store.removePlan(plan) } catch { errorMessage = error.localizedDescription } }
 
-    private func refreshCalendarContext() {
-        let access = calendarReader.accessState()
-        calendarAccess = access
-        guard access == .authorized else {
-            calendarEvents = []
-            return
-        }
-        calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
-    }
 }
 
 private struct MirrorFitCheckSheet: View {

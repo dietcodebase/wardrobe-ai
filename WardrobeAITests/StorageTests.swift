@@ -26,6 +26,20 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try repository.preferences(), preferences)
     }
 
+    func testItemValidationCanonicalizesOptionalTextAndCaseDuplicateTags() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(
+            name: "Shirt", category: "Top", color: "  ", tags: ["Work", "work", "WORK"], notes: "  "
+        ))
+
+        XCTAssertNil(item.color)
+        XCTAssertNil(item.notes)
+        XCTAssertEqual(item.tags, ["Work"])
+        XCTAssertThrowsError(try repository.createItem(GarmentDraft(name: "Hat", category: "Hat"))) {
+            XCTAssertEqual($0 as? WardrobeRepositoryError, .invalidCategory)
+        }
+    }
+
     func testDeletionRespectsOutfitAndWearReferences() throws {
         let repository = try makeRepository()
         let item = try repository.createItem(GarmentDraft(name: "Trousers", category: "Bottom"))
@@ -119,6 +133,24 @@ final class StorageTests: XCTestCase {
         try repository.undoWear(eventID: first.id)
         XCTAssertTrue(try repository.wearEvents().isEmpty)
         XCTAssertEqual(try repository.underusedItems().map(\.wearCount), [0, 0])
+    }
+
+    func testWearLogsPreserveOutfitAndWearEventIntegrity() throws {
+        let repository = try makeRepository()
+        let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))
+        let bottom = try repository.createItem(GarmentDraft(name: "Bottom", category: "Bottom"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Set", itemIDs: [top.id]))
+
+        XCTAssertThrowsError(try repository.logWear(itemID: bottom.id, outfitID: outfit.id)) {
+            XCTAssertEqual($0 as? WardrobeRepositoryError, .itemNotInOutfit(itemID: bottom.id, outfitID: outfit.id))
+        }
+
+        let event = try repository.wearToday(outfitID: outfit.id)
+        let eventLog = try XCTUnwrap(try repository.wearLogs(for: top.id).first)
+        XCTAssertThrowsError(try repository.deleteWearLog(id: eventLog.id)) {
+            XCTAssertEqual($0 as? WardrobeRepositoryError, .wearEventLogRequiresUndo(event.id))
+        }
+        XCTAssertEqual(try repository.wearEvents(), [event])
     }
 
     func testWearTodayUsesLocalDayBoundary() throws {
