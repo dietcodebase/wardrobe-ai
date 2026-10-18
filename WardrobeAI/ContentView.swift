@@ -13,23 +13,39 @@ enum AppTab: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @ObservedObject var store: WardrobeStore
     @ObservedObject var modelManager: ModelManager
-    @State private var showingWardrobe = false
-    @State private var showingOutfits = false
+    @State private var selectedTab: AppTab = .stylist
     @State private var showingAddGarment = false
     @State private var showingModelStatus = false
 
     var body: some View {
-        NavigationStack {
-            AssistantConversationView(
-                store: store,
-                showWardrobe: { showingWardrobe = true },
-                showOutfits: { showingOutfits = true },
-                showAddGarment: { showingAddGarment = true },
-                showModelStatus: { showingModelStatus = true }
-            )
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                WardrobeView(store: store)
+            }
+            .tabItem { Label("Wardrobe", systemImage: AppTab.wardrobe.symbol) }
+            .tag(AppTab.wardrobe)
+
+            NavigationStack {
+                OutfitView(store: store)
+            }
+            .tabItem { Label("Outfits", systemImage: AppTab.outfits.symbol) }
+            .tag(AppTab.outfits)
+
+            NavigationStack {
+                AssistantConversationView(
+                    store: store,
+                    showWardrobe: { selectedTab = .wardrobe },
+                    showOutfits: { selectedTab = .outfits },
+                    showAddGarment: { showingAddGarment = true },
+                    showModelStatus: { showingModelStatus = true }
+                )
+            }
+            .tabItem { Label("Stylist", systemImage: AppTab.stylist.symbol) }
+            .tag(AppTab.stylist)
         }
-        .sheet(isPresented: $showingWardrobe) { WardrobeView(store: store) }
-        .sheet(isPresented: $showingOutfits) { OutfitView(store: store) }
+        .tint(WardrobeDesign.Color.signal)
+        .preferredColorScheme(.dark)
+        .font(WardrobeDesign.body())
         .sheet(isPresented: $showingAddGarment) { GarmentEditor(store: store) }
         .sheet(isPresented: $showingModelStatus) {
             NavigationStack { ModelStatusView(manager: modelManager, store: store).navigationTitle("Local AI") }
@@ -88,6 +104,7 @@ private struct WardrobeView: View {
                 }
             }
             .navigationTitle("Wardrobe")
+            .font(WardrobeDesign.body())
             .searchable(text: $store.searchText, prompt: "Search garments, colors, tags, or describe a garment")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -116,7 +133,7 @@ private struct TagFilter: View {
             Button("All tags") { selected = nil }.buttonStyle(.bordered).tint(selected == nil ? .accentColor : .secondary)
             ForEach(tags, id: \.self) { tag in Button(tag) { selected = tag }.buttonStyle(.bordered).tint(selected == tag ? .accentColor : .secondary) }
         }.padding(.horizontal).padding(.vertical, 8) }
-        .background(.bar).accessibilityElement(children: .contain).accessibilityLabel("Filter by tag")
+        .background(WardrobeDesign.Color.paper).accessibilityElement(children: .contain).accessibilityLabel("Filter by tag")
     }
 }
 
@@ -126,10 +143,11 @@ private struct GarmentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             GarmentThumbnail(item: item, store: store).frame(height: 132)
-            Text(item.name).font(.headline).lineLimit(2)
-            Text(item.category).font(.subheadline).foregroundStyle(.secondary)
-            if let color = item.color, !color.isEmpty { Text(color).font(.caption).foregroundStyle(.secondary) }
-        }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+            Text(item.name).font(WardrobeDesign.body(16).weight(.semibold)).lineLimit(2)
+            Text(item.category.uppercased()).font(WardrobeDesign.metadata(10)).foregroundStyle(WardrobeDesign.Color.quiet)
+            if let color = item.color, !color.isEmpty { Text(color).font(WardrobeDesign.body(12)).foregroundStyle(WardrobeDesign.Color.quiet) }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(12).background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous).stroke(WardrobeDesign.Color.hairline))
     }
 }
 
@@ -139,7 +157,7 @@ private struct GarmentThumbnail: View {
     @State private var image: UIImage?
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 16).fill(Color(uiColor: .tertiarySystemFill))
+        RoundedRectangle(cornerRadius: 16).fill(WardrobeDesign.Color.canvas)
             .overlay {
                 if let image { Image(uiImage: image).resizable().scaledToFill().clipShape(RoundedRectangle(cornerRadius: 16)) }
                 else { Image(systemName: "tshirt").font(.largeTitle).foregroundStyle(.secondary) }

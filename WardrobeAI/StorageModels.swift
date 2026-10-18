@@ -1,4 +1,33 @@
 import Foundation
+import SwiftUI
+
+/// App-wide visual tokens. The naming follows the Cornholio ink/paper/signal
+/// language, but the values are tuned for a calm, OLED-friendly dark wardrobe.
+enum WardrobeDesign {
+    enum Color {
+        static let ink = SwiftUI.Color(red: 0.95, green: 0.93, blue: 0.88)
+        static let paper = SwiftUI.Color(red: 0.105, green: 0.10, blue: 0.09)
+        static let canvas = SwiftUI.Color(red: 0.055, green: 0.052, blue: 0.048)
+        static let card = SwiftUI.Color(red: 0.145, green: 0.135, blue: 0.125)
+        static let signal = SwiftUI.Color(red: 0.92, green: 0.38, blue: 0.22)
+        static let moss = SwiftUI.Color(red: 0.48, green: 0.72, blue: 0.52)
+        static let quiet = SwiftUI.Color(red: 0.65, green: 0.62, blue: 0.57)
+        static let hairline = SwiftUI.Color.white.opacity(0.12)
+    }
+    enum Space {
+        static let xs: CGFloat = 8
+        static let sm: CGFloat = 12
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 20
+        static let xl: CGFloat = 28
+    }
+    enum Radius { static let chip: CGFloat = 12; static let card: CGFloat = 20 }
+    /// Plus Jakarta Sans is represented by the native rounded face here so the
+    /// hierarchy stays consistent until a bundled font resource is introduced.
+    static func display(_ size: CGFloat = 26) -> Font { .system(size: size, weight: .bold, design: .rounded) }
+    static func body(_ size: CGFloat = 15) -> Font { .system(size: size, weight: .regular, design: .rounded) }
+    static func metadata(_ size: CGFloat = 11) -> Font { .system(size: size, weight: .semibold, design: .monospaced) }
+}
 
 struct GarmentItem: Identifiable, Equatable, Sendable {
     let id: UUID
@@ -149,6 +178,15 @@ enum SemanticSearchError: LocalizedError, Equatable {
 enum GarmentTaxonomy {
     static let categories = ["Top", "Bottom", "Dress", "One-piece outfit", "Outerwear", "Shoes", "Accessory"]
     static let occasions = ["Everyday", "Work", "Casual", "Formal", "Exercise", "Travel", "Evening"]
+    static let patterns = ["Solid", "Stripe", "Check", "Plaid", "Floral", "Geometric", "Animal", "Graphic", "Textured", "Other"]
+    static let fabrics = ["Cotton", "Linen", "Wool", "Cashmere", "Denim", "Leather", "Silk", "Polyester", "Knit", "Unknown"]
+    static let textures = ["Smooth", "Soft", "Ribbed", "Brushed", "Crisp", "Coarse", "Lustrous", "Woven", "Quilted"]
+    static let fits = ["Slim", "Regular", "Relaxed", "Oversized", "Tailored", "Cropped", "Wide-leg"]
+    static let silhouettes = ["Straight", "A-line", "Boxy", "Structured", "Draped", "Tapered", "Flowing"]
+    static let layering = ["Base layer", "Mid layer", "Top layer", "Standalone", "Light layer"]
+    static let warmthLevels = ["Light", "Medium", "Warm", "Very warm"]
+    static let formalityLevels = ["Relaxed", "Smart casual", "Work", "Formal", "Evening"]
+    static let styleKeywords = ["Minimal", "Classic", "Sporty", "Utility", "Romantic", "Street", "Preppy", "Modern", "Vintage"]
 
     static func isKnownCategory(_ category: String) -> Bool {
         categories.contains(category)

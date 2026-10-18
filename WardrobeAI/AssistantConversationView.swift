@@ -1,32 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// Shared visual tokens for the assistant surface, adapted from Cornholio's
-/// quiet ink/paper/signal system and kept native to iOS.
-private enum WardrobeDesign {
-    enum Color {
-        static let ink = SwiftUI.Color(red: 0.10, green: 0.10, blue: 0.09)
-        static let paper = SwiftUI.Color(red: 0.98, green: 0.97, blue: 0.94)
-        static let canvas = SwiftUI.Color(uiColor: .systemGroupedBackground)
-        static let card = SwiftUI.Color(uiColor: .secondarySystemGroupedBackground)
-        static let signal = SwiftUI.Color(red: 0.78, green: 0.25, blue: 0.15)
-        static let moss = SwiftUI.Color(red: 0.22, green: 0.38, blue: 0.28)
-        static let quiet = SwiftUI.Color(red: 0.38, green: 0.37, blue: 0.34)
-        static let hairline = SwiftUI.Color.black.opacity(0.10)
-    }
-    enum Space {
-        static let xs: CGFloat = 8
-        static let sm: CGFloat = 12
-        static let md: CGFloat = 16
-        static let lg: CGFloat = 20
-        static let xl: CGFloat = 28
-    }
-    enum Radius { static let chip: CGFloat = 12; static let card: CGFloat = 20 }
-    static func display(_ size: CGFloat = 26) -> Font { .system(size: size, weight: .semibold, design: .serif) }
-    static func body(_ size: CGFloat = 15) -> Font { .system(size: size, weight: .regular, design: .rounded) }
-    static func metadata(_ size: CGFloat = 11) -> Font { .system(size: size, weight: .semibold, design: .monospaced) }
-}
-
 /// The app's primary surface. The assistant has the conversation, while the
 /// wardrobe remains the owned-item source of truth behind every suggestion.
 struct AssistantConversationView: View {
@@ -221,7 +195,7 @@ struct AssistantConversationView: View {
             }
             ForEach(suggestions) { suggestion in
                 OutfitRecommendationCard(suggestion: suggestion, store: store) {
-                    try? store.saveSuggestion(suggestion)
+                    _ = try? store.saveSuggestion(suggestion)
                 }
             }
         }
