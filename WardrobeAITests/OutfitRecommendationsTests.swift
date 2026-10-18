@@ -193,13 +193,19 @@ final class OutfitRecommendationsTests: XCTestCase {
         let top = item("Shirt", "Top")
         let bottom = item("Trousers", "Bottom")
         let bag = item("Bag", "Accessory")
+        let shoes = item("Sneakers", "Shoes")
         let results = OutfitRecommendationEngine().suggestions(
-            items: [top, bottom, bag], preferences: .empty, wearEvents: [],
+            items: [top, bottom, bag, shoes], preferences: .empty, wearEvents: [],
             context: .init(occasion: nil, preferredColors: [], lockedItemIDs: [bag.id], requestedSlots: [.footwear])
         )
 
         XCTAssertFalse(results.isEmpty)
-        XCTAssertTrue(results.allSatisfy { $0.itemIDs.contains(bag.id) && $0.itemIDs.contains(top.id) && $0.itemIDs.contains(bottom.id) })
+        XCTAssertTrue(results.allSatisfy { $0.itemIDs.contains(bag.id) && $0.itemIDs.contains(top.id) && $0.itemIDs.contains(bottom.id) && $0.itemIDs.contains(shoes.id) })
+        let missingFootwear = OutfitRecommendationEngine().suggestions(
+            items: [top, bottom, bag], preferences: .empty, wearEvents: [],
+            context: .init(occasion: nil, preferredColors: [], lockedItemIDs: [bag.id], requestedSlots: [.footwear])
+        )
+        XCTAssertTrue(missingFootwear.isEmpty)
     }
 
     func testComposeRejectsLockedRequestedRoleAndUnavailablePieces() {
