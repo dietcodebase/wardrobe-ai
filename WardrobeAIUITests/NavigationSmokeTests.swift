@@ -2,26 +2,17 @@ import XCTest
 
 final class NavigationSmokeTests: XCTestCase {
     @MainActor
-    func testAllTabsCanBeOpened() {
+    func testAssistantConversationIsThePrimaryScreen() {
         let app = XCUIApplication()
         app.launch()
-        let destinations = [
-            ("Wardrobe", "No garments yet"),
-            ("Outfits", "No saved outfits"),
-            ("Stylist", "manual-wardrobe-status"),
-            ("Wardrobe", "No garments yet")
-        ]
-        for (title, message) in destinations {
-            app.tabBars.buttons[title].tap()
-            XCTAssertTrue(app.navigationBars[title].waitForExistence(timeout: 5))
-            let content = title == "Stylist"
-                ? app.descendants(matching: .any)[message]
-                : app.staticTexts[message]
-            XCTAssertTrue(content.waitForExistence(timeout: 5))
-            let screenshot = XCTAttachment(screenshot: app.screenshot())
-            screenshot.name = "\(title) tab"
-            screenshot.lifetime = .keepAlways
-            add(screenshot)
-        }
+        XCTAssertTrue(app.navigationBars["Wardrobe AI"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["assistant-welcome"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.textFields["assistant-prompt"].exists)
+        XCTAssertFalse(app.tabBars.firstMatch.exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Chat-first wardrobe assistant"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
     }
 }

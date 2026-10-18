@@ -13,18 +13,27 @@ enum AppTab: String, CaseIterable, Identifiable {
 struct ContentView: View {
     @ObservedObject var store: WardrobeStore
     @ObservedObject var modelManager: ModelManager
+    @State private var showingWardrobe = false
+    @State private var showingOutfits = false
+    @State private var showingAddGarment = false
+    @State private var showingModelStatus = false
 
     var body: some View {
-        TabView {
-            WardrobeView(store: store).tabItem { Label(AppTab.wardrobe.rawValue, systemImage: AppTab.wardrobe.symbol) }
-            OutfitView(store: store).tabItem { Label(AppTab.outfits.rawValue, systemImage: AppTab.outfits.symbol) }
-            NavigationStack { ModelStatusView(manager: modelManager, store: store).navigationTitle(AppTab.stylist.rawValue) }
-                .tabItem { Label(AppTab.stylist.rawValue, systemImage: AppTab.stylist.symbol) }
+        NavigationStack {
+            AssistantConversationView(
+                store: store,
+                showWardrobe: { showingWardrobe = true },
+                showOutfits: { showingOutfits = true },
+                showAddGarment: { showingAddGarment = true },
+                showModelStatus: { showingModelStatus = true }
+            )
         }
-    }
-
-    private func placeholder(for tab: AppTab) -> some View {
-        NavigationStack { ContentUnavailableView(tab.message, systemImage: tab.symbol).navigationTitle(tab.rawValue) }
+        .sheet(isPresented: $showingWardrobe) { WardrobeView(store: store) }
+        .sheet(isPresented: $showingOutfits) { OutfitView(store: store) }
+        .sheet(isPresented: $showingAddGarment) { GarmentEditor(store: store) }
+        .sheet(isPresented: $showingModelStatus) {
+            NavigationStack { ModelStatusView(manager: modelManager, store: store).navigationTitle("Local AI") }
+        }
     }
 }
 
