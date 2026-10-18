@@ -1,4 +1,31 @@
 import SwiftUI
+import UIKit
+
+/// Shared visual tokens for the assistant surface, adapted from Cornholio's
+/// quiet ink/paper/signal system and kept native to iOS.
+private enum WardrobeDesign {
+    enum Color {
+        static let ink = SwiftUI.Color(red: 0.10, green: 0.10, blue: 0.09)
+        static let paper = SwiftUI.Color(red: 0.98, green: 0.97, blue: 0.94)
+        static let canvas = SwiftUI.Color(uiColor: .systemGroupedBackground)
+        static let card = SwiftUI.Color(uiColor: .secondarySystemGroupedBackground)
+        static let signal = SwiftUI.Color(red: 0.78, green: 0.25, blue: 0.15)
+        static let moss = SwiftUI.Color(red: 0.22, green: 0.38, blue: 0.28)
+        static let quiet = SwiftUI.Color(red: 0.38, green: 0.37, blue: 0.34)
+        static let hairline = SwiftUI.Color.black.opacity(0.10)
+    }
+    enum Space {
+        static let xs: CGFloat = 8
+        static let sm: CGFloat = 12
+        static let md: CGFloat = 16
+        static let lg: CGFloat = 20
+        static let xl: CGFloat = 28
+    }
+    enum Radius { static let chip: CGFloat = 12; static let card: CGFloat = 20 }
+    static func display(_ size: CGFloat = 26) -> Font { .system(size: size, weight: .semibold, design: .serif) }
+    static func body(_ size: CGFloat = 15) -> Font { .system(size: size, weight: .regular, design: .rounded) }
+    static func metadata(_ size: CGFloat = 11) -> Font { .system(size: size, weight: .semibold, design: .monospaced) }
+}
 
 /// The app's primary surface. The assistant has the conversation, while the
 /// wardrobe remains the owned-item source of truth behind every suggestion.
@@ -40,7 +67,7 @@ struct AssistantConversationView: View {
             conversation
             composer
         }
-        .background(Color(uiColor: .systemGroupedBackground))
+        .background(WardrobeDesign.Color.canvas)
         .navigationTitle("Wardrobe AI")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -93,7 +120,7 @@ struct AssistantConversationView: View {
                         .background(.thinMaterial, in: Capsule())
                     }
                 }
-                .padding(16)
+                .padding(WardrobeDesign.Space.md)
             }
             .onChange(of: chat.messages.count) { _, _ in
                 withAnimation { proxy.scrollTo("conversation-end", anchor: .bottom) }
@@ -109,13 +136,13 @@ struct AssistantConversationView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
                 Image(systemName: "sparkles")
-                    .font(.title3.weight(.semibold))
+                    .font(WardrobeDesign.display(18))
                     .foregroundStyle(.white)
                     .frame(width: 42, height: 42)
-                    .background(Color.indigo.gradient, in: RoundedRectangle(cornerRadius: 14))
+                    .background(WardrobeDesign.Color.ink.gradient, in: RoundedRectangle(cornerRadius: 14))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Wardrobe, understood").font(.headline)
-                    Text(connectionLabel).font(.caption).foregroundStyle(.secondary)
+                    Text("Wardrobe, understood").font(WardrobeDesign.display(20))
+                    Text(connectionLabel).font(WardrobeDesign.metadata()).foregroundStyle(WardrobeDesign.Color.quiet)
                 }
                 Spacer()
             }
@@ -124,11 +151,11 @@ struct AssistantConversationView: View {
                 Divider().frame(height: 14)
                 Label("Ask, compare, decide", systemImage: "arrow.triangle.branch")
             }
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
+            .font(WardrobeDesign.metadata())
+            .foregroundStyle(WardrobeDesign.Color.quiet)
         }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .padding(WardrobeDesign.Space.lg)
+        .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
     }
 
     private var connectionLabel: String {
@@ -138,7 +165,7 @@ struct AssistantConversationView: View {
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Start with your moment.")
-                .font(.system(.title2, design: .rounded).weight(.bold))
+                .font(WardrobeDesign.display(25))
             Text("Tell me the occasion, weather, mood, or a piece you want to wear. I’ll compare only what you own and explain the choice in plain language.")
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 8) {
@@ -170,7 +197,7 @@ struct AssistantConversationView: View {
                 Text(demoStatus).font(.footnote).foregroundStyle(.secondary)
             }
         }
-        .padding(20)
+        .padding(WardrobeDesign.Space.xl)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.background, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .accessibilityIdentifier("assistant-welcome")
@@ -182,24 +209,20 @@ struct AssistantConversationView: View {
             Label("Add a few garments and I’ll make owned-item outfit ideas.", systemImage: "tshirt")
                 .font(.footnote).foregroundStyle(.secondary)
         } else {
-            Text("Ready-to-compare outfits").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline) {
+                Text("Ready-to-compare")
+                    .font(WardrobeDesign.metadata(12))
+                    .textCase(.uppercase)
+                    .foregroundStyle(WardrobeDesign.Color.quiet)
+                Spacer()
+                Text("owned pieces")
+                    .font(WardrobeDesign.metadata(10))
+                    .foregroundStyle(WardrobeDesign.Color.quiet)
+            }
             ForEach(suggestions) { suggestion in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(suggestion.itemIDs.compactMap { store.item(id: $0)?.name }.joined(separator: " + "))
-                        .font(.headline)
-                    Label("Why this works", systemImage: "sparkles")
-                        .font(.caption.weight(.semibold)).foregroundStyle(.indigo)
-                    Text(suggestion.explanation).font(.footnote).foregroundStyle(.secondary)
-                    HStack {
-                        Button("Save outfit") { try? store.saveSuggestion(suggestion) }
-                            .buttonStyle(.bordered)
-                        Text("Saving never logs wear.")
-                            .font(.caption2).foregroundStyle(.secondary)
-                    }
+                OutfitRecommendationCard(suggestion: suggestion, store: store) {
+                    try? store.saveSuggestion(suggestion)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.indigo.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }
@@ -209,7 +232,7 @@ struct AssistantConversationView: View {
             TextField("Ask about your wardrobe", text: $draft, axis: .vertical)
                 .lineLimit(1...4)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(.background, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
                 .accessibilityIdentifier("assistant-prompt")
             if chat.isResponding {
                 Button("Cancel", action: chat.cancel).buttonStyle(.bordered)
@@ -280,11 +303,150 @@ private struct MessageBubble: View {
             Text(message.text)
                 .padding(.horizontal, 14).padding(.vertical, 11)
                 .foregroundStyle(message.role == .user ? .white : .primary)
-                .background(message.role == .user ? Color.indigo : Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .background(message.role == .user ? WardrobeDesign.Color.ink : WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
             if message.role == .assistant { Spacer(minLength: 48) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message.role == .user ? "You: \(message.text)" : "Stylist: \(message.text)")
+    }
+}
+
+private struct OutfitRecommendationCard: View {
+    let suggestion: OutfitSuggestion
+    @ObservedObject var store: WardrobeStore
+    let save: () -> Void
+
+    private var items: [GarmentItem] {
+        suggestion.itemIDs.compactMap { store.item(id: $0) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WardrobeDesign.Space.md) {
+            OutfitPreview(items: items, store: store)
+
+            VStack(alignment: .leading, spacing: WardrobeDesign.Space.xs) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(title)
+                        .font(WardrobeDesign.display(21))
+                        .foregroundStyle(WardrobeDesign.Color.ink)
+                    Spacer()
+                    Text("\(suggestion.score) fit")
+                        .font(WardrobeDesign.metadata())
+                        .foregroundStyle(WardrobeDesign.Color.moss)
+                }
+                Text(itemSummary)
+                    .font(WardrobeDesign.metadata())
+                    .foregroundStyle(WardrobeDesign.Color.quiet)
+                    .lineLimit(2)
+            }
+
+            HStack(alignment: .top, spacing: WardrobeDesign.Space.sm) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(WardrobeDesign.Color.signal)
+                Text(suggestion.explanation)
+                    .font(WardrobeDesign.body(14))
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            HStack(spacing: WardrobeDesign.Space.sm) {
+                Button(action: save) {
+                    Label("Save outfit", systemImage: "bookmark")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(WardrobeDesign.Color.ink)
+                Text("Save keeps it ready; it never logs wear.")
+                    .font(WardrobeDesign.metadata(10))
+                    .foregroundStyle(WardrobeDesign.Color.quiet)
+            }
+        }
+        .padding(WardrobeDesign.Space.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous).stroke(WardrobeDesign.Color.hairline))
+        .shadow(color: .black.opacity(0.06), radius: 12, y: 5)
+    }
+
+    private var title: String {
+        if items.contains(where: { $0.category == "Dress" || $0.category == "One-piece outfit" }) { return "One-piece, finished" }
+        if items.contains(where: { $0.category == "Outerwear" }) { return "Layered and ready" }
+        return "A considered everyday set"
+    }
+
+    private var itemSummary: String {
+        items.map { $0.name }.joined(separator: "  ·  ")
+    }
+}
+
+private struct OutfitPreview: View {
+    let items: [GarmentItem]
+    @ObservedObject var store: WardrobeStore
+
+    var body: some View {
+        HStack(spacing: WardrobeDesign.Space.xs) {
+            ForEach(Array(items.prefix(4).enumerated()), id: \.element.id) { index, item in
+                GarmentPreviewTile(item: item, store: store, prominence: index == 0 ? .hero : .support)
+            }
+            if items.count > 4 {
+                Text("+\(items.count - 4)")
+                    .font(WardrobeDesign.metadata())
+                    .foregroundStyle(WardrobeDesign.Color.quiet)
+                    .frame(width: 40, height: 92)
+                    .background(WardrobeDesign.Color.canvas, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct GarmentPreviewTile: View {
+    enum Prominence { case hero, support }
+    let item: GarmentItem
+    @ObservedObject var store: WardrobeStore
+    let prominence: Prominence
+    @State private var image: UIImage?
+
+    private var width: CGFloat { prominence == .hero ? 148 : 82 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Image(systemName: symbol)
+                        .font(.title2)
+                        .foregroundStyle(WardrobeDesign.Color.quiet)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(WardrobeDesign.Color.canvas)
+                }
+            }
+            .frame(width: width, height: 92)
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip, style: .continuous))
+
+            Text(item.category)
+                .font(WardrobeDesign.metadata(9))
+                .foregroundStyle(WardrobeDesign.Color.quiet)
+                .lineLimit(1)
+        }
+        .task(id: item.imagePath) {
+            image = store.imageData(for: item).flatMap(UIImage.init(data:))
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(item.category): \(item.name)")
+    }
+
+    private var symbol: String {
+        switch item.category {
+        case "Shoes": return "shoeprints.fill"
+        case "Accessory": return "bag.fill"
+        case "Outerwear": return "jacket.fill"
+        case "Bottom": return "rectangle.portrait"
+        default: return "tshirt.fill"
+        }
     }
 }
 

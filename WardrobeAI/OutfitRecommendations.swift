@@ -189,14 +189,39 @@ struct OutfitRecommendationEngine {
         let preferredCategories = items.filter { preferences.preferredCategories.contains($0.category) }.count
         let recentPenalty = items.filter { recentIDs.contains($0.id) }.count
         let weatherScore = weatherAdjustment(for: items, weather: context.weather)
-        let score = occasionMatches * 4 + colorMatches * 2 + preferredCategories + weatherScore - recentPenalty * 3
+        let practicality = practicalityAdjustment(for: items)
+        let score = occasionMatches * 4 + colorMatches * 2 + preferredCategories + weatherScore + practicality.score - recentPenalty * 3
         let names = items.map(\.name).joined(separator: " with ")
         let explanation: String
-        if occasionMatches > 0, let occasion { explanation = "Uses your \(occasion) pieces: \(names)." }
-        else if recentPenalty == 0 { explanation = "A less-recently worn combination: \(names)." }
-        else { explanation = "A simple combination from your wardrobe: \(names)." }
+        var reasons: [String] = []
+        if occasionMatches > 0, let occasion { reasons.append("fits your \(occasion) plan") }
+        if practicality.score > 0 { reasons.append(practicality.note) }
+        if recentPenalty == 0 { reasons.append("gives recently worn pieces a break") }
+        explanation = "\((reasons.first ?? "a simple combination from your wardrobe").capitalized) with \(names)."
         let weatherNote = context.weather.map { " Weather context: \($0.description), \(Int($0.temperatureCelsius.rounded()))°C in \($0.location.normalizedCity)." } ?? ""
         return OutfitSuggestion(id: stableID(for: ids), itemIDs: ids, score: score, explanation: explanation + weatherNote)
+    }
+
+    private func practicalityAdjustment(for items: [GarmentItem]) -> (score: Int, note: String) {
+        let categories = Set(items.map(\.category))
+        var score = 0
+        var notes: [String] = []
+        if categories.contains("Dress") || categories.contains("One-piece outfit") {
+            score += 3
+            notes.append("keeps the base simple")
+        } else if categories.contains("Top") && categories.contains("Bottom") {
+            score += 3
+            notes.append("balances a clear base")
+        }
+        if categories.contains("Shoes") {
+            score += 2
+            notes.append("finishes the look with footwear")
+        }
+        if categories.contains("Outerwear") && !(categories.contains("Top") || categories.contains("Dress") || categories.contains("One-piece outfit")) {
+            score -= 2
+        }
+        if items.count > 4 { score -= 1 }
+        return (score, notes.first ?? "keeps the pieces easy to wear")
     }
 
     private func weatherAdjustment(for items: [GarmentItem], weather: WeatherSnapshot?) -> Int {
