@@ -16,14 +16,24 @@ final class BatchGarmentCaptureTests: XCTestCase {
         guard case .failed = results[1].state else { return XCTFail("Expected second crop to retain its error") }
     }
 
-    func testDraftFactoryPreservesValidatedSuggestionAndHasManualFallback() throws {
+    func testDraftFactoryRequiresReviewAndPersistsReviewedSuggestion() throws {
         let suggestion = try GarmentClassificationSuggestion(category: "Top", color: "Navy", tags: ["work"])
         let provenance = ClassificationProvenance(modelID: "test", modelRevision: "1", route: "test", classifiedAt: .now, suggestion: suggestion, wasEditedBeforeSave: false)
-        let classified = BatchClassificationEntry(candidate: makeCandidate(), state: .succeeded(provenance))
+        var classified = BatchClassificationEntry(candidate: makeCandidate(), state: .succeeded(provenance))
+        classified.name = "Navy top"
+        classified.category = "Top"
+        classified.color = "Navy"
+        classified.tags = "work"
 
-        XCTAssertEqual(BatchGarmentDraftFactory.draft(for: classified, ordinal: 2).name, "Top 2")
-        XCTAssertEqual(BatchGarmentDraftFactory.draft(for: classified, ordinal: 2).tags, ["work"])
-        XCTAssertEqual(BatchGarmentDraftFactory.draft(for: makeEntry(), ordinal: 3).name, "Garment 3")
+        XCTAssertNil(BatchGarmentDraftFactory.draft(for: classified, ordinal: 2))
+        classified.isReviewed = true
+        let reviewedDraft = try XCTUnwrap(BatchGarmentDraftFactory.draft(for: classified, ordinal: 2))
+        XCTAssertEqual(reviewedDraft.name, "Navy top")
+        XCTAssertEqual(reviewedDraft.category, "Top")
+        XCTAssertEqual(reviewedDraft.tags, ["work"])
+
+        let manualDraft = try XCTUnwrap(BatchGarmentDraftFactory.draft(for: makeEntry(), ordinal: 3))
+        XCTAssertEqual(manualDraft.name, "Garment 3")
     }
 
     private func makeEntry() -> BatchClassificationEntry { BatchClassificationEntry(candidate: makeCandidate()) }

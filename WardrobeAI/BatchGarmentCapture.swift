@@ -13,6 +13,12 @@ enum BatchClassificationState: Equatable, Sendable {
 struct BatchClassificationEntry: Identifiable, @unchecked Sendable {
     let candidate: GarmentCaptureCandidate
     var state: BatchClassificationState
+    var name = ""
+    var category = GarmentTaxonomy.categories[0]
+    var color = ""
+    var tags = ""
+    var materialGuess = ""
+    var isReviewed = false
 
     var id: UUID { candidate.id }
 
@@ -70,13 +76,33 @@ actor BatchGarmentClassificationQueue {
 }
 
 enum BatchGarmentDraftFactory {
-    static func draft(for entry: BatchClassificationEntry, ordinal: Int) -> GarmentDraft {
+    static func draft(for entry: BatchClassificationEntry, ordinal: Int) -> GarmentDraft? {
         switch entry.state {
         case let .succeeded(provenance):
-            let suggestion = provenance.suggestion
-            return GarmentDraft(name: "\(suggestion.category) \(ordinal)", category: suggestion.category, color: suggestion.color, tags: suggestion.tags, classification: provenance)
+            guard entry.isReviewed,
+                  let suggestion = try? GarmentClassificationSuggestion(
+                    category: entry.category,
+                    color: entry.color,
+                    tags: entry.tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty },
+                    materialGuess: entry.materialGuess
+                  ) else { return nil }
+            var reviewedProvenance = provenance
+            reviewedProvenance.wasEditedBeforeSave = provenance.wasEditedBeforeSave
+                || suggestion != provenance.suggestion
+            reviewedProvenance = ClassificationProvenance(
+                modelID: provenance.modelID,
+                modelRevision: provenance.modelRevision,
+                route: provenance.route,
+                classifiedAt: provenance.classifiedAt,
+                suggestion: suggestion,
+                wasEditedBeforeSave: reviewedProvenance.wasEditedBeforeSave
+            )
+            return GarmentDraft(name: entry.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "\(suggestion.category) \(ordinal)" : entry.name, category: suggestion.category, color: suggestion.color, tags: suggestion.tags, classification: reviewedProvenance)
         case .pending, .classifying, .failed, .cancelled:
-            return GarmentDraft(name: "Garment \(ordinal)", category: GarmentTaxonomy.categories[0])
+            let name = entry.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedColor = entry.color.trimmingCharacters(in: .whitespacesAndNewlines)
+            let tags = entry.tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+            return GarmentDraft(name: name.isEmpty ? "Garment \(ordinal)" : name, category: entry.category, color: trimmedColor.isEmpty ? nil : trimmedColor, tags: tags)
         }
     }
 }
@@ -89,6 +115,9 @@ struct BatchGarmentCaptureSheet: View {
     @State private var isPreparing = false
     @State private var isClassifying = false
     @State private var classificationTask: Task<Void, Never>?
+    @State private var classificationRunID: UUID?
+    @State private var preparationTask: Task<Void, Never>?
+    @State private var preparationRunID: UUID?
     @State private var errorMessage: String?
     private let queue = BatchGarmentClassificationQueue()
 
@@ -107,17 +136,35 @@ struct BatchGarmentCaptureSheet: View {
                     List {
                         Section("Selected cutouts") {
                             ForEach($entries) { $entry in
-                                Toggle(isOn: selectionBinding(for: entry.id)) {
-                                    HStack(spacing: 12) {
-                                        Image(uiImage: entry.candidate.image).resizable().scaledToFill().frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 8))
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Text(entryTitle(entry.state))
-                                            Text(entrySubtitle(entry.state)).font(.caption).foregroundStyle(.secondary)
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Toggle(isOn: selectionBinding(for: entry.id)) {
+                                        HStack(spacing: 12) {
+                                            Image(uiImage: entry.candidate.image).resizable().scaledToFill().frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 8))
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(entryTitle(entry.state))
+                                                Text(entrySubtitle(entry.state)).font(.caption).foregroundStyle(.secondary)
+                                            }
                                         }
                                     }
+                                    .disabled(isClassifying)
+                                    .accessibilityLabel("Select cutout: \(entryTitle(entry.state))")
+                                    if case .classifying = entry.state {
+                                        EmptyView()
+                                    } else {
+                                        TextField("Garment name", text: $entry.name).textInputAutocapitalization(.words)
+                                        Picker("Category", selection: $entry.category) {
+                                            ForEach(GarmentTaxonomy.categories, id: \.self) { Text($0).tag($0) }
+                                        }
+                                        TextField("Color", text: $entry.color).textInputAutocapitalization(.words)
+                                        TextField("Tags, separated by commas", text: $entry.tags).textInputAutocapitalization(.never)
+                                    }
+                                    if case .succeeded = entry.state {
+                                        TextField("Material guess (optional, verify)", text: $entry.materialGuess).textInputAutocapitalization(.words)
+                                        Toggle("I reviewed these suggested details", isOn: $entry.isReviewed)
+                                            .disabled(isClassifying)
+                                    }
                                 }
-                                .disabled(isClassifying)
-                                .accessibilityLabel("Select cutout: \(entryTitle(entry.state))")
+                                .padding(.vertical, 6)
                             }
                         }
                         Section {
@@ -135,14 +182,21 @@ struct BatchGarmentCaptureSheet: View {
                 if !entries.isEmpty {
                     ToolbarItem(placement: .topBarTrailing) {
                         if isClassifying { Button("Stop", role: .cancel) { cancelClassification() } }
-                        else { Button("Classify") { classifySelected() }.disabled(selectedIDs.isEmpty) }
+                        else { Button("Classify") { classifySelected() }.disabled(selectedIDs.isEmpty || preparationTask != nil) }
                     }
-                    ToolbarItem(placement: .confirmationAction) { Button("Save selected") { saveSelected() }.disabled(selectedIDs.isEmpty || isClassifying) }
+                    ToolbarItem(placement: .confirmationAction) { Button("Save selected") { saveSelected() }.disabled(selectedIDs.isEmpty || isClassifying || isPreparing || !selectedEntriesAreReviewed) }
                 }
             }
             .alert("Couldn’t save batch", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
-        .onDisappear { cancelClassification() }
+        .onDisappear { cancelAllWork() }
+    }
+
+    private var selectedEntriesAreReviewed: Bool {
+        entries.filter { selectedIDs.contains($0.id) }.allSatisfy { entry in
+            if case .succeeded = entry.state { return entry.isReviewed }
+            return true
+        }
     }
 
     private func selectionBinding(for id: UUID) -> Binding<Bool> {
@@ -151,46 +205,82 @@ struct BatchGarmentCaptureSheet: View {
 
     private func prepare(_ image: UIImage) {
         cancelClassification()
+        preparationTask?.cancel()
+        let runID = UUID()
+        preparationRunID = runID
         isPreparing = true
-        Task {
-            defer { isPreparing = false }
-            let candidates = await Task.detached(priority: .userInitiated) { () -> [GarmentCaptureCandidate] in
+        preparationTask = Task {
+            let task = Task.detached(priority: .userInitiated) { () -> [GarmentCaptureCandidate] in
                 guard let original = try? GarmentImagePreparation.originalCandidate(from: image) else { return [] }
                 return (try? GarmentImagePreparation.foregroundCandidates(from: original)) ?? []
-            }.value
+            }
+            let candidates = await task.value
+            guard preparationRunID == runID, !Task.isCancelled else { return }
             entries = candidates.map(BatchClassificationEntry.init)
+            for index in entries.indices {
+                entries[index].name = "Garment \(index + 1)"
+            }
             selectedIDs = Set(entries.map(\.id))
             if entries.isEmpty { errorMessage = "No separate foreground masks were found. Try a clearer photo or add garments one at a time." }
+            isPreparing = false
+            preparationTask = nil
+            preparationRunID = nil
         }
     }
 
     private func classifySelected() {
         let selected = entries.filter { selectedIDs.contains($0.id) }
         guard !selected.isEmpty else { return }
+        let runID = UUID()
+        classificationRunID = runID
+        for index in entries.indices where selectedIDs.contains(entries[index].id) {
+            entries[index].isReviewed = false
+        }
         isClassifying = true
         classificationTask = Task {
             let results = await queue.classify(selected) { _, _ in }
+            guard classificationRunID == runID else { return }
             let states = Dictionary(uniqueKeysWithValues: results.map { ($0.id, $0.state) })
-            entries = entries.map { entry in
+            entries = entries.enumerated().map { index, entry in
                 var entry = entry
-                if let state = states[entry.id] { entry.state = state }
+                if let state = states[entry.id] {
+                    entry.state = state
+                    if case let .succeeded(provenance) = state {
+                        entry.name = "\(provenance.suggestion.category) \(index + 1)"
+                        entry.category = provenance.suggestion.category
+                        entry.color = provenance.suggestion.color ?? ""
+                        entry.tags = provenance.suggestion.tags.joined(separator: ", ")
+                        entry.materialGuess = provenance.suggestion.materialGuess ?? ""
+                        entry.isReviewed = false
+                    }
+                }
                 return entry
             }
             isClassifying = false
             classificationTask = nil
+            classificationRunID = nil
         }
     }
 
     private func cancelClassification() {
         classificationTask?.cancel()
-        classificationTask = nil
-        isClassifying = false
+    }
+
+    private func cancelAllWork() {
+        cancelClassification()
+        preparationTask?.cancel()
+        preparationRunID = nil
     }
 
     private func saveSelected() {
         var failed: [UUID] = []
         for (offset, entry) in entries.filter({ selectedIDs.contains($0.id) }).enumerated() {
-            do { try store.create(BatchGarmentDraftFactory.draft(for: entry, ordinal: offset + 1), imageData: entry.candidate.data) }
+            guard let draft = BatchGarmentDraftFactory.draft(for: entry, ordinal: offset + 1) else {
+                failed.append(entry.id)
+                errorMessage = "Review and confirm every selected suggestion before saving."
+                continue
+            }
+            do { try store.create(draft, imageData: entry.candidate.data) }
             catch { failed.append(entry.id); errorMessage = error.localizedDescription }
         }
         selectedIDs = Set(failed)
@@ -209,7 +299,7 @@ struct BatchGarmentCaptureSheet: View {
 
     private func entrySubtitle(_ state: BatchClassificationState) -> String {
         switch state {
-        case let .succeeded(provenance): "Suggested locally — review after saving"
+        case .succeeded: "Edit and confirm these suggestions before saving"
         case let .failed(message): message
         case .pending: "Select this crop only if it is a garment"
         case .classifying: "This is the only active request"

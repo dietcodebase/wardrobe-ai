@@ -6,6 +6,8 @@ Status: implementation complete; simulator, physical-device, and qualified-model
 
 - Batch capture runs foreground-instance detection over one selected photo and presents every returned cutout for explicit inclusion. A mask is never assumed to be a garment.
 - Classification is processed strictly one crop at a time. A failure is retained on that crop while later selected crops continue; stopped requests leave existing results available and mark remaining work cancelled.
+- Successful classifier suggestions populate editable fields and require an explicit review confirmation before any suggested category, color, tags, or material provenance can be saved. Failed or unclassified crops use editable manual fields.
+- Stopping classification keeps the active task and progress state until it actually finishes, so retry cannot overlap it. Photo preparation uses a request identity so a late result from an older photo is discarded.
 - Each selected crop is saved independently through the existing recoverable image/database coordinator. Successfully saved garments remain saved when a later crop fails; failed saves remain selected for retry.
 - Unclassified, failed, or cancelled crops remain saveable with a manual draft. The existing single-item flow remains available when no masks are returned or the photo is unsuitable.
 
