@@ -19,6 +19,9 @@ struct GarmentDetail: View {
         _displayedItem = State(initialValue: item)
     }
 
+    private var affectedOutfits: [Outfit] { store.outfits.filter { $0.itemIDs.contains(displayedItem.id) } }
+    private var affectedPlans: [OutfitPlan] { store.outfitPlans.filter { plan in affectedOutfits.contains(where: { $0.id == plan.outfitID }) } }
+
     var body: some View {
         NavigationStack {
             List {
@@ -94,6 +97,15 @@ struct GarmentDetail: View {
                 } header: { Text("Gemma tagging") } footer: {
                     Text("The new result replaces the saved model tags and garment details. Your photo stays on this device.")
                 }
+                if !affectedOutfits.isEmpty {
+                    Section("Used by saved looks") {
+                        ForEach(affectedOutfits) { outfit in Text(outfit.name) }
+                        if !affectedPlans.isEmpty {
+                            Text("Also planned for \(affectedPlans.map { $0.scheduledFor.formatted(date: .abbreviated, time: .omitted) }.joined(separator: ", ")).")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Section { Button("Delete garment", role: .destructive) { isConfirmingDelete = true } }
             }
             .navigationTitle(displayedItem.name)
@@ -103,7 +115,7 @@ struct GarmentDetail: View {
                 Button("Delete", role: .destructive) {
                     do { try store.delete(displayedItem); dismiss() } catch { errorMessage = error.localizedDescription }
                 }
-            } message: { Text("This cannot be undone. Garments used by an outfit or wear history must be removed there first.") }
+            } message: { Text(affectedOutfits.isEmpty ? "This cannot be undone." : "Remove this garment from the listed looks first. Their plans are shown above.") }
             .alert("Garment update", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
             .onDisappear { cancelRescan() }
         }
