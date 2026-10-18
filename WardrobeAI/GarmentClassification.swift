@@ -7,6 +7,7 @@ import Vision
 /// storage until it has passed validation and the person has reviewed it.
 struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
     let category: String
+    let suggestedName: String?
     let color: String?
     let tags: [String]
     let materialGuess: String?
@@ -27,6 +28,7 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
 
     init(
         category: String,
+        suggestedName: String? = nil,
         color: String? = nil,
         tags: [String] = [],
         materialGuess: String? = nil,
@@ -50,6 +52,7 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
             throw GarmentClassificationError.unknownCategory(normalizedCategory)
         }
         self.category = normalizedCategory
+        self.suggestedName = Self.boundedOptional(suggestedName, field: "garment name", limit: 64)
         self.color = Self.boundedOptional(color, field: "color", limit: 40)
         self.tags = try Self.boundedTags(tags)
         self.materialGuess = Self.boundedOptional(materialGuess, field: "material", limit: 40)
@@ -70,7 +73,7 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case category, color, tags, materialGuess, garmentType, pattern, fit, formality, seasons, occasions
+        case category, suggestedName, color, tags, materialGuess, garmentType, pattern, fit, formality, seasons, occasions
         case colorFamily, secondaryColors, silhouette, texture, layering, warmth, styleKeywords, pairingNotes
     }
 
@@ -78,6 +81,7 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         try self.init(
             category: values.decode(String.self, forKey: .category),
+            suggestedName: values.decodeIfPresent(String.self, forKey: .suggestedName),
             color: values.decodeIfPresent(String.self, forKey: .color),
             tags: values.decodeIfPresent([String].self, forKey: .tags) ?? [],
             materialGuess: values.decodeIfPresent(String.self, forKey: .materialGuess),
@@ -165,6 +169,7 @@ enum GarmentClassificationError: LocalizedError, Equatable {
 enum GarmentClassificationResponse {
     private struct Payload: Decodable {
         let category: String
+        let suggestedName: String?
         let color: String?
         let tags: [String]?
         let materialGuess: String?
@@ -190,6 +195,7 @@ enum GarmentClassificationResponse {
         }
         return try GarmentClassificationSuggestion(
             category: payload.category,
+            suggestedName: payload.suggestedName,
             color: payload.color,
             tags: payload.tags ?? [],
             materialGuess: payload.materialGuess,
@@ -244,7 +250,7 @@ struct OllamaGarmentClassifier: GarmentClassifying {
             format: "json",
             think: false,
             messages: [
-                .init(role: "system", content: "You tag one clothing item. Return JSON only with category, color, colorFamily, secondaryColors, tags, materialGuess, garmentType, pattern, texture, silhouette, fit, formality, layering, warmth, seasons, occasions, styleKeywords, pairingNotes. category must be one of Top, Bottom, Dress, One-piece outfit, Outerwear, Shoes, Accessory. Use concise visual observations; tags max 8, styleKeywords max 6, seasons/occasions/pairingNotes max 4, secondaryColors max 3. material is a visual guess, never a certainty. Never infer a body or person.", images: nil),
+                .init(role: "system", content: "You tag one clothing item. Return JSON only with category, suggestedName, color, colorFamily, secondaryColors, tags, materialGuess, garmentType, pattern, texture, silhouette, fit, formality, layering, warmth, seasons, occasions, styleKeywords, pairingNotes. suggestedName must be a concise neutral inventory name based only on visible garment details, for example 'Navy Oxford Shirt' or 'Black Leather Loafers'. category must be one of Top, Bottom, Dress, One-piece outfit, Outerwear, Shoes, Accessory. Use concise visual observations; tags max 8, styleKeywords max 6, seasons/occasions/pairingNotes max 4, secondaryColors max 3. material is a visual guess, never a certainty. Never infer a body or person.", images: nil),
                 .init(role: "user", content: "Classify the garment in this image.", images: [imageData.base64EncodedString()])
             ]
         ))

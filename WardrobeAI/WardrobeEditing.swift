@@ -254,6 +254,9 @@ struct GarmentEditor: View {
                 let result = try await classifier.classify(imageData: data)
                 guard !Task.isCancelled else { return }
                 classification = result
+                if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    name = result.suggestion.suggestedName ?? result.suggestion.garmentType ?? result.suggestion.category
+                }
                 category = result.suggestion.category
                 color = result.suggestion.color ?? ""
                 tags = result.suggestion.tags.joined(separator: ", ")
@@ -326,6 +329,7 @@ struct GarmentEditor: View {
             || editedOccasions != classification.suggestion.occasions,
            let updatedSuggestion = try? GarmentClassificationSuggestion(
                 category: classification.suggestion.category,
+                suggestedName: classification.suggestion.suggestedName,
                 color: classification.suggestion.color,
                 tags: classification.suggestion.tags,
                 materialGuess: editedMaterial,

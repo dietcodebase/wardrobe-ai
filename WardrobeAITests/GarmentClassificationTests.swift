@@ -4,8 +4,9 @@ import XCTest
 
 final class GarmentClassificationTests: XCTestCase {
     func testDecoderAcceptsOnlyBoundedKnownOutput() throws {
-        let suggestion = try GarmentClassificationResponse.decode(#"{"category":"Top","color":" Navy ","tags":["work","WORK","smart"],"materialGuess":"linen","garmentType":"Oxford shirt","pattern":"solid","fit":"regular","formality":"smart casual","seasons":["spring","autumn"],"occasions":["work","travel"],"colorFamily":"blue","secondaryColors":["white"],"silhouette":"straight","texture":"woven","layering":"mid layer","warmth":"light","styleKeywords":["classic","preppy"],"pairingNotes":["works with denim"]}"#)
+        let suggestion = try GarmentClassificationResponse.decode(#"{"category":"Top","suggestedName":" Navy Oxford Shirt ","color":" Navy ","tags":["work","WORK","smart"],"materialGuess":"linen","garmentType":"Oxford shirt","pattern":"solid","fit":"regular","formality":"smart casual","seasons":["spring","autumn"],"occasions":["work","travel"],"colorFamily":"blue","secondaryColors":["white"],"silhouette":"straight","texture":"woven","layering":"mid layer","warmth":"light","styleKeywords":["classic","preppy"],"pairingNotes":["works with denim"]}"#)
         XCTAssertEqual(suggestion.category, "Top")
+        XCTAssertEqual(suggestion.suggestedName, "Navy Oxford Shirt")
         XCTAssertEqual(suggestion.color, "Navy")
         XCTAssertEqual(suggestion.tags, ["work", "smart"])
         XCTAssertEqual(suggestion.materialGuess, "linen")
@@ -52,7 +53,7 @@ final class GarmentClassificationTests: XCTestCase {
     }
 
     func testOllamaVisionRequestUsesJSONAndDisablesThinking() async throws {
-        let transport = CapturingVisionTransport(response: #"{"message":{"content":"{\\\"category\\\":\\\"Top\\\",\\\"color\\\":\\\"Navy\\\",\\\"tags\\\":[\\\"work\\\"],\\\"garmentType\\\":\\\"Oxford shirt\\\",\\\"pattern\\\":\\\"solid\\\",\\\"fit\\\":\\\"regular\\\",\\\"formality\\\":\\\"smart casual\\\",\\\"seasons\\\":[\\\"spring\\\"],\\\"occasions\\\":[\\\"work\\\"]}"}}"#)
+        let transport = CapturingVisionTransport(response: #"{"message":{"content":"{\\\"category\\\":\\\"Top\\\",\\\"suggestedName\\\":\\\"Navy Oxford Shirt\\\",\\\"color\\\":\\\"Navy\\\",\\\"tags\\\":[\\\"work\\\"],\\\"garmentType\\\":\\\"Oxford shirt\\\",\\\"pattern\\\":\\\"solid\\\",\\\"fit\\\":\\\"regular\\\",\\\"formality\\\":\\\"smart casual\\\",\\\"seasons\\\":[\\\"spring\\\"],\\\"occasions\\\":[\\\"work\\\"]}"}}"#)
         let classifier = OllamaGarmentClassifier(
             configuration: OllamaConfiguration(endpointText: "http://192.168.1.20:11434"),
             transport: transport
@@ -69,6 +70,7 @@ final class GarmentClassificationTests: XCTestCase {
         XCTAssertEqual(object["think"] as? Bool, false)
         XCTAssertEqual((object["messages"] as? [[String: Any]])?[1]["images"] as? [String], ["AQID"])
         XCTAssertEqual(provenance.suggestion.garmentType, "Oxford shirt")
+        XCTAssertEqual(provenance.suggestion.suggestedName, "Navy Oxford Shirt")
         XCTAssertEqual(provenance.route, "remote-ollama-vision")
     }
 }

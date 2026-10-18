@@ -251,7 +251,7 @@ struct BatchGarmentCaptureSheet: View {
                 if let state = states[entry.id] {
                     entry.state = state
                     if case let .succeeded(provenance) = state {
-                        entry.name = "\(provenance.suggestion.category) \(index + 1)"
+                        entry.name = provenance.suggestion.suggestedName ?? "\(provenance.suggestion.category) \(index + 1)"
                         entry.category = provenance.suggestion.category
                         entry.color = provenance.suggestion.color ?? ""
                         entry.tags = provenance.suggestion.tags.joined(separator: ", ")
