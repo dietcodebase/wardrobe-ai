@@ -67,6 +67,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     init(permission: any VoiceRecordingPermission = SystemVoiceRecordingPermission(), fileManager: FileManager = .default) {
         self.permission = permission
         self.fileManager = fileManager
+        super.init()
         interruptionObserver = NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
             object: AVAudioSession.sharedInstance(),
@@ -159,7 +160,11 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
         statusMessage = "Voice input cancelled."
     }
 
-    func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+    nonisolated func audioRecorderDidFinishRecording(_ recorder: AVAudioRecorder, successfully flag: Bool) {
+        Task { @MainActor [weak self] in self?.handleRecordingFinished(successfully: flag) }
+    }
+
+    private func handleRecordingFinished(successfully flag: Bool) {
         guard !isFinishing else { return }
         isRecording = false
         if !flag {
