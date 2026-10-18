@@ -51,9 +51,7 @@ enum WardrobeSeed {
             guard item.imagePath == nil,
                   let imageStore,
                   let url = bundle.url(forResource: entry.assetName, withExtension: "png", subdirectory: "SeedAssets"),
-                  let data = try? Data(contentsOf: url) else {
-                return item
-            }
+                  let data = try? Data(contentsOf: url) else { return item }
             var updated = item
             let path = try imageStore.store(data, fileExtension: "png")
             updated.imagePath = path

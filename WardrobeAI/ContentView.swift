@@ -681,6 +681,8 @@ private struct WardrobeView: View {
     @State private var isPhotoCapture = false
     @State private var isBatchCapturing = false
     @State private var isShowingPreferences = false
+    @State private var isLoadingDemo = false
+    @State private var demoMessage: String?
     @State private var selectedItem: GarmentItem?
     @State private var captureForEditing: GarmentCaptureCandidate?
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 16)]
@@ -745,6 +747,9 @@ private struct WardrobeView: View {
                         Button("Add from photo") { isPhotoCapture = true }
                         Button("Enter manually") { isAdding = true }
                         Button("Add several photos") { isBatchCapturing = true }
+                        Divider()
+                        Button(isLoadingDemo ? "Loading demo and tagging…" : "Load demo wardrobe + Gemma tags") { loadDemoWardrobe() }
+                            .disabled(isLoadingDemo)
                     } label: { IconoirIcon(.plus, size: 22) }
                     .accessibilityLabel("Add a garment")
                 }
@@ -756,6 +761,25 @@ private struct WardrobeView: View {
         .sheet(isPresented: $isBatchCapturing) { BatchGarmentCaptureSheet(store: store) }
         .sheet(item: $selectedItem) { item in GarmentDetail(item: item, store: store) }
         .sheet(isPresented: $isShowingPreferences) { StyleProfileEditor(store: store) }
+        .alert("Demo wardrobe", isPresented: Binding(get: { demoMessage != nil }, set: { if !$0 { demoMessage = nil } })) {
+            Button("OK", role: .cancel) { }
+        } message: { Text(demoMessage ?? "") }
+    }
+
+    @MainActor
+    private func loadDemoWardrobe() {
+        guard !isLoadingDemo else { return }
+        isLoadingDemo = true
+        Task {
+            defer { isLoadingDemo = false }
+            do {
+                let count = try await store.tagDemoWardrobe()
+                demoMessage = "Loaded the bundled demo wardrobe and saved Gemma tags for \(count) garments."
+            } catch {
+                let loaded = WardrobeSeed.entries.compactMap { try? store.repository.item(seedKey: $0.key) }.filter { $0.imagePath != nil }.count
+                demoMessage = "Loaded the demo wardrobe (\(loaded) photos). Gemma tagging stopped: \(error.localizedDescription)"
+            }
+        }
     }
 }
 

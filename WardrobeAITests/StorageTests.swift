@@ -2,6 +2,7 @@ import Foundation
 import XCTest
 @testable import WardrobeAI
 
+@MainActor
 final class StorageTests: XCTestCase {
     func testRecommendationEventsRoundTripWithoutDiagnosticText() throws {
         let repository = try makeRepository()
@@ -90,6 +91,29 @@ final class StorageTests: XCTestCase {
 
         XCTAssertEqual(firstImport.map(\.id), secondImport.map(\.id))
         XCTAssertEqual(try repository.allItems().count, WardrobeSeed.entries.count)
+    }
+
+    func testDemoTaggingUsesSeedPhotosAndPersistsGemmaClassification() async throws {
+        let repository = try makeRepository()
+        let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let imageStore = WardrobeImageStore(rootURL: directory)
+        let store = WardrobeStore(repository: repository, imageStore: imageStore)
+        let classifier = DemoSeedClassifier()
+
+        let tagged = try await store.tagDemoWardrobe(classifier: classifier)
+
+        XCTAssertEqual(tagged, WardrobeSeed.entries.count)
+        let seedItem = try XCTUnwrap(repository.item(seedKey: "seed-navy-oxford"))
+        XCTAssertEqual(seedItem.name, "Gemma Demo Shirt")
+        XCTAssertEqual(seedItem.classification?.modelID, "gemma-demo-test")
+        XCTAssertTrue(seedItem.tags.contains("gemma-tag"))
+        XCTAssertNotNil(seedItem.imagePath)
+
+        let retried = try await store.tagDemoWardrobe(classifier: classifier)
+        let totalCalls = await classifier.callCount()
+        XCTAssertEqual(retried, 0)
+        XCTAssertEqual(totalCalls, WardrobeSeed.entries.count)
     }
 
     func testFileDatabaseMigratesAndPersistsRecords() throws {
@@ -228,4 +252,16 @@ final class StorageTests: XCTestCase {
         let queue = try WardrobeDatabase.makeInMemoryQueue()
         return WardrobeRepository(database: queue, now: { Date(timeIntervalSince1970: 1_700_000_000) }, calendar: calendar)
     }
+}
+
+private actor DemoSeedClassifier: GarmentClassifying {
+    private var calls = 0
+
+    func classify(imageData: Data) async throws -> ClassificationProvenance {
+        calls += 1
+        let suggestion = try GarmentClassificationSuggestion(category: "Top", suggestedName: "Gemma Demo Shirt", color: "Navy", tags: ["gemma-tag"])
+        return ClassificationProvenance(modelID: "gemma-demo-test", modelRevision: "fixture", route: "test", classifiedAt: .now, suggestion: suggestion, wasEditedBeforeSave: false)
+    }
+
+    func callCount() -> Int { calls }
 }

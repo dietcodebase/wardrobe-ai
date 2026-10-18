@@ -116,22 +116,29 @@ final class WardrobeStore: ObservableObject {
     }
 
     func installDemoWardrobe() throws {
-        _ = try WardrobeSeed.install(in: repository, imageStore: imageStore)
+        _ = try installDemoWardrobeAssets()
+    }
+
+    private func installDemoWardrobeAssets() throws -> [GarmentItem] {
+        let items = try WardrobeSeed.install(in: repository, imageStore: imageStore)
         loadItems()
         loadOutfitData()
+        return items
     }
 
     /// Runs one serialized Gemma vision request per stored photo. Tags are
     /// additive so the demo remains useful if a later model response is sparse.
-    func tagDemoWardrobe() async throws -> Int {
-        let candidates = allGarments.filter { $0.imagePath != nil }
+    func tagDemoWardrobe(classifier: any GarmentClassifying = OllamaGarmentClassifier()) async throws -> Int {
+        _ = try installDemoWardrobeAssets()
+        let seedIDs = Set(WardrobeSeed.entries.compactMap { try? repository.item(seedKey: $0.key)?.id })
+        let candidates = allGarments.filter { seedIDs.contains($0.id) && $0.imagePath != nil && $0.classification == nil }
         guard !candidates.isEmpty else { throw WardrobeStoreError.noDemoPhotos }
-        let classifier = GarmentClassificationCoordinator()
+        let coordinator = GarmentClassificationCoordinator(classifier: classifier)
         var tagged = 0
         for item in candidates {
             try Task.checkCancellation()
             guard let imageData = imageData(for: item) else { continue }
-            let provenance = try await classifier.classify(imageData: imageData)
+            let provenance = try await coordinator.classify(imageData: imageData)
             var updated = item
             updated.category = provenance.suggestion.category
             updated.color = provenance.suggestion.color ?? updated.color
@@ -139,6 +146,7 @@ final class WardrobeStore: ObservableObject {
                 $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
             }
             updated.classification = provenance
+            if let suggestedName = provenance.suggestion.suggestedName, !suggestedName.isEmpty { updated.name = suggestedName }
             _ = try repository.updateItem(updated)
             tagged += 1
         }
