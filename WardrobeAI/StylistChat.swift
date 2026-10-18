@@ -109,7 +109,7 @@ struct OllamaClient: Sendable {
             model: configuration.model,
             stream: false,
             messages: [
-                .init(role: "system", content: "You are Wardrobe AI's concise, practical stylist. Use only the supplied wardrobe context. Never claim an item is owned unless it appears there. Do not record wear; the app asks for confirmation separately."),
+                .init(role: "system", content: "You are Wardrobe AI's concise, practical stylist. Use only the supplied wardrobe context and never claim an item is owned unless it appears there. When recommending, give 1–3 named owned-item outfits, a short user-facing rationale grounded in color, formality, layering, season, occasion, or recent wear, plus one alternative when useful. Do not reveal private chain-of-thought, invent facts, or record wear; the app asks for confirmation separately."),
                 .init(role: "user", content: "Wardrobe context:\n\(wardrobeContext)\n\nRequest: \(requestText)")
             ]
         ))
@@ -378,7 +378,24 @@ final class StylistChat: ObservableObject {
 
     private func wardrobeContext() -> String {
         let garments = store.allGarments.prefix(40).map { item in
-            let details = [item.name, item.category] + (item.color.map { [$0] } ?? [])
+            let classification = item.classification?.suggestion
+            let details = [
+                item.name,
+                item.category,
+                item.color,
+                classification?.garmentType,
+                classification?.colorFamily,
+                classification?.materialGuess,
+                classification?.pattern,
+                classification?.texture,
+                classification?.silhouette,
+                classification?.fit,
+                classification?.formality,
+                classification?.layering,
+                classification?.warmth
+            ].compactMap { $0 }
+                + (classification.map { $0.seasons + $0.occasions + $0.styleKeywords + $0.pairingNotes } ?? [])
+                + item.tags
             return details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " — ")
         }
         let upcoming = store.outfitPlans

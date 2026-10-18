@@ -106,19 +106,29 @@ struct AssistantConversationView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "sparkles")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(Color.indigo.gradient, in: RoundedRectangle(cornerRadius: 14))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Your personal stylist").font(.headline)
-                Text(connectionLabel).font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 42, height: 42)
+                    .background(Color.indigo.gradient, in: RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Wardrobe, understood").font(.headline)
+                    Text(connectionLabel).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
             }
-            Spacer()
+            HStack(spacing: 8) {
+                Label("\(store.allGarments.count) pieces", systemImage: "tshirt")
+                Divider().frame(height: 14)
+                Label("Ask, compare, decide", systemImage: "arrow.triangle.branch")
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
         }
-        .padding(.bottom, 4)
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var connectionLabel: String {
@@ -127,15 +137,15 @@ struct AssistantConversationView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("What are you dressing for?")
+            Text("Start with your moment.")
                 .font(.system(.title2, design: .rounded).weight(.bold))
-            Text("Ask naturally. I’ll only recommend pieces from your wardrobe, and I’ll keep wear logging separate from a suggestion.")
+            Text("Tell me the occasion, weather, mood, or a piece you want to wear. I’ll compare only what you own and explain the choice in plain language.")
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 8) {
-                PromptChip("Dress me for work", icon: "briefcase") { ask("Dress me for work") }
-                PromptChip("What should I wear today?", icon: "sun.max") { ask("What should I wear today?") }
-                PromptChip("Build a weekend outfit", icon: "figure.walk") { ask("Build a weekend outfit") }
-                PromptChip("Find something blue", icon: "magnifyingglass") { ask("Find something blue") }
+                PromptChip("Work today", icon: "briefcase") { ask("Suggest an outfit for work today and explain why it works") }
+                PromptChip("Weekend plans", icon: "figure.walk") { ask("Build a relaxed weekend outfit from what I own") }
+                PromptChip("Dress around a piece", icon: "tshirt") { ask("What can I wear with one of my favorite pieces?") }
+                PromptChip("Find a gap", icon: "magnifyingglass") { ask("What kinds of occasions is my wardrobe best prepared for?") }
             }
             if store.allGarments.isEmpty {
                 HStack {
@@ -172,12 +182,20 @@ struct AssistantConversationView: View {
             Label("Add a few garments and I’ll make owned-item outfit ideas.", systemImage: "tshirt")
                 .font(.footnote).foregroundStyle(.secondary)
         } else {
-            Text("Owned-item ideas").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            Text("Ready-to-compare outfits").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
             ForEach(suggestions) { suggestion in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(suggestion.itemIDs.compactMap { store.item(id: $0)?.name }.joined(separator: " + "))
                         .font(.headline)
+                    Label("Why this works", systemImage: "sparkles")
+                        .font(.caption.weight(.semibold)).foregroundStyle(.indigo)
                     Text(suggestion.explanation).font(.footnote).foregroundStyle(.secondary)
+                    HStack {
+                        Button("Save outfit") { try? store.saveSuggestion(suggestion) }
+                            .buttonStyle(.bordered)
+                        Text("Saving never logs wear.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    }
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -237,7 +255,7 @@ struct AssistantConversationView: View {
         Task {
             do {
                 let count = try await store.tagDemoWardrobe()
-                demoStatus = "Gemma enriched (count) demo photo\(count == 1 ? "" : "s") with editable attributes."
+                demoStatus = "Gemma enriched " + String(count) + " demo photo" + (count == 1 ? "" : "s") + " with editable attributes."
             } catch is CancellationError {
                 demoStatus = "Gemma tagging was cancelled. Existing tags are kept."
             } catch {
