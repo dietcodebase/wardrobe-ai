@@ -152,14 +152,19 @@ struct BatchGarmentCaptureSheet: View {
                                         EmptyView()
                                     } else {
                                         TextField("Garment name", text: $entry.name).textInputAutocapitalization(.words)
+                                            .onChange(of: entry.name) { _, _ in entry.isReviewed = false }
                                         Picker("Category", selection: $entry.category) {
                                             ForEach(GarmentTaxonomy.categories, id: \.self) { Text($0).tag($0) }
                                         }
+                                        .onChange(of: entry.category) { _, _ in entry.isReviewed = false }
                                         TextField("Color", text: $entry.color).textInputAutocapitalization(.words)
+                                            .onChange(of: entry.color) { _, _ in entry.isReviewed = false }
                                         TextField("Tags, separated by commas", text: $entry.tags).textInputAutocapitalization(.never)
+                                            .onChange(of: entry.tags) { _, _ in entry.isReviewed = false }
                                     }
                                     if case .succeeded = entry.state {
                                         TextField("Material guess (optional, verify)", text: $entry.materialGuess).textInputAutocapitalization(.words)
+                                            .onChange(of: entry.materialGuess) { _, _ in entry.isReviewed = false }
                                         Toggle("I reviewed these suggested details", isOn: $entry.isReviewed)
                                             .disabled(isClassifying)
                                     }
