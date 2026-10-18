@@ -5,13 +5,13 @@ import SwiftUI
 /// language, but the values are tuned for a calm, OLED-friendly dark wardrobe.
 enum WardrobeDesign {
     enum Color {
-        static let ink = SwiftUI.Color(red: 0.95, green: 0.93, blue: 0.88)
-        static let paper = SwiftUI.Color(red: 0.105, green: 0.10, blue: 0.09)
-        static let canvas = SwiftUI.Color(red: 0.055, green: 0.052, blue: 0.048)
-        static let card = SwiftUI.Color(red: 0.145, green: 0.135, blue: 0.125)
-        static let signal = SwiftUI.Color(red: 0.92, green: 0.38, blue: 0.22)
-        static let moss = SwiftUI.Color(red: 0.48, green: 0.72, blue: 0.52)
-        static let quiet = SwiftUI.Color(red: 0.65, green: 0.62, blue: 0.57)
+        static let ink = SwiftUI.Color(red: 0.94, green: 0.94, blue: 0.94)
+        static let paper = SwiftUI.Color(red: 0.105, green: 0.105, blue: 0.105)
+        static let canvas = SwiftUI.Color(red: 0.045, green: 0.045, blue: 0.045)
+        static let card = SwiftUI.Color(red: 0.145, green: 0.145, blue: 0.145)
+        static let signal = SwiftUI.Color(red: 0.88, green: 0.88, blue: 0.88)
+        static let moss = SwiftUI.Color(red: 0.70, green: 0.70, blue: 0.70)
+        static let quiet = SwiftUI.Color(red: 0.62, green: 0.62, blue: 0.62)
         static let hairline = SwiftUI.Color.white.opacity(0.12)
     }
     enum Space {

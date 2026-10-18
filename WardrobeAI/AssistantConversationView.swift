@@ -471,7 +471,7 @@ private struct AssistantSettingsView: View {
                     if let connectionStatus {
                         Text(connectionStatus)
                             .font(.footnote)
-                            .foregroundStyle(connectionStatus.hasPrefix("Connected") ? .green : .red)
+                            .foregroundStyle(WardrobeDesign.Color.ink)
                     }
                     Text("Use a reachable HTTP(S) URL. Your wardrobe context is sent only to this configured server.")
                         .font(.footnote).foregroundStyle(.secondary)

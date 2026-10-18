@@ -469,7 +469,7 @@ struct StylistChatView: View {
                     .font(.footnote).foregroundStyle(.secondary)
             } else {
                 Label("Enter a full HTTP(S) server URL, such as https://ollama.example.net.", systemImage: "exclamationmark.triangle")
-                    .font(.footnote).foregroundStyle(.orange)
+                    .font(.footnote).foregroundStyle(WardrobeDesign.Color.quiet)
             }
         }
 
