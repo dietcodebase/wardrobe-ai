@@ -168,7 +168,7 @@ enum GarmentClassificationError: LocalizedError, Equatable {
 
 enum GarmentClassificationResponse {
     private struct Payload: Decodable {
-        let category: String
+        let category: String?
         let suggestedName: String?
         let color: String?
         let tags: [String]?
@@ -190,30 +190,70 @@ enum GarmentClassificationResponse {
     }
 
     static func decode(_ text: String) throws -> GarmentClassificationSuggestion {
-        guard let data = text.data(using: .utf8), let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+        guard let data = jsonData(from: text), let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+            throw GarmentClassificationError.malformedResponse
+        }
+        let category = normalizedCategory(payload.category ?? payload.garmentType ?? payload.suggestedName ?? "")
+            ?? inferCategory(from: [payload.garmentType, payload.suggestedName] + (payload.tags ?? []).map(Optional.some))
+        guard let category else {
+            if let rawCategory = payload.category { throw GarmentClassificationError.unknownCategory(rawCategory) }
             throw GarmentClassificationError.malformedResponse
         }
         return try GarmentClassificationSuggestion(
-            category: payload.category,
+            category: category,
             suggestedName: payload.suggestedName,
             color: payload.color,
-            tags: payload.tags ?? [],
+            tags: cleanValues(payload.tags, limit: 8),
             materialGuess: payload.materialGuess,
             garmentType: payload.garmentType,
             pattern: payload.pattern,
             fit: payload.fit,
             formality: payload.formality,
-            seasons: payload.seasons ?? [],
-            occasions: payload.occasions ?? [],
+            seasons: cleanValues(payload.seasons, limit: 4),
+            occasions: cleanValues(payload.occasions, limit: 4),
             colorFamily: payload.colorFamily,
-            secondaryColors: payload.secondaryColors ?? [],
+            secondaryColors: cleanValues(payload.secondaryColors, limit: 3),
             silhouette: payload.silhouette,
             texture: payload.texture,
             layering: payload.layering,
             warmth: payload.warmth,
-            styleKeywords: payload.styleKeywords ?? [],
-            pairingNotes: payload.pairingNotes ?? []
+            styleKeywords: cleanValues(payload.styleKeywords, limit: 6),
+            pairingNotes: cleanValues(payload.pairingNotes, limit: 4)
         )
+    }
+
+    private static func jsonData(from text: String) -> Data? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = trimmed.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil { return data }
+        guard let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end else { return nil }
+        return String(trimmed[start...end]).data(using: .utf8)
+    }
+
+    private static func cleanValues(_ values: [String]?, limit: Int) -> [String] {
+        Array((values ?? []).compactMap { value in
+            let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? nil : String(cleaned.prefix(32))
+        }.prefix(limit))
+    }
+
+    private static func normalizedCategory(_ value: String) -> String? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.isEmpty { return nil }
+        if value.contains("one-piece") || value.contains("jumpsuit") || value.contains("romper") { return "One-piece outfit" }
+        if value.contains("dress") { return "Dress" }
+        if value.contains("outer") || value.contains("jacket") || value.contains("coat") || value.contains("blazer") || value.contains("cardigan") { return "Outerwear" }
+        if value.contains("shoe") || value.contains("boot") || value.contains("sneaker") || value.contains("loafer") || value.contains("footwear") { return "Shoes" }
+        if value.contains("accessory") || value.contains("bag") || value.contains("belt") || value.contains("scarf") || value.contains("hat") { return "Accessory" }
+        if value.contains("bottom") || value.contains("pant") || value.contains("trouser") || value.contains("jean") || value.contains("skirt") || value.contains("short") { return "Bottom" }
+        if value.contains("top") || value.contains("shirt") || value.contains("tee") || value.contains("blouse") || value.contains("sweater") || value.contains("hoodie") || value.contains("knit") { return "Top" }
+        return GarmentTaxonomy.categories.first { $0.lowercased() == value }
+    }
+
+    private static func inferCategory(from values: [String?]) -> String? {
+        for value in values.compactMap({ $0 }) {
+            if let category = normalizedCategory(value) { return category }
+        }
+        return nil
     }
 }
 

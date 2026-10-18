@@ -33,6 +33,18 @@ final class GarmentClassificationTests: XCTestCase {
         }
     }
 
+    func testDecoderRecoversFencedGemmaOutputAndNormalizesCategory() throws {
+        let suggestion = try GarmentClassificationResponse.decode("""
+        Here is the visual read:
+        ```json
+        {"category":"shirt","suggestedName":"Cream tee","tags":["casual","everyday","cotton","extra","fifth","sixth","seventh","eighth","ignored"],"pattern":"solid"}
+        ```
+        """)
+        XCTAssertEqual(suggestion.category, "Top")
+        XCTAssertEqual(suggestion.suggestedName, "Cream tee")
+        XCTAssertEqual(suggestion.tags.count, 8)
+    }
+
     func testCoordinatorSurfacesUnavailableFallback() async {
         let coordinator = GarmentClassificationCoordinator(classifier: UnavailableGarmentClassifier())
         do {

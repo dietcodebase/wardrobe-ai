@@ -146,6 +146,20 @@ struct GarmentEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    GemmaAnalysisPanel(
+                        capturedImage: capturedImage,
+                        isClassifying: isClassifying,
+                        classification: classification,
+                        errorMessage: classificationMessage,
+                        upload: { isCapturing = true },
+                        analyze: { startClassification() }
+                    )
+                } header: {
+                    Text("Gemma auto-tagging")
+                } footer: {
+                    Text("Gemma reads the photo for visible garment details. Review the suggestions before saving; fabric and material are visual estimates.")
+                }
                 Section("Basics") {
                     TextField("Garment name", text: $name).textInputAutocapitalization(.words).accessibilityLabel("Garment name")
                     Picker("Category", selection: $category) { ForEach(GarmentTaxonomy.categories, id: \.self) { Text($0).tag($0) } }
@@ -178,7 +192,7 @@ struct GarmentEditor: View {
                     }
                     Button(capturedImage == nil ? "Add photo" : "Change photo") { isCapturing = true }
                 }
-                Section("Automatic suggestions") {
+                Section("Review attributes") {
                     if isClassifying {
                         HStack { ProgressView(); Text("Finding editable suggestions…") }
                         Button("Stop suggestions", role: .cancel) { cancelClassification() }
@@ -417,6 +431,102 @@ private struct OptionPicker: View {
             }
         }
         .accessibilityLabel("\(title), \(selection.isEmpty ? "not set" : selection)")
+    }
+}
+
+private struct GemmaAnalysisPanel: View {
+    let capturedImage: GarmentCaptureCandidate?
+    let isClassifying: Bool
+    let classification: ClassificationProvenance?
+    let errorMessage: String?
+    let upload: () -> Void
+    let analyze: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WardrobeDesign.Space.sm) {
+            HStack(spacing: WardrobeDesign.Space.sm) {
+                if let capturedImage {
+                    Image(uiImage: capturedImage.image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 54, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip, style: .continuous))
+                } else {
+                    Image(systemName: "camera.macro")
+                        .frame(width: 54, height: 54)
+                        .background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(statusTitle).font(WardrobeDesign.body(16).weight(.semibold))
+                    Text(statusDetail).font(WardrobeDesign.body(13)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            if isClassifying {
+                VStack(alignment: .leading, spacing: 8) {
+                    SkeletonLine(width: 0.72)
+                    SkeletonLine(width: 0.48)
+                    SkeletonLine(width: 0.62)
+                }
+                .transition(.opacity)
+            } else if let classification {
+                let suggestion = classification.suggestion
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach([suggestion.category, suggestion.color, suggestion.materialGuess, suggestion.pattern, suggestion.texture, suggestion.fit].compactMap { $0 }, id: \.self) { value in
+                            Text(value)
+                                .font(WardrobeDesign.metadata(10))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(WardrobeDesign.Color.card, in: Capsule())
+                        }
+                    }
+                }
+            } else if let errorMessage {
+                Text(errorMessage)
+                    .font(WardrobeDesign.body(13))
+                    .foregroundStyle(.secondary)
+                if capturedImage != nil {
+                    Button("Retry Gemma analysis", action: analyze)
+                        .buttonStyle(.bordered)
+                        .tint(WardrobeDesign.Color.ink)
+                }
+            } else {
+                Button(capturedImage == nil ? "Upload photo to analyze" : "Analyze with Gemma", action: capturedImage == nil ? upload : analyze)
+                    .buttonStyle(.borderedProminent)
+                    .tint(WardrobeDesign.Color.ink)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: isClassifying)
+    }
+
+    private var statusTitle: String {
+        if isClassifying { return "Gemma is analyzing this photo" }
+        if classification != nil { return "Analysis ready to review" }
+        if errorMessage != nil { return "Analysis needs another try" }
+        return capturedImage == nil ? "Start with a photo" : "Photo ready for analysis"
+    }
+
+    private var statusDetail: String {
+        if isClassifying { return "Reading garment type, color, fabric, pattern, fit, and styling context…" }
+        if classification != nil { return "The fields below were filled from the image." }
+        if errorMessage != nil { return "Your photo is still safe; nothing has been saved yet." }
+        return "Gemma will fill the editable attributes for you."
+    }
+}
+
+private struct SkeletonLine: View {
+    let width: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            Capsule()
+                .fill(WardrobeDesign.Color.card)
+                .frame(width: proxy.size.width * width, height: 11)
+        }
+        .frame(height: 11)
+        .redacted(reason: .placeholder)
     }
 }
 
