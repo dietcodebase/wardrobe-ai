@@ -1,10 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct OutfitView: View {
     @ObservedObject var store: WardrobeStore
     @State private var isAdding = false
     @State private var selectedOutfit: Outfit?
     @State private var errorMessage: String?
+    @State private var isCheckingMirror = false
     @State private var calendarAccess = CalendarAccessState.notDetermined
     @State private var calendarEvents: [CalendarEventContext] = []
     @Environment(\.scenePhase) private var scenePhase
@@ -81,8 +83,16 @@ struct OutfitView: View {
                 guard phase == .active else { return }
                 refreshCalendarContext()
             }
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button { isAdding = true } label: { Label("Create outfit", systemImage: "plus") } } }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isCheckingMirror = true } label: { Label("Mirror fit check", systemImage: "camera.viewfinder") }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { isAdding = true } label: { Label("Create outfit", systemImage: "plus") }
+                }
+            }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
+            .sheet(isPresented: $isCheckingMirror) { MirrorFitCheckSheet(store: store) }
             .sheet(item: $selectedOutfit) { outfit in OutfitDetail(outfit: outfit, store: store) }
             .alert("Couldn’t update wear history", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
@@ -101,6 +111,117 @@ struct OutfitView: View {
             return
         }
         calendarEvents = (try? calendarReader.events(on: .now, calendar: .autoupdatingCurrent)) ?? []
+    }
+}
+
+private struct MirrorFitCheckSheet: View {
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedOutfitID: UUID?
+    @State private var photo: UIImage?
+    @State private var occasion = ""
+
+    private var selectedOutfit: Outfit? {
+        if let selectedOutfitID { return store.outfits.first { $0.id == selectedOutfitID } }
+        return store.outfits.first
+    }
+
+    private var assessment: MirrorFitAssessment? {
+        guard let selectedOutfit else { return nil }
+        return MirrorFitCheckEngine().assess(
+            outfit: selectedOutfit,
+            items: store.allGarments,
+            context: MirrorFitContext(occasion: occasion, weather: nil)
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Outfit and context") {
+                    if store.outfits.isEmpty {
+                        Text("Save an outfit before starting a mirror fit check.").foregroundStyle(.secondary)
+                    } else {
+                        Picker("Outfit", selection: $selectedOutfitID) {
+                            ForEach(store.outfits) { outfit in
+                                Text(outfit.name).tag(Optional(outfit.id))
+                            }
+                        }
+                        TextField("Occasion (optional)", text: $occasion)
+                            .textInputAutocapitalization(.words)
+                    }
+                }
+
+                Section("Still photo") {
+                    if let photo {
+                        Image(uiImage: photo)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 260)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .accessibilityLabel("Still outfit photo ready for a fit check")
+                        Button("Retake or choose another photo") { self.photo = nil }
+                    } else {
+                        GarmentPhotoSource(onImage: { self.photo = $0 })
+                    }
+                    Text("The full-frame still stays in this sheet and is discarded when you close it. Feedback is limited to the selected clothing and context, never your body.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
+                if let assessment, photo != nil {
+                    Section("Clothing check") {
+                        Text(assessment.clothingComment)
+                        Text(assessment.contextComment).foregroundStyle(.secondary)
+                    }
+                    Section("Owned-item swaps") {
+                        if assessment.swaps.isEmpty {
+                            Text("No suitable owned swap is available right now. Keeping this outfit is a valid choice.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(assessment.swaps) { swap in
+                                if let replacement = store.item(id: swap.replacementItemID), let current = store.item(id: swap.replacingItemID) {
+                                    NavigationLink {
+                                        MirrorSwapDetail(replacing: current, replacement: replacement, reason: swap.reason)
+                                    } label: {
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text("Try \(replacement.name) instead of \(current.name)")
+                                            Text(swap.reason).font(.footnote).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .accessibilityLabel("View available swap: \(replacement.name) instead of \(current.name)")
+                                }
+                            }
+                        }
+                    }
+                } else if selectedOutfit != nil {
+                    Section {
+                        Text("Add a still photo to show the clothing check and verified wardrobe swaps.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .navigationTitle("Mirror fit check")
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+
+private struct MirrorSwapDetail: View {
+    let replacing: GarmentItem
+    let replacement: GarmentItem
+    let reason: String
+
+    var body: some View {
+        List {
+            Section("Available in your wardrobe") {
+                LabeledContent("Replace", value: replacing.name)
+                LabeledContent("With", value: replacement.name)
+                LabeledContent("Category", value: replacement.category)
+                if let color = replacement.color, !color.isEmpty { LabeledContent("Color", value: color) }
+            }
+            Section { Text(reason).foregroundStyle(.secondary) }
+        }
+        .navigationTitle("Owned swap")
     }
 }
 

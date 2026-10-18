@@ -76,6 +76,35 @@ final class OutfitRecommendationsTests: XCTestCase {
         XCTAssertTrue(results.first?.explanation.contains("Weather context: light rain") == true)
     }
 
+    func testMirrorCheckOffersOnlyVerifiedOwnedSameCategorySwaps() {
+        let selectedTop = item("Blue shirt", "Top")
+        let alternateTop = item("White shirt", "Top")
+        let trousers = item("Trousers", "Bottom")
+        let outfit = Outfit(id: UUID(), name: "Work", notes: nil, isFavorite: false, createdAt: .now, updatedAt: .now, itemIDs: [selectedTop.id, trousers.id])
+
+        let assessment = MirrorFitCheckEngine().assess(
+            outfit: outfit,
+            items: [selectedTop, alternateTop, trousers],
+            context: .init(occasion: "Work", weather: nil)
+        )
+
+        XCTAssertEqual(assessment.swaps.count, 1)
+        XCTAssertEqual(assessment.swaps.first?.replacingItemID, selectedTop.id)
+        XCTAssertEqual(assessment.swaps.first?.replacementItemID, alternateTop.id)
+        XCTAssertTrue(assessment.contextComment.contains("Work"))
+        XCTAssertFalse(assessment.clothingComment.localizedCaseInsensitiveContains("body"))
+    }
+
+    func testMirrorCheckAllowsNoSuitableSwap() {
+        let dress = item("Dress", "Dress")
+        let outfit = Outfit(id: UUID(), name: "Evening", notes: nil, isFavorite: false, createdAt: .now, updatedAt: .now, itemIDs: [dress.id])
+
+        let assessment = MirrorFitCheckEngine().assess(outfit: outfit, items: [dress])
+
+        XCTAssertTrue(assessment.swaps.isEmpty)
+        XCTAssertTrue(assessment.clothingComment.contains("Dress"))
+    }
+
     private func item(_ name: String, _ category: String, tags: [String] = [], color: String? = nil) -> GarmentItem {
         GarmentItem(id: UUID(), name: name, category: category, color: color, tags: tags, notes: nil, imagePath: nil, classification: nil, createdAt: .now, updatedAt: .now)
     }

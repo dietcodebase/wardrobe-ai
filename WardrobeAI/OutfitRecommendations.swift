@@ -16,6 +16,75 @@ struct OutfitSuggestion: Identifiable, Equatable, Sendable {
     let explanation: String
 }
 
+/// A bounded, local result for the still-photo mirror flow. The app deliberately
+/// comments on the selected clothing and context, never on a person's body.
+struct MirrorFitContext: Equatable, Sendable {
+    var occasion: String?
+    var weather: WeatherSnapshot?
+
+    static let none = MirrorFitContext(occasion: nil, weather: nil)
+}
+
+struct OwnedItemSwap: Identifiable, Equatable, Sendable {
+    let replacingItemID: UUID
+    let replacementItemID: UUID
+    let reason: String
+
+    var id: UUID {
+        var bytes = Array(repeating: UInt8(0), count: 16)
+        for (index, byte) in (replacingItemID.uuidString + replacementItemID.uuidString).utf8.enumerated() {
+            bytes[index % 16] ^= byte
+        }
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+    }
+}
+
+struct MirrorFitAssessment: Equatable, Sendable {
+    let clothingComment: String
+    let contextComment: String
+    let swaps: [OwnedItemSwap]
+}
+
+struct MirrorFitCheckEngine {
+    func assess(outfit: Outfit, items: [GarmentItem], context: MirrorFitContext = .none) -> MirrorFitAssessment {
+        let owned = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        let selected = outfit.itemIDs.compactMap { owned[$0] }
+        let names = selected.map(\.name).joined(separator: ", ")
+        let clothingComment: String
+        if names.isEmpty {
+            clothingComment = "This saved outfit no longer has available garments. Choose another outfit before checking a photo."
+        } else {
+            clothingComment = "Photo check ready for \(names). Review the visible layers, color balance, and comfort before you head out."
+        }
+
+        var contextParts: [String] = []
+        if let occasion = context.occasion?.trimmingCharacters(in: .whitespacesAndNewlines), !occasion.isEmpty {
+            contextParts.append("Context: \(occasion).")
+        }
+        if let weather = context.weather {
+            contextParts.append("Weather context: \(weather.description), \(Int(weather.temperatureCelsius.rounded()))°C in \(weather.location.normalizedCity).")
+        }
+        if contextParts.isEmpty {
+            contextParts.append("Add an occasion or optional weather context for a more specific clothing check.")
+        }
+
+        let selectedIDs = Set(outfit.itemIDs)
+        let swaps = selected.compactMap { current -> OwnedItemSwap? in
+            let replacement = items
+                .filter { $0.category == current.category && $0.id != current.id && !selectedIDs.contains($0.id) }
+                .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                .first
+            guard let replacement else { return nil }
+            return OwnedItemSwap(
+                replacingItemID: current.id,
+                replacementItemID: replacement.id,
+                reason: "An available \(replacement.category.lowercased()) option from your wardrobe."
+            )
+        }
+        return MirrorFitAssessment(clothingComment: clothingComment, contextComment: contextParts.joined(separator: " "), swaps: swaps)
+    }
+}
+
 protocol OutfitCandidateRanker {
     /// Returns only candidate IDs, in preferred order. Invalid IDs are ignored.
     func rank(candidateIDs: [UUID], context: RecommendationContext) -> [UUID]?
