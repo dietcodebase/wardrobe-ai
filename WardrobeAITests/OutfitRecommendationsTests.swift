@@ -174,6 +174,43 @@ final class OutfitRecommendationsTests: XCTestCase {
         XCTAssertTrue(results.contains { Set($0.itemIDs) == Set([top.id, bottom.id, coat.id, shoes.id, bag.id]) })
     }
 
+    func testComposePreservesLocksAndFillsRequestedFootwear() {
+        let top = item("Shirt", "Top")
+        let bottom = item("Trousers", "Bottom")
+        let shoesA = item("Walking shoes", "Shoes")
+        let shoesB = item("Loafers", "Shoes")
+        let engine = OutfitRecommendationEngine()
+        let context = RecommendationContext(occasion: nil, preferredColors: [], lockedItemIDs: [top.id, bottom.id], requestedSlots: [.footwear])
+
+        let results = engine.suggestions(items: [top, bottom, shoesA, shoesB], preferences: .empty, wearEvents: [], context: context)
+
+        XCTAssertEqual(results.count, 2)
+        XCTAssertTrue(results.allSatisfy { $0.itemIDs.contains(top.id) && $0.itemIDs.contains(bottom.id) })
+        XCTAssertTrue(results.allSatisfy { $0.itemIDs.contains(where: { $0 == shoesA.id || $0 == shoesB.id }) })
+    }
+
+    func testComposeFillsPrimaryLookWhenOnlyAnAccessoryIsLocked() {
+        let top = item("Shirt", "Top")
+        let bottom = item("Trousers", "Bottom")
+        let bag = item("Bag", "Accessory")
+        let results = OutfitRecommendationEngine().suggestions(
+            items: [top, bottom, bag], preferences: .empty, wearEvents: [],
+            context: .init(occasion: nil, preferredColors: [], lockedItemIDs: [bag.id], requestedSlots: [.footwear])
+        )
+
+        XCTAssertFalse(results.isEmpty)
+        XCTAssertTrue(results.allSatisfy { $0.itemIDs.contains(bag.id) && $0.itemIDs.contains(top.id) && $0.itemIDs.contains(bottom.id) })
+    }
+
+    func testComposeRejectsLockedRequestedRoleAndUnavailablePieces() {
+        let shoe = item("Loafers", "Shoes")
+        XCTAssertNotNil(OutfitRecommendationEngine.validationMessage(lockedItems: [shoe], requestedSlots: [.footwear]))
+        var stored = shoe
+        stored.availability = .laundry
+        XCTAssertNotNil(OutfitRecommendationEngine.validationMessage(lockedItems: [stored], requestedSlots: [.completeLook]))
+        XCTAssertTrue(OutfitRecommendationEngine().suggestions(items: [stored], preferences: .empty, wearEvents: []).isEmpty)
+    }
+
     func testOccasionUsesClassificationMetadata() throws {
         let suggestion = try GarmentClassificationSuggestion(category: "Top", color: "White", tags: [], occasions: ["Work"])
         let workTop = GarmentItem(id: UUID(), name: "Work shirt", category: "Top", color: "White", tags: [], notes: nil, imagePath: nil,

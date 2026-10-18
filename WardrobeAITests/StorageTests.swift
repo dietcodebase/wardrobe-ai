@@ -42,6 +42,16 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try repository.preferences(), preferences)
     }
 
+    func testAvailabilityAndExpandedStylePreferencesPersist() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(name: "Raincoat", category: "Outerwear", availability: .repair))
+        XCTAssertEqual(try repository.item(id: item.id)?.availability, .repair)
+
+        let preferences = StylePreferences(preferredCategories: ["Shoes"], preferredColors: ["Black"], notes: "Comfort first", warmthPreference: .preferWarm, prefersRainTolerance: true, prefersWalkingComfort: true, preferredFormality: "Casual", footwearPreference: "sneaker", repeatFrequency: .repeatRecent)
+        try repository.savePreferences(preferences)
+        XCTAssertEqual(try repository.preferences(), preferences)
+    }
+
     func testItemValidationCanonicalizesOptionalTextAndCaseDuplicateTags() throws {
         let repository = try makeRepository()
         let item = try repository.createItem(GarmentDraft(

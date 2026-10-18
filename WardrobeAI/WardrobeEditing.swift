@@ -22,6 +22,7 @@ struct GarmentDetail: View {
                 Section {
                     LabeledContent("Name", value: displayedItem.name)
                     LabeledContent("Category", value: displayedItem.category)
+                    LabeledContent("Availability", value: displayedItem.availability.rawValue.capitalized)
                     if let color = displayedItem.color, !color.isEmpty { LabeledContent("Color", value: color) }
                 } header: {
                     IconoirLabel(title: "Garment", icon: .shirt)
@@ -113,6 +114,7 @@ struct GarmentEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var category: String
+    @State private var availability: GarmentAvailability
     @State private var color: String
     @State private var tags: String
     @State private var materialGuess: String
@@ -146,6 +148,7 @@ struct GarmentEditor: View {
         self.item = item
         _name = State(initialValue: item?.name ?? "")
         _category = State(initialValue: item?.category ?? GarmentTaxonomy.categories[0])
+        _availability = State(initialValue: item?.availability ?? .active)
         _color = State(initialValue: item?.color ?? "")
         _tags = State(initialValue: item?.tags.joined(separator: ", ") ?? "")
         _materialGuess = State(initialValue: item?.classification?.suggestion.materialGuess ?? "")
@@ -189,6 +192,10 @@ struct GarmentEditor: View {
                     TextField("Garment name", text: $name).textInputAutocapitalization(.words).accessibilityLabel("Garment name")
                     Picker("Category", selection: $category) { ForEach(GarmentTaxonomy.categories, id: \.self) { Text($0).tag($0) } }
                     TextField("Color", text: $color).textInputAutocapitalization(.words)
+                    Picker("Availability", selection: $availability) {
+                        ForEach(GarmentAvailability.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                    }
+                    .accessibilityLabel("Garment availability")
                 }
                 Section("Details") {
                     OptionPicker(title: "Pattern", selection: $pattern, options: GarmentTaxonomy.patterns)
@@ -286,10 +293,10 @@ struct GarmentEditor: View {
 
     private func save() {
         let userTags = tags.split(separator: ",").map(String.init)
-        let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: userTags, notes: notes.nilIfBlank, imagePath: item?.imagePath, classification: savedClassification())
+        let draft = GarmentDraft(name: name, category: category, color: color.nilIfBlank, tags: userTags, notes: notes.nilIfBlank, imagePath: item?.imagePath, classification: savedClassification(), availability: availability)
         do {
             if var item {
-                item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes; item.classification = draft.classification
+                item.name = draft.name; item.category = draft.category; item.color = draft.color; item.tags = draft.tags; item.notes = draft.notes; item.classification = draft.classification; item.availability = draft.availability
                 try store.save(item, imageData: capturedImage?.data)
             } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
@@ -579,6 +586,12 @@ struct StyleProfileEditor: View {
     @State private var categories: Set<String>
     @State private var colors: String
     @State private var notes: String
+    @State private var warmthPreference: WarmthPreference
+    @State private var prefersRainTolerance: Bool
+    @State private var prefersWalkingComfort: Bool
+    @State private var preferredFormality: String
+    @State private var footwearPreference: String
+    @State private var repeatFrequency: RepeatFrequency
     @State private var errorMessage: String?
 
     init(store: WardrobeStore) {
@@ -587,6 +600,12 @@ struct StyleProfileEditor: View {
         _categories = State(initialValue: Set(preferences.preferredCategories))
         _colors = State(initialValue: preferences.preferredColors.joined(separator: ", "))
         _notes = State(initialValue: preferences.notes)
+        _warmthPreference = State(initialValue: preferences.warmthPreference)
+        _prefersRainTolerance = State(initialValue: preferences.prefersRainTolerance)
+        _prefersWalkingComfort = State(initialValue: preferences.prefersWalkingComfort)
+        _preferredFormality = State(initialValue: preferences.preferredFormality ?? "")
+        _footwearPreference = State(initialValue: preferences.footwearPreference ?? "")
+        _repeatFrequency = State(initialValue: preferences.repeatFrequency)
     }
 
     var body: some View {
@@ -600,6 +619,23 @@ struct StyleProfileEditor: View {
                 Section("Style") {
                     TextField("Favorite colors, separated by commas", text: $colors).accessibilityLabel("Favorite colors, separated by commas")
                     TextField("Style notes", text: $notes, axis: .vertical).lineLimit(3...6)
+                    Picker("Warmth", selection: $warmthPreference) {
+                        Text("No preference").tag(WarmthPreference.any)
+                        Text("Prefer warmer layers").tag(WarmthPreference.preferWarm)
+                        Text("Prefer lighter layers").tag(WarmthPreference.preferLight)
+                    }
+                    Toggle("Prefer rain-ready pieces", isOn: $prefersRainTolerance)
+                    Toggle("Prefer walking comfort", isOn: $prefersWalkingComfort)
+                    Picker("Formality", selection: $preferredFormality) {
+                        Text("No preference").tag("")
+                        ForEach(GarmentTaxonomy.formalityLevels, id: \.self) { Text($0).tag($0) }
+                    }
+                    TextField("Footwear preference", text: $footwearPreference).accessibilityLabel("Footwear preference")
+                    Picker("Recently worn items", selection: $repeatFrequency) {
+                        Text("Avoid repeats").tag(RepeatFrequency.avoidRecent)
+                        Text("No preference").tag(RepeatFrequency.any)
+                        Text("Repeat recent favorites").tag(RepeatFrequency.repeatRecent)
+                    }
                 }
             }
             .navigationTitle("Style profile")
@@ -609,7 +645,7 @@ struct StyleProfileEditor: View {
     }
 
     private func save() {
-        let preferences = StylePreferences(preferredCategories: categories.sorted(), preferredColors: colors.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, notes: notes.trimmingCharacters(in: .whitespacesAndNewlines))
+        let preferences = StylePreferences(preferredCategories: categories.sorted(), preferredColors: colors.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, notes: notes.trimmingCharacters(in: .whitespacesAndNewlines), warmthPreference: warmthPreference, prefersRainTolerance: prefersRainTolerance, prefersWalkingComfort: prefersWalkingComfort, preferredFormality: preferredFormality.nilIfBlank, footwearPreference: footwearPreference.nilIfBlank, repeatFrequency: repeatFrequency)
         do { try store.repository.savePreferences(preferences); dismiss() } catch { errorMessage = error.localizedDescription }
     }
 }

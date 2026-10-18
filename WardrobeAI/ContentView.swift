@@ -106,24 +106,82 @@ private struct TodayView: View {
     let askStylist: () -> Void
     let configureOllama: () -> Void
 
+    @AppStorage("recommendation.weatherCity") private var weatherCity = ""
+    @State private var contextExpanded = false
     @State private var occasion = "Everyday"
-    @State private var anchorItemID: UUID?
+    @State private var dressCodeNote = ""
+    @State private var warmth = WarmthPreference.any
+    @State private var tolerateRain = false
+    @State private var prioritizeWalkingComfort = false
+    @State private var repeatFrequency = RepeatFrequency.any
+    @State private var weatherState: WeatherContextState = .unavailable(reason: "Weather has not been added.")
+    @State private var isRefreshingWeather = false
+    @State private var calendarReader = EventKitCalendarReader()
+    @State private var calendarAccess: CalendarAccessState = .notDetermined
+    @State private var calendarEvents: [CalendarEventContext] = []
+    @State private var selectedCalendarEventIDs = Set<String>()
+    @State private var isLoadingCalendar = false
+    @State private var lockedItemIDs: [UUID] = []
+    @State private var requestedSlot: RecommendationSlot = .completeLook
+    @State private var localSuggestions: [OutfitSuggestion] = []
+    @State private var adjustedSuggestions: [OutfitSuggestion] = []
     @State private var refinedSuggestions: [OutfitSuggestion] = []
     @State private var isRefining = false
     @State private var message: String?
+    @State private var showingCompose = false
+    @State private var replacementTarget: OutfitSuggestion?
+    @State private var skipTarget: OutfitSuggestion?
 
     private var heuristicSuggestions: [OutfitSuggestion] {
-        (try? store.recommendations(for: occasion == "Everyday" ? nil : occasion, anchorItemID: anchorItemID)) ?? []
+        (try? store.recommendations(context: recommendationContext)) ?? []
     }
 
     private var suggestions: [OutfitSuggestion] {
-        refinedSuggestions.isEmpty ? heuristicSuggestions : refinedSuggestions
+        if !adjustedSuggestions.isEmpty { return adjustedSuggestions }
+        return refinedSuggestions.isEmpty ? localSuggestions : refinedSuggestions
+    }
+
+    private var weatherSnapshot: WeatherSnapshot? { weatherState.snapshot }
+    private var weatherFreshness: WeatherFreshness {
+        switch weatherState {
+        case .fresh: .fresh
+        case .cached: .cached
+        case .stale: .stale
+        case .unavailable: .unavailable
+        }
+    }
+
+    private var selectedCalendarPeriods: [CalendarBusyPeriod] {
+        calendarEvents.filter { selectedCalendarEventIDs.contains($0.id) }.map { CalendarBusyPeriod(startDate: $0.startDate, endDate: $0.endDate, isAllDay: $0.isAllDay) }
+    }
+
+    private var recommendationContext: RecommendationContext {
+        let preferences = (try? store.repository.preferences()) ?? .empty
+        return RecommendationContext(
+            occasion: occasion == "Everyday" ? nil : occasion,
+            preferredColors: preferences.preferredColors,
+            preferredCategories: preferences.preferredCategories,
+            weather: weatherSnapshot,
+            weatherFreshness: weatherFreshness,
+            dressCodeNote: dressCodeNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : dressCodeNote.trimmingCharacters(in: .whitespacesAndNewlines),
+            lockedItemIDs: lockedItemIDs,
+            requestedSlots: [requestedSlot],
+            warmth: warmth,
+            tolerateRain: tolerateRain,
+            prioritizeWalkingComfort: prioritizeWalkingComfort,
+            repeatFrequency: repeatFrequency,
+            formality: preferences.preferredFormality,
+            footwearPreference: preferences.footwearPreference,
+            calendarBusyPeriods: selectedCalendarPeriods
+        )
     }
 
     private var suggestionInputID: String {
         let garments = store.allGarments.map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSinceReferenceDate)" }.joined(separator: "|")
         let wears = store.wearEvents.map { "\($0.id.uuidString):\($0.wornAt.timeIntervalSinceReferenceDate)" }.joined(separator: "|")
-        return [occasion, anchorItemID?.uuidString ?? "none", garments, wears].joined(separator: "#")
+        let weatherKey = weatherSnapshot.map { "\($0.fetchedAt.timeIntervalSince1970):\($0.temperatureCelsius):\($0.condition.rawValue):\(weatherFreshness.rawValue)" } ?? weatherFreshness.rawValue
+        let calendarKey = selectedCalendarPeriods.map { "\($0.startDate.timeIntervalSince1970)-\($0.endDate.timeIntervalSince1970)" }.joined(separator: ",")
+        return [occasion, dressCodeNote, warmth.rawValue, String(tolerateRain), String(prioritizeWalkingComfort), repeatFrequency.rawValue, lockedItemIDs.map(\.uuidString).joined(separator: ","), requestedSlot.rawValue, weatherCity, weatherKey, calendarKey, garments, wears].joined(separator: "#")
     }
 
     var body: some View {
@@ -133,7 +191,8 @@ private struct TodayView: View {
                 if store.allGarments.isEmpty {
                     firstGarment
                 } else {
-                    lookControls
+                    contextCard
+                    composeControls
                     recommendations
                     quickActions
                 }
@@ -151,7 +210,153 @@ private struct TodayView: View {
         .alert("Outfit update", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) {
             Button("OK", role: .cancel) { }
         } message: { Text(message ?? "") }
+        .sheet(isPresented: $showingCompose) {
+            ComposeBuilderSheet(store: store, lockedItemIDs: $lockedItemIDs, requestedSlot: $requestedSlot)
+        }
+        .sheet(item: $replacementTarget) { suggestion in
+            ComponentReplacementSheet(suggestion: suggestion, store: store) { itemID, replacement in
+                replace(suggestion, itemID: itemID, with: replacement)
+            }
+        }
+        .sheet(item: $skipTarget) { suggestion in
+            SkipReasonSheet { reason in
+                skip(suggestion, reason: reason)
+                skipTarget = nil
+            }
+        }
         .task(id: suggestionInputID) { await refineSuggestions(inputID: suggestionInputID) }
+    }
+
+    private var contextCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button { contextExpanded.toggle() } label: {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Today’s context").font(WardrobeDesign.display(20))
+                        Text(contextSummary).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Image(systemName: contextExpanded ? "chevron.up" : "chevron.down")
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Today's context, \(contextExpanded ? "expanded" : "collapsed")")
+            if contextExpanded {
+                Picker("Occasion", selection: $occasion) {
+                    ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0) }
+                }
+                .accessibilityLabel("Occasion")
+                TextField("Dress code note (optional)", text: $dressCodeNote)
+                    .textInputAutocapitalization(.sentences)
+                    .accessibilityLabel("Dress code note, optional")
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Weather (optional)").font(.subheadline.weight(.semibold))
+                    HStack {
+                        TextField("City", text: $weatherCity).textInputAutocapitalization(.words).accessibilityLabel("Weather city")
+                        Button(isRefreshingWeather ? "Updating…" : "Refresh") { Task { await refreshWeather() } }
+                            .disabled(isRefreshingWeather || weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    Text(weatherDescription).font(.footnote).foregroundStyle(.secondary)
+                }
+                Divider()
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Calendar availability (optional)").font(.subheadline.weight(.semibold))
+                    Button(isLoadingCalendar ? "Loading calendar…" : calendarAccess == .authorized ? "Refresh availability" : "Allow calendar availability") {
+                        Task { await loadCalendarAvailability() }
+                    }
+                    .disabled(isLoadingCalendar)
+                    Text(calendarDescription).font(.footnote).foregroundStyle(.secondary)
+                    ForEach(calendarEvents) { event in
+                        Toggle(event.isAllDay ? "Busy all day" : "Busy at \(event.timeLabel)", isOn: Binding(
+                            get: { selectedCalendarEventIDs.contains(event.id) },
+                            set: { selected in if selected { selectedCalendarEventIDs.insert(event.id) } else { selectedCalendarEventIDs.remove(event.id) } }
+                        ))
+                        .accessibilityLabel(event.isAllDay ? "Use all-day calendar availability" : "Use calendar availability at \(event.timeLabel)")
+                    }
+                }
+                Divider()
+                Picker("Warmth", selection: $warmth) {
+                    Text("Use saved preference").tag(WarmthPreference.any)
+                    Text("Prefer warmer pieces").tag(WarmthPreference.preferWarm)
+                    Text("Prefer lighter pieces").tag(WarmthPreference.preferLight)
+                }
+                Toggle("Rain-ready pieces", isOn: $tolerateRain)
+                Toggle("Prioritize walking comfort", isOn: $prioritizeWalkingComfort)
+                Picker("Recent repeats", selection: $repeatFrequency) {
+                    Text("Use saved preference").tag(RepeatFrequency.any)
+                    Text("Avoid recently worn").tag(RepeatFrequency.avoidRecent)
+                    Text("Repeat recent favorites").tag(RepeatFrequency.repeatRecent)
+                }
+            }
+        }
+        .padding(WardrobeDesign.Space.md)
+        .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
+    }
+
+    private var contextSummary: String {
+        let weather = weatherSnapshot.map { "\(Int($0.temperatureCelsius.rounded()))°C · \($0.description) · \(weatherFreshness.rawValue)" } ?? "No weather"
+        let busy = selectedCalendarPeriods.isEmpty ? "No calendar context" : "\(selectedCalendarPeriods.count) busy period(s)"
+        return "\(occasion) · \(weather) · \(busy)"
+    }
+
+    private var weatherDescription: String {
+        switch weatherState {
+        case let .fresh(snapshot): "Fresh: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity)."
+        case let .cached(snapshot): "Cached: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C in \(snapshot.location.normalizedCity)."
+        case let .stale(snapshot, reason): "Stale: \(snapshot.description), \(Int(snapshot.temperatureCelsius.rounded()))°C. \(reason)."
+        case let .unavailable(reason): reason
+        }
+    }
+
+    private var calendarDescription: String {
+        switch calendarAccess {
+        case .notDetermined: "Calendar access is optional and requested only when you tap the button. Event titles are not shown or saved."
+        case .authorized: calendarEvents.isEmpty ? "No events today. Event titles stay hidden." : "Choose busy times to include. Event titles stay hidden."
+        case .denied: "Calendar access is off. You can still set the occasion manually in Today."
+        case .unavailable: "Calendar access is unavailable. You can still set the occasion manually in Today."
+        }
+    }
+
+    @MainActor
+    private func refreshWeather() async {
+        isRefreshingWeather = true
+        defer { isRefreshingWeather = false }
+        weatherState = await WeatherContextService(provider: OpenWeatherMapProvider()).refresh(location: WeatherLocation(city: weatherCity))
+    }
+
+    @MainActor
+    private func loadCalendarAvailability() async {
+        isLoadingCalendar = true
+        defer { isLoadingCalendar = false }
+        if calendarAccess != .authorized { calendarAccess = await calendarReader.requestAccess() }
+        guard calendarAccess == .authorized else { return }
+        do {
+            calendarEvents = try calendarReader.events(on: .now, calendar: .autoupdatingCurrent)
+            let validIDs = Set(calendarEvents.map(\.id))
+            selectedCalendarEventIDs.formIntersection(validIDs)
+        } catch {
+            calendarAccess = .unavailable
+        }
+    }
+
+    private var composeControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Compose a look").font(WardrobeDesign.display(20))
+            Text(lockedItemIDs.isEmpty ? "Lock up to three owned pieces, then choose what to fill." : "Locked: \(lockedItemNames)")
+                .font(.footnote).foregroundStyle(.secondary)
+            Button { showingCompose = true } label: { Label("Choose locked pieces and open slot", systemImage: "lock") }
+                .buttonStyle(.bordered)
+                .accessibilityLabel("Choose locked garments and requested open slot")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(WardrobeDesign.Space.md)
+        .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
+    }
+
+    private var lockedItemNames: String {
+        lockedItemIDs.compactMap { store.item(id: $0)?.name }.joined(separator: " · ")
     }
 
     private var header: some View {
@@ -184,25 +389,6 @@ private struct TodayView: View {
         .background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
     }
 
-    private var lookControls: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Plan a look").font(WardrobeDesign.display(22))
-            Picker("Occasion", selection: $occasion) {
-                ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0) }
-            }
-            .pickerStyle(.menu)
-            .accessibilityLabel("Occasion")
-            Picker("Start with", selection: $anchorItemID) {
-                Text("Any piece").tag(Optional<UUID>.none)
-                ForEach(store.allGarments) { item in Text(item.name).tag(Optional(item.id)) }
-            }
-            .pickerStyle(.menu)
-            .accessibilityLabel("Garment to wear")
-        }
-        .padding(WardrobeDesign.Space.md)
-        .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
-    }
-
     @ViewBuilder
     private var recommendations: some View {
         if suggestions.isEmpty {
@@ -220,7 +406,7 @@ private struct TodayView: View {
                 if isRefining { ProgressView().controlSize(.small).accessibilityLabel("Refining outfit ideas") }
             }
             ForEach(suggestions.prefix(3)) { suggestion in
-                TodaySuggestionCard(suggestion: suggestion, store: store, save: { save(suggestion) }, wear: { wear(suggestion) }, skip: { skip(suggestion) })
+                TodaySuggestionCard(suggestion: suggestion, store: store, save: { save(suggestion) }, wear: { wear(suggestion) }, skip: { skipTarget = suggestion }, replace: { replacementTarget = suggestion })
             }
         }
     }
@@ -246,9 +432,18 @@ private struct TodayView: View {
         catch { message = error.localizedDescription }
     }
 
-    private func skip(_ suggestion: OutfitSuggestion) {
-        do { try store.recordRecommendationOutcome(suggestion, outcome: .skipped); message = "We’ll keep this feedback with the recommendation." }
+    private func skip(_ suggestion: OutfitSuggestion, reason: RecommendationSkipReason?) {
+        do { try store.recordRecommendationOutcome(suggestion, outcome: .skipped, reason: reason); message = "We’ll keep this feedback with the recommendation." }
         catch { message = error.localizedDescription }
+    }
+
+    private func replace(_ suggestion: OutfitSuggestion, itemID: UUID, with replacement: GarmentItem) {
+        do {
+            guard let result = try store.replacing(suggestion, itemID: itemID, with: replacement, context: recommendationContext) else {
+                message = "That replacement would conflict with another locked piece."; return
+            }
+            adjustedSuggestions = suggestions.map { $0.id == suggestion.id ? result : $0 }
+        } catch { message = error.localizedDescription }
     }
 
     private func wear(_ suggestion: OutfitSuggestion) {
@@ -258,24 +453,21 @@ private struct TodayView: View {
 
     @MainActor
     private func refineSuggestions(inputID: String) async {
-        if let anchorItemID, store.item(id: anchorItemID) == nil { self.anchorItemID = nil; return }
-        let candidates = heuristicSuggestions
+        localSuggestions = []
+        adjustedSuggestions = []
         refinedSuggestions = []
-        let preferences = (try? store.repository.preferences()) ?? .empty
-        let recommendationContext = RecommendationContext(occasion: occasion == "Everyday" ? nil : occasion, preferredColors: preferences.preferredColors, preferredCategories: preferences.preferredCategories, anchorItemID: anchorItemID)
+        let candidates = heuristicSuggestions
+            localSuggestions = Array(candidates.prefix(3))
+        let recommendationContext = self.recommendationContext
         try? store.recordRecommendation(candidates, context: recommendationContext, source: candidates.first?.source ?? .noContext, outcome: candidates.isEmpty ? .failedToGenerate : .generated)
         guard !candidates.isEmpty else { return }
         isRefining = true
         defer { if suggestionInputID == inputID { isRefining = false } }
         do {
             let contextOccasion = occasion == "Everyday" ? "unspecified everyday" : occasion
-            let anchorContext: String
-            if let anchorItemID, let anchor = store.item(id: anchorItemID) {
-                anchorContext = "; anchor=\(anchor.name) (\(anchor.category))"
-            } else {
-                anchorContext = ""
-            }
-            let context = "occasion=\(contextOccasion)\(anchorContext)"
+            let lockedContext = recommendationContext.lockedItemIDs.compactMap { store.item(id: $0) }.map { "\($0.name) (\($0.category))" }.joined(separator: ", ")
+            let calendarContext = recommendationContext.calendarBusyPeriods.isEmpty ? "none" : "\(recommendationContext.calendarBusyPeriods.count) selected busy period(s), titles hidden"
+            let context = "occasion=\(contextOccasion); dress code=\(recommendationContext.dressCodeNote ?? "none"); locked pieces=\(lockedContext); open slot=\(requestedSlot.rawValue); warmth=\(warmth.rawValue); rain-ready=\(tolerateRain); walking comfort=\(prioritizeWalkingComfort); recent-repeat preference=\(repeatFrequency.rawValue); weather=\(weatherDescription); calendar=\(calendarContext)"
             let refined = try await OllamaOutfitAdvisor().recommendations(candidates: candidates, items: store.allGarments, context: context)
             guard !Task.isCancelled, suggestionInputID == inputID else { return }
             try store.recordRecommendation(refined, context: recommendationContext, source: .ollamaRanking, outcome: .generated)
@@ -285,6 +477,11 @@ private struct TodayView: View {
             // The deterministic planner remains visible when optional ranking is unavailable.
         }
     }
+
+    private func validateLocks(_ ids: [UUID], slot: RecommendationSlot) -> String? {
+        let locked = ids.compactMap { store.item(id: $0) }
+        return OutfitRecommendationEngine.validationMessage(lockedItems: locked, requestedSlots: [slot])
+    }
 }
 
 private struct TodaySuggestionCard: View {
@@ -293,6 +490,7 @@ private struct TodaySuggestionCard: View {
     let save: () -> Void
     let wear: () -> Void
     let skip: () -> Void
+    let replace: () -> Void
     @State private var showingWhy = false
 
     private var names: [String] { suggestion.itemIDs.compactMap { store.item(id: $0)?.name } }
@@ -303,9 +501,10 @@ private struct TodaySuggestionCard: View {
             Text(suggestion.explanation).font(WardrobeDesign.body(14)).foregroundStyle(WardrobeDesign.Color.quiet)
             Button("Why this look?") { showingWhy = true }.buttonStyle(.plain).font(.footnote.weight(.semibold))
             HStack {
-                Button("Save", action: save).buttonStyle(.bordered)
+                Button("Replace", action: replace).buttonStyle(.bordered)
+                Button("Save for later", action: save).buttonStyle(.bordered)
                 Button("Wear today", action: wear).buttonStyle(.borderedProminent).tint(WardrobeDesign.Color.ink)
-                Button("Not today", action: skip).buttonStyle(.bordered)
+                Button("Not for today", action: skip).buttonStyle(.bordered)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -342,6 +541,136 @@ private struct TodaySuggestionCard: View {
         }
         .task(id: "\(suggestion.recommendationID?.uuidString ?? "none"):\(suggestion.source.rawValue)") {
             try? store.recordRecommendationOutcome(suggestion, outcome: .viewed)
+        }
+    }
+}
+
+private struct ComposeBuilderSheet: View {
+    @ObservedObject var store: WardrobeStore
+    @Binding var lockedItemIDs: [UUID]
+    @Binding var requestedSlot: RecommendationSlot
+    @Environment(\.dismiss) private var dismiss
+    @State private var message: String?
+
+    private var activeItems: [GarmentItem] {
+        store.allGarments.filter { $0.availability == .active }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Lock up to three pieces") {
+                    ForEach(activeItems) { item in
+                        Toggle(isOn: binding(for: item)) {
+                            VStack(alignment: .leading) {
+                                Text(item.name)
+                                Text(item.category).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityLabel("Lock \(item.name), \(item.category)")
+                    }
+                }
+                Section("What should stay open?") {
+                    Picker("Requested slot", selection: $requestedSlot) {
+                        Text("Complete look").tag(RecommendationSlot.completeLook)
+                        Text("Footwear").tag(RecommendationSlot.footwear)
+                        Text("Outerwear").tag(RecommendationSlot.outerwear)
+                        Text("Accessory").tag(RecommendationSlot.accessory)
+                        Text("Choose for me").tag(RecommendationSlot.chooseForMe)
+                    }
+                }
+                if let message { Section { Text(message).foregroundStyle(.red) } }
+            }
+            .navigationTitle("Compose a look")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Apply") {
+                        let locked = lockedItemIDs.compactMap { store.item(id: $0) }
+                        if let validation = OutfitRecommendationEngine.validationMessage(lockedItems: locked, requestedSlots: [requestedSlot], allItems: store.allGarments) {
+                            message = validation
+                        } else { dismiss() }
+                    }
+                }
+            }
+        }
+    }
+
+    private func binding(for item: GarmentItem) -> Binding<Bool> {
+        Binding(
+            get: { lockedItemIDs.contains(item.id) },
+            set: { selected in
+                message = nil
+                if selected {
+                    guard lockedItemIDs.count < 3 else { message = "Lock up to three garments."; return }
+                    let proposed = lockedItemIDs + [item.id]
+                    let locked = proposed.compactMap { id in store.item(id: id) }
+                    if let validation = OutfitRecommendationEngine.validationMessage(lockedItems: locked, requestedSlots: [requestedSlot], allItems: store.allGarments) {
+                        message = validation
+                    } else { lockedItemIDs = proposed }
+                } else { lockedItemIDs.removeAll { $0 == item.id } }
+            }
+        )
+    }
+}
+
+private struct ComponentReplacementSheet: View {
+    let suggestion: OutfitSuggestion
+    @ObservedObject var store: WardrobeStore
+    let select: (UUID, GarmentItem) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(suggestion.itemIDs.compactMap { store.item(id: $0) }) { current in
+                    Section(current.category) {
+                        let alternatives = store.allGarments.filter { $0.availability == .active && $0.category == current.category && $0.id != current.id && !suggestion.itemIDs.contains($0.id) }
+                        if alternatives.isEmpty {
+                            Text("No other available \(current.category.lowercased()) in your wardrobe.").foregroundStyle(.secondary)
+                        } else {
+                            ForEach(alternatives) { alternative in
+                                Button {
+                                    select(current.id, alternative)
+                                    dismiss()
+                                } label: {
+                                    HStack {
+                                        Text(alternative.name)
+                                        Spacer()
+                                        if let color = alternative.color { Text(color).foregroundStyle(.secondary) }
+                                    }
+                                }
+                                .accessibilityLabel("Replace \(current.name) with \(alternative.name)")
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Replace a piece")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { dismiss() } } }
+        }
+    }
+}
+
+private struct SkipReasonSheet: View {
+    let select: (RecommendationSkipReason?) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("What didn’t work?") {
+                    Button("Skip without a reason") { select(nil); dismiss() }
+                    ForEach(RecommendationSkipReason.allCases) { reason in
+                        Button(reason.title) { select(reason); dismiss() }
+                    }
+                }
+            }
+            .navigationTitle("Not today")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
     }
 }

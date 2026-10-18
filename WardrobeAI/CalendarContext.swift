@@ -14,6 +14,13 @@ struct CalendarEventContext: Identifiable, Equatable, Sendable {
     }
 }
 
+struct CalendarBusyPeriod: Equatable, Sendable, Identifiable {
+    let startDate: Date
+    let endDate: Date
+    let isAllDay: Bool
+    var id: String { "\(startDate.timeIntervalSince1970)-\(endDate.timeIntervalSince1970)" }
+}
+
 enum CalendarAccessState: Equatable, Sendable {
     case notDetermined
     case authorized

@@ -38,6 +38,7 @@ struct GarmentItem: Identifiable, Equatable, Sendable {
     var notes: String?
     var imagePath: String?
     var classification: ClassificationProvenance?
+    var availability: GarmentAvailability = .active
     let createdAt: Date
     var updatedAt: Date
 }
@@ -50,6 +51,7 @@ struct GarmentDraft: Equatable, Sendable {
     var notes: String?
     var imagePath: String?
     var classification: ClassificationProvenance?
+    var availability: GarmentAvailability = .active
 
     init(
         name: String,
@@ -58,7 +60,8 @@ struct GarmentDraft: Equatable, Sendable {
         tags: [String] = [],
         notes: String? = nil,
         imagePath: String? = nil,
-        classification: ClassificationProvenance? = nil
+        classification: ClassificationProvenance? = nil,
+        availability: GarmentAvailability = .active
     ) {
         self.name = name
         self.category = category
@@ -67,6 +70,7 @@ struct GarmentDraft: Equatable, Sendable {
         self.notes = notes
         self.imagePath = imagePath
         self.classification = classification
+        self.availability = availability
     }
 }
 
@@ -133,8 +137,26 @@ struct StylePreferences: Equatable, Sendable {
     var preferredCategories: [String]
     var preferredColors: [String]
     var notes: String
+    var warmthPreference: WarmthPreference = .any
+    var prefersRainTolerance = false
+    var prefersWalkingComfort = false
+    var preferredFormality: String?
+    var footwearPreference: String?
+    var repeatFrequency: RepeatFrequency = .avoidRecent
 
-    static let empty = StylePreferences(preferredCategories: [], preferredColors: [], notes: "")
+    static let empty = StylePreferences(preferredCategories: [], preferredColors: [], notes: "", warmthPreference: .any, prefersRainTolerance: false, prefersWalkingComfort: false, preferredFormality: nil, footwearPreference: nil, repeatFrequency: .avoidRecent)
+}
+
+enum GarmentAvailability: String, Codable, CaseIterable, Sendable {
+    case active, laundry, repair, stored, archived
+}
+
+enum WarmthPreference: String, Codable, CaseIterable, Sendable {
+    case any, preferWarm, preferLight
+}
+
+enum RepeatFrequency: String, Codable, CaseIterable, Sendable {
+    case any, avoidRecent, repeatRecent
 }
 
 struct EmbeddingMetadata: Codable, Equatable, Sendable {

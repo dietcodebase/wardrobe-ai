@@ -143,6 +143,31 @@ enum WardrobeDatabase {
             try database.create(index: "recommendation_events_date", on: "recommendation_events", columns: ["occurred_at"])
         }
 
+        migrator.registerMigration("v8_garment_availability") { database in
+            try database.alter(table: "items") { table in
+                table.add(column: "availability", .text).notNull().defaults(to: "active")
+            }
+        }
+
+        migrator.registerMigration("v9_explicit_style_preferences") { database in
+            try database.alter(table: "preferences") { table in
+                table.add(column: "warmth_preference", .text).notNull().defaults(to: "any")
+                table.add(column: "prefers_rain_tolerance", .boolean).notNull().defaults(to: false)
+                table.add(column: "prefers_walking_comfort", .boolean).notNull().defaults(to: false)
+                table.add(column: "preferred_formality", .text)
+                table.add(column: "footwear_preference", .text)
+                table.add(column: "repeat_frequency", .text).notNull().defaults(to: "avoidRecent")
+            }
+        }
+
+        migrator.registerMigration("v10_recommendation_compose_context") { database in
+            try database.alter(table: "recommendation_events") { table in
+                table.add(column: "locked_ids_json", .text).notNull().defaults(to: "[]")
+                table.add(column: "requested_slots_json", .text).notNull().defaults(to: "[]")
+                table.add(column: "outcome_reason", .text)
+            }
+        }
+
         return migrator
     }()
 }

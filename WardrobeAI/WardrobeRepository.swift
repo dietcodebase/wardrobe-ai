@@ -18,17 +18,18 @@ final class WardrobeRepository {
         let item = GarmentItem(
             id: UUID(), name: normalized.name, category: normalized.category, color: normalized.color,
             tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath, classification: normalized.classification,
+            availability: normalized.availability,
             createdAt: timestamp, updatedAt: timestamp
         )
         try database.write { database in
             try database.execute(
                 sql: """
-                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, seed_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, availability, seed_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     item.id.uuidString, item.name, item.category, item.color, try encode(item.tags),
-                    item.notes, item.imagePath, try encode(item.classification), seedKey, item.createdAt, item.updatedAt
+                    item.notes, item.imagePath, try encode(item.classification), item.availability.rawValue, seedKey, item.createdAt, item.updatedAt
                 ]
             )
         }
@@ -45,16 +46,17 @@ final class WardrobeRepository {
             let item = GarmentItem(
                 id: UUID(), name: normalized.name, category: normalized.category, color: normalized.color,
                 tags: normalized.tags, notes: normalized.notes, imagePath: normalized.imagePath, classification: normalized.classification,
+                availability: normalized.availability,
                 createdAt: timestamp, updatedAt: timestamp
             )
             try database.execute(
                 sql: """
-                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, seed_key, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO items (id, name, category, color, tags_json, notes, image_path, classification_json, availability, seed_key, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 arguments: [
                     item.id.uuidString, item.name, item.category, item.color, try encode(item.tags),
-                    item.notes, item.imagePath, try encode(item.classification), key, item.createdAt, item.updatedAt
+                    item.notes, item.imagePath, try encode(item.classification), item.availability.rawValue, key, item.createdAt, item.updatedAt
                 ]
             )
             return item
@@ -127,7 +129,7 @@ final class WardrobeRepository {
     func updateItem(_ item: GarmentItem) throws -> GarmentItem {
         let draft = try validate(GarmentDraft(
             name: item.name, category: item.category, color: item.color, tags: item.tags,
-            notes: item.notes, imagePath: item.imagePath, classification: item.classification
+            notes: item.notes, imagePath: item.imagePath, classification: item.classification, availability: item.availability
         ))
         var updated = item
         updated.name = draft.name
@@ -137,16 +139,17 @@ final class WardrobeRepository {
         updated.notes = draft.notes
         updated.imagePath = draft.imagePath
         updated.classification = draft.classification
+        updated.availability = draft.availability
         updated.updatedAt = now()
         try database.write { database in
             try database.execute(
                 sql: """
-                UPDATE items SET name = ?, category = ?, color = ?, tags_json = ?, notes = ?, image_path = ?, classification_json = ?, updated_at = ?
+                UPDATE items SET name = ?, category = ?, color = ?, tags_json = ?, notes = ?, image_path = ?, classification_json = ?, availability = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 arguments: [
                     updated.name, updated.category, updated.color, try encode(updated.tags), updated.notes,
-                    updated.imagePath, try encode(updated.classification), updated.updatedAt, updated.id.uuidString
+                    updated.imagePath, try encode(updated.classification), updated.availability.rawValue, updated.updatedAt, updated.id.uuidString
                 ]
             )
             guard database.changesCount == 1 else { throw WardrobeRepositoryError.itemNotFound(updated.id) }
@@ -181,7 +184,13 @@ final class WardrobeRepository {
             return StylePreferences(
                 preferredCategories: try decode(row["categories_json"]),
                 preferredColors: try decode(row["colors_json"]),
-                notes: row["notes"]
+                notes: row["notes"],
+                warmthPreference: WarmthPreference(rawValue: row["warmth_preference"]) ?? .any,
+                prefersRainTolerance: row["prefers_rain_tolerance"],
+                prefersWalkingComfort: row["prefers_walking_comfort"],
+                preferredFormality: row["preferred_formality"],
+                footwearPreference: row["footwear_preference"],
+                repeatFrequency: RepeatFrequency(rawValue: row["repeat_frequency"]) ?? .avoidRecent
             )
         }
     }
@@ -190,16 +199,28 @@ final class WardrobeRepository {
         try database.write { database in
             try database.execute(
                 sql: """
-                INSERT INTO preferences (key, categories_json, colors_json, notes, updated_at)
-                VALUES ('style', ?, ?, ?, ?)
+                INSERT INTO preferences (key, categories_json, colors_json, notes, warmth_preference, prefers_rain_tolerance, prefers_walking_comfort, preferred_formality, footwear_preference, repeat_frequency, updated_at)
+                VALUES ('style', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(key) DO UPDATE SET
                     categories_json = excluded.categories_json,
                     colors_json = excluded.colors_json,
                     notes = excluded.notes,
+                    warmth_preference = excluded.warmth_preference,
+                    prefers_rain_tolerance = excluded.prefers_rain_tolerance,
+                    prefers_walking_comfort = excluded.prefers_walking_comfort,
+                    preferred_formality = excluded.preferred_formality,
+                    footwear_preference = excluded.footwear_preference,
+                    repeat_frequency = excluded.repeat_frequency,
                     updated_at = excluded.updated_at
                 """,
-                arguments: [try encode(preferences.preferredCategories), try encode(preferences.preferredColors), preferences.notes, now()]
+                arguments: [try encode(preferences.preferredCategories), try encode(preferences.preferredColors), preferences.notes, preferences.warmthPreference.rawValue, preferences.prefersRainTolerance, preferences.prefersWalkingComfort, preferences.preferredFormality, preferences.footwearPreference, preferences.repeatFrequency.rawValue, now()]
             )
+        }
+    }
+
+    func recommendationSnapshot(recommendationID: UUID) throws -> String? {
+        try database.read { database in
+            try String.fetchOne(database, sql: "SELECT context_snapshot FROM recommendation_events WHERE recommendation_id = ? ORDER BY occurred_at ASC LIMIT 1", arguments: [recommendationID.uuidString])
         }
     }
 
@@ -459,9 +480,9 @@ final class WardrobeRepository {
     func recordRecommendationEvent(_ event: RecommendationEvent) throws {
         try database.write { database in
             try database.execute(sql: """
-                INSERT INTO recommendation_events (id, recommendation_id, candidate_ids_json, context_snapshot, source, outcome, occurred_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, arguments: [event.id.uuidString, event.recommendationID.uuidString, try encode(event.candidateIDs.map(\.uuidString)), event.contextSnapshot, event.source.rawValue, event.outcome.rawValue, event.occurredAt])
+                INSERT INTO recommendation_events (id, recommendation_id, candidate_ids_json, context_snapshot, source, outcome, occurred_at, locked_ids_json, requested_slots_json, outcome_reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, arguments: [event.id.uuidString, event.recommendationID.uuidString, try encode(event.candidateIDs.map(\.uuidString)), event.contextSnapshot, event.source.rawValue, event.outcome.rawValue, event.occurredAt, try encode(event.lockedItemIDs.map(\.uuidString)), try encode(event.requestedSlots.map(\.rawValue)), event.outcomeReason?.rawValue])
         }
     }
 
@@ -471,16 +492,21 @@ final class WardrobeRepository {
                 guard let source = RecommendationSource(rawValue: row["source"]),
                       let outcome = RecommendationOutcome(rawValue: row["outcome"]) else { throw WardrobeRepositoryError.corruptRecord }
                 let ids: [String] = try decode(row["candidate_ids_json"])
-                return RecommendationEvent(id: try uuid(row["id"]), recommendationID: try uuid(row["recommendation_id"]), candidateIDs: ids.compactMap(UUID.init(uuidString:)), contextSnapshot: row["context_snapshot"], source: source, outcome: outcome, occurredAt: row["occurred_at"])
+                let lockedIDs: [String] = try decode(row["locked_ids_json"])
+                let slots: [String] = try decode(row["requested_slots_json"])
+                let reason: String? = row["outcome_reason"]
+                return RecommendationEvent(id: try uuid(row["id"]), recommendationID: try uuid(row["recommendation_id"]), candidateIDs: ids.compactMap(UUID.init(uuidString:)), contextSnapshot: row["context_snapshot"], source: source, outcome: outcome, occurredAt: row["occurred_at"], lockedItemIDs: lockedIDs.compactMap(UUID.init(uuidString:)), requestedSlots: slots.compactMap(RecommendationSlot.init(rawValue:)), outcomeReason: reason.flatMap(RecommendationSkipReason.init(rawValue:)))
             }
         }
     }
 
-    func recommendationContext(recommendationID: UUID) throws -> (snapshot: String, source: RecommendationSource)? {
+    func recommendationContext(recommendationID: UUID) throws -> (snapshot: String, source: RecommendationSource, lockedItemIDs: [UUID], requestedSlots: [RecommendationSlot])? {
         try database.read { database in
-            guard let row = try Row.fetchOne(database, sql: "SELECT context_snapshot, source FROM recommendation_events WHERE recommendation_id = ? ORDER BY occurred_at ASC LIMIT 1", arguments: [recommendationID.uuidString]),
+            guard let row = try Row.fetchOne(database, sql: "SELECT context_snapshot, source, locked_ids_json, requested_slots_json FROM recommendation_events WHERE recommendation_id = ? ORDER BY occurred_at ASC LIMIT 1", arguments: [recommendationID.uuidString]),
                   let source = RecommendationSource(rawValue: row["source"]) else { return nil }
-            return (row["context_snapshot"], source)
+            let ids: [String] = try decode(row["locked_ids_json"])
+            let slots: [String] = try decode(row["requested_slots_json"])
+            return (row["context_snapshot"], source, ids.compactMap(UUID.init(uuidString:)), slots.compactMap(RecommendationSlot.init(rawValue:)))
         }
     }
 
@@ -503,7 +529,7 @@ final class WardrobeRepository {
         return GarmentDraft(
             name: name, category: category, color: normalizedOptional(draft.color),
             tags: tags, notes: normalizedOptional(draft.notes), imagePath: draft.imagePath,
-            classification: draft.classification
+            classification: draft.classification, availability: draft.availability
         )
     }
 
@@ -517,6 +543,7 @@ private func garmentItem(from row: Row) throws -> GarmentItem {
     GarmentItem(
         id: try uuid(row["id"]), name: row["name"], category: row["category"], color: row["color"],
         tags: try decode(row["tags_json"]), notes: row["notes"], imagePath: row["image_path"], classification: try decode(row["classification_json"]),
+        availability: GarmentAvailability(rawValue: row["availability"]) ?? .active,
         createdAt: row["created_at"], updatedAt: row["updated_at"]
     )
 }
