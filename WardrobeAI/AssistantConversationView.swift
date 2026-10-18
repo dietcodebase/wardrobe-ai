@@ -42,7 +42,7 @@ struct AssistantConversationView: View {
             composer
         }
         .background(WardrobeDesign.Color.canvas)
-        .navigationTitle("Wardrobe AI")
+        .navigationTitle("ootd.ai")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
@@ -115,7 +115,7 @@ struct AssistantConversationView: View {
                     .frame(width: 42, height: 42)
                     .background(WardrobeDesign.Color.ink.gradient, in: RoundedRectangle(cornerRadius: 14))
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Wardrobe, understood").font(WardrobeDesign.display(20))
+                    Text("ootd.ai").font(WardrobeDesign.display(20))
                     Text(connectionLabel).font(WardrobeDesign.metadata()).foregroundStyle(WardrobeDesign.Color.quiet)
                 }
                 Spacer()
@@ -150,7 +150,7 @@ struct AssistantConversationView: View {
             }
             if store.allGarments.isEmpty {
                 HStack {
-                    Button("Load 13 demo photos") { loadDemoWardrobe() }
+                    Button("Load 23 demo photos") { loadDemoWardrobe() }
                         .buttonStyle(.borderedProminent)
                     Button("Add a garment", action: showAddGarment)
                         .buttonStyle(.bordered)
@@ -242,10 +242,10 @@ struct AssistantConversationView: View {
         do {
             try store.installDemoWardrobe()
             guard OllamaConfiguration.saved().isConfigured else {
-                demoStatus = "13 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
+                demoStatus = "23 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
                 return
             }
-            demoStatus = "13 demo photos are ready. Gemma is enriching their tags…"
+            demoStatus = "23 demo photos are ready. Gemma is enriching their tags…"
             tagDemoWardrobe()
         } catch {
             demoStatus = error.localizedDescription
@@ -276,14 +276,72 @@ private struct MessageBubble: View {
     var body: some View {
         HStack {
             if message.role == .user { Spacer(minLength: 48) }
-            Text(message.text)
-                .padding(.horizontal, 14).padding(.vertical, 11)
-                .foregroundStyle(message.role == .user ? WardrobeDesign.Color.canvas : WardrobeDesign.Color.ink)
-                .background(message.role == .user ? WardrobeDesign.Color.ink : WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
+            Group {
+                if message.role == .assistant {
+                    StylistResponseView(text: message.text)
+                } else {
+                    Text(message.text)
+                        .font(WardrobeDesign.body())
+                        .foregroundStyle(WardrobeDesign.Color.canvas)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 11)
+            .background(message.role == .user ? WardrobeDesign.Color.ink : WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
             if message.role == .assistant { Spacer(minLength: 48) }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(message.role == .user ? "You: \(message.text)" : "Stylist: \(message.text)")
+    }
+}
+
+struct StylistResponseView: View {
+    struct Section: Identifiable {
+        let id = UUID()
+        let heading: String?
+        let body: String
+    }
+
+    let text: String
+
+    private var sections: [Section] {
+        var result: [Section] = []
+        var heading: String?
+        var body: [String] = []
+        func flush() {
+            let value = body.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty { result.append(Section(heading: heading, body: value)) }
+            body.removeAll()
+        }
+        for line in StylistResponseFormatter.clean(text).components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            if trimmed.hasSuffix(":") && trimmed.count < 42 {
+                flush()
+                heading = String(trimmed.dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            } else {
+                body.append(trimmed)
+            }
+        }
+        flush()
+        return result.isEmpty ? [Section(heading: nil, body: StylistResponseFormatter.clean(text))] : result
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(sections) { section in
+                VStack(alignment: .leading, spacing: 4) {
+                    if let heading = section.heading {
+                        Text(heading.uppercased())
+                            .font(WardrobeDesign.metadata(10))
+                            .foregroundStyle(WardrobeDesign.Color.quiet)
+                    }
+                    Text(section.body)
+                        .font(WardrobeDesign.body(15))
+                        .foregroundStyle(WardrobeDesign.Color.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
     }
 }
 

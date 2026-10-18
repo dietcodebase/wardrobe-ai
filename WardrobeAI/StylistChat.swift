@@ -71,6 +71,27 @@ struct URLSessionOllamaTransport: OllamaTransport {
     }
 }
 
+enum StylistResponseFormatter {
+    static func clean(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "```", with: "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { rawLine in
+                var line = rawLine.trimmingCharacters(in: .whitespaces)
+                line = line.replacingOccurrences(of: "^#{1,6}\\s*", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "^[-*•]\\s+", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "^\\d+[.)]\\s+", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "**", with: "")
+                    .replacingOccurrences(of: "__", with: "")
+                    .replacingOccurrences(of: "`", with: "")
+                return line
+            }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 struct OllamaClient: Sendable {
     private let transport: any OllamaTransport
 
@@ -109,7 +130,7 @@ struct OllamaClient: Sendable {
             model: configuration.model,
             stream: false,
             messages: [
-                .init(role: "system", content: "You are Wardrobe AI's concise, practical stylist. Use only the supplied wardrobe context and never claim an item is owned unless it appears there. When recommending, give 1–3 named owned-item outfits, a short user-facing rationale grounded in color, formality, layering, season, occasion, or recent wear, plus one alternative when useful. Do not reveal private chain-of-thought, invent facts, or record wear; the app asks for confirmation separately."),
+                .init(role: "system", content: "You are ootd.ai, a concise, practical wardrobe stylist. Use only the supplied wardrobe context and never claim an item is owned unless it appears there. Recommend 1–3 named owned-item outfits with a short rationale grounded in color, formality, layering, season, occasion, or recent wear, plus one alternative when useful. Do not reveal private chain-of-thought, invent facts, or record wear; the app asks for confirmation separately. Return plain text only: no Markdown, no bullets, no asterisks, no code fences. Structure the answer with short uppercase section labels ending in a colon, such as BEST PICK:, WHY IT WORKS:, ALTERNATIVE:, and NEXT STEP:."),
                 .init(role: "user", content: "Wardrobe context:\n\(wardrobeContext)\n\nRequest: \(requestText)")
             ]
         ))
@@ -121,7 +142,7 @@ struct OllamaClient: Sendable {
             throw OllamaError.server(statusCode: http.statusCode, message: message)
         }
         let decoded = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
-        let text = decoded.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = StylistResponseFormatter.clean(decoded.message.content)
         guard !text.isEmpty else { throw OllamaError.invalidResponse }
         return text
     }
