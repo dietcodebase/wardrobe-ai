@@ -168,6 +168,22 @@ final class StorageTests: XCTestCase {
         XCTAssertEqual(try repository.item(id: item.id)?.classification, provenance)
     }
 
+    func testRescanClassificationReplacesAndPersistsSavedGarmentTags() throws {
+        let repository = try makeRepository()
+        let store = WardrobeStore(repository: repository)
+        let item = try repository.createItem(GarmentDraft(name: "Old name", category: "Top", color: "Blue", tags: ["old tag"]))
+        let suggestion = try GarmentClassificationSuggestion(category: "Outerwear", suggestedName: "Navy Jacket", color: "Navy", tags: ["layering", "work"])
+        let provenance = ClassificationProvenance(modelID: "gemma4:latest", modelRevision: "ollama", route: "remote-ollama-vision", classifiedAt: .now, suggestion: suggestion, wasEditedBeforeSave: false)
+
+        let saved = try store.saveClassification(provenance, for: item.id)
+
+        XCTAssertEqual(saved.name, "Navy Jacket")
+        XCTAssertEqual(saved.category, "Outerwear")
+        XCTAssertEqual(saved.color, "Navy")
+        XCTAssertEqual(saved.tags, ["layering", "work"])
+        XCTAssertEqual(try repository.item(id: item.id), saved)
+    }
+
     func testWearTodayIsIdempotentAndUndoRestoresUnderusedItems() throws {
         let repository = try makeRepository()
         let shirt = try repository.createItem(GarmentDraft(name: "Shirt", category: "Top"))

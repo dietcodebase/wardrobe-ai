@@ -9,6 +9,9 @@ struct GarmentDetail: View {
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var errorMessage: String?
+    @State private var rescanTask: Task<Void, Never>?
+    @State private var rescanProgress: Double?
+    @State private var rescanStatus: String?
 
     init(item: GarmentItem, store: WardrobeStore) {
         self.item = item
@@ -71,6 +74,26 @@ struct GarmentDetail: View {
                         IconoirLabel(title: "Notes", icon: .text)
                     }
                 }
+                Section {
+                    if let rescanProgress {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ProgressView(value: rescanProgress)
+                                .accessibilityLabel("Gemma rescan progress")
+                            Text(rescanStatus ?? "Rescanning garment…")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            Button("Stop rescan", role: .cancel) { cancelRescan() }
+                        }
+                    } else {
+                        Button("Rescan with Gemma") { rescan() }
+                            .disabled(displayedItem.imagePath == nil)
+                        if displayedItem.imagePath == nil {
+                            Text("Add a photo before rescanning this garment.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: { Text("Gemma tagging") } footer: {
+                    Text("The new result replaces the saved model tags and garment details. Your photo stays on this device.")
+                }
                 Section { Button("Delete garment", role: .destructive) { isConfirmingDelete = true } }
             }
             .navigationTitle(displayedItem.name)
@@ -81,12 +104,48 @@ struct GarmentDetail: View {
                     do { try store.delete(displayedItem); dismiss() } catch { errorMessage = error.localizedDescription }
                 }
             } message: { Text("This cannot be undone. Garments used by an outfit or wear history must be removed there first.") }
-            .alert("Couldn’t delete garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+            .alert("Garment update", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+            .onDisappear { cancelRescan() }
         }
     }
 
     private func refreshItem() {
         if let latest = store.item(id: item.id) { displayedItem = latest }
+    }
+
+    @MainActor
+    private func rescan() {
+        guard rescanTask == nil,
+              let imageData = store.imageData(for: displayedItem) else { return }
+        rescanProgress = 0.12
+        rescanStatus = "Sending garment photo to Gemma…"
+        rescanTask = Task {
+            defer {
+                rescanTask = nil
+                rescanProgress = nil
+                rescanStatus = nil
+            }
+            do {
+                let result = try await GarmentClassificationCoordinator().classify(imageData: imageData)
+                guard !Task.isCancelled else { return }
+                rescanProgress = 0.82
+                rescanStatus = "Saving refreshed garment tags…"
+                displayedItem = try store.saveClassification(result, for: displayedItem.id)
+                rescanProgress = 1
+                rescanStatus = "Gemma tags saved."
+            } catch is CancellationError {
+                return
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func cancelRescan() {
+        rescanTask?.cancel()
+        rescanTask = nil
+        rescanProgress = nil
+        rescanStatus = nil
     }
 }
 

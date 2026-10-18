@@ -115,6 +115,19 @@ final class WardrobeStore: ObservableObject {
         return try? imageCoordinator.imageData(at: path)
     }
 
+    func saveClassification(_ provenance: ClassificationProvenance, for itemID: UUID) throws -> GarmentItem {
+        guard var item = try repository.item(id: itemID) else { throw WardrobeRepositoryError.itemNotFound(itemID) }
+        item.category = provenance.suggestion.category
+        item.name = provenance.suggestion.suggestedName ?? item.name
+        item.color = provenance.suggestion.color ?? item.color
+        item.tags = provenance.suggestion.tags
+        item.classification = provenance
+        let saved = try repository.updateItem(item)
+        loadItems()
+        loadOutfitData()
+        return saved
+    }
+
     func installDemoWardrobe() throws {
         _ = try installDemoWardrobeAssets()
     }
