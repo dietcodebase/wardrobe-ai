@@ -415,6 +415,11 @@ private struct PackingListView: View {
 
     private var items: [PackingItem] { store.packingItems(trip) }
     private var looks: [Outfit] { store.tripOutfits(trip) }
+    private let requiredRoles = ["Top", "Bottom", "Shoes"]
+    private var missingRoles: [String] {
+        let covered = Set(items.map { $0.item.category.lowercased() })
+        return requiredRoles.filter { !covered.contains($0.lowercased()) }
+    }
 
     var body: some View {
         NavigationStack {
@@ -435,6 +440,12 @@ private struct PackingListView: View {
                             }
                         }
                         .accessibilityLabel("\(packing.item.name), used by \(looksFor(packing).joined(separator: ", "))")
+                    }
+                }
+                if !missingRoles.isEmpty {
+                    Section("Missing essentials") {
+                        Text("Add a look with \(missingRoles.joined(separator: ", ")) before you pack.")
+                            .foregroundStyle(.secondary)
                     }
                 }
                 Section("Looks included") { ForEach(looks) { outfit in Text(outfit.name) } }
