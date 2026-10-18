@@ -168,6 +168,31 @@ enum WardrobeDatabase {
             }
         }
 
+        migrator.registerMigration("v11_trips_and_packing") { database in
+            try database.create(table: "trips") { table in
+                table.column("id", .text).primaryKey()
+                table.column("destination", .text).notNull()
+                table.column("start_date", .datetime).notNull()
+                table.column("end_date", .datetime).notNull()
+                table.column("activities_json", .text).notNull().defaults(to: "[]")
+                table.column("luggage_constraints", .text)
+                table.column("weather_note", .text)
+                table.column("created_at", .datetime).notNull()
+                table.column("updated_at", .datetime).notNull()
+            }
+            try database.create(table: "trip_outfits") { table in
+                table.column("trip_id", .text).notNull().references("trips", onDelete: .cascade)
+                table.column("outfit_id", .text).notNull().references("outfits", onDelete: .cascade)
+                table.primaryKey(["trip_id", "outfit_id"])
+            }
+            try database.create(table: "packing_items") { table in
+                table.column("trip_id", .text).notNull().references("trips", onDelete: .cascade)
+                table.column("item_id", .text).notNull().references("items", onDelete: .restrict)
+                table.column("is_packed", .boolean).notNull().defaults(to: false)
+                table.primaryKey(["trip_id", "item_id"])
+            }
+        }
+
         return migrator
     }()
 }

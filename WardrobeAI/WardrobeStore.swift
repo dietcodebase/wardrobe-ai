@@ -19,6 +19,7 @@ final class WardrobeStore: ObservableObject {
     @Published private(set) var outfits: [Outfit] = []
     @Published private(set) var wearEvents: [WearEvent] = []
     @Published private(set) var outfitPlans: [OutfitPlan] = []
+    @Published private(set) var trips: [Trip] = []
     @Published private(set) var underusedItems: [WearItemSummary] = []
     @Published private(set) var errorMessage: String?
     @Published private(set) var searchModeMessage: String?
@@ -65,6 +66,7 @@ final class WardrobeStore: ObservableObject {
             outfits = try repository.allOutfits()
             wearEvents = try repository.wearEvents()
             outfitPlans = try repository.plans()
+            trips = try repository.trips()
             underusedItems = try repository.underusedItems()
             errorMessage = nil
         } catch {
@@ -216,6 +218,24 @@ final class WardrobeStore: ObservableObject {
         updated.scheduledFor = date
         updated.occasion = occasion ?? plan.occasion
         _ = try repository.updatePlan(updated)
+        loadOutfitData()
+    }
+
+    func createTrip(destination: String, startDate: Date, endDate: Date, activities: [String], luggageConstraints: String?, weatherNote: String?, outfitIDs: [UUID]) throws {
+        _ = try repository.createTrip(destination: destination, startDate: startDate, endDate: endDate, activities: activities, luggageConstraints: luggageConstraints, weatherNote: weatherNote, outfitIDs: outfitIDs)
+        loadOutfitData()
+    }
+
+    func tripOutfits(_ trip: Trip) -> [Outfit] { (try? repository.tripOutfits(tripID: trip.id)) ?? [] }
+    func packingItems(_ trip: Trip) -> [PackingItem] { (try? repository.packingItems(tripID: trip.id)) ?? [] }
+
+    func setPacked(_ item: PackingItem, isPacked: Bool) throws {
+        try repository.setPacked(tripID: item.tripID, itemID: item.item.id, isPacked: isPacked)
+        loadOutfitData()
+    }
+
+    func deleteTrip(_ trip: Trip) throws {
+        try repository.deleteTrip(id: trip.id)
         loadOutfitData()
     }
 

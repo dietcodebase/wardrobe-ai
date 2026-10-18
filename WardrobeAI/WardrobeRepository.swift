@@ -333,6 +333,58 @@ final class WardrobeRepository {
         }
     }
 
+    func createTrip(destination: String, startDate: Date, endDate: Date, activities: [String], luggageConstraints: String?, weatherNote: String?, outfitIDs: [UUID]) throws -> Trip {
+        let destination = destination.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !destination.isEmpty, endDate >= startDate else { throw WardrobeRepositoryError.invalidPlanDate }
+        let timestamp = now()
+        let trip = Trip(id: UUID(), destination: destination, startDate: startDate, endDate: endDate, activities: activities, luggageConstraints: normalizedOptional(luggageConstraints), weatherNote: normalizedOptional(weatherNote), createdAt: timestamp, updatedAt: timestamp)
+        try database.write { database in
+            for outfitID in outfitIDs where try !outfitExists(outfitID, in: database) { throw WardrobeRepositoryError.outfitNotFound(outfitID) }
+            try database.execute(sql: "INSERT INTO trips (id, destination, start_date, end_date, activities_json, luggage_constraints, weather_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", arguments: [trip.id.uuidString, trip.destination, trip.startDate, trip.endDate, try encode(trip.activities), trip.luggageConstraints, trip.weatherNote, trip.createdAt, trip.updatedAt])
+            for outfitID in outfitIDs { try database.execute(sql: "INSERT INTO trip_outfits (trip_id, outfit_id) VALUES (?, ?)", arguments: [trip.id.uuidString, outfitID.uuidString]) }
+            let itemIDs = try String.fetchAll(database, sql: "SELECT DISTINCT oi.item_id FROM outfit_items oi JOIN trip_outfits t ON t.outfit_id = oi.outfit_id WHERE t.trip_id = ?", arguments: [trip.id.uuidString])
+            for itemID in itemIDs { try database.execute(sql: "INSERT INTO packing_items (trip_id, item_id, is_packed) VALUES (?, ?, ?)", arguments: [trip.id.uuidString, itemID, false]) }
+        }
+        return trip
+    }
+
+    func trips() throws -> [Trip] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT * FROM trips ORDER BY start_date ASC").map(trip(from:))
+        }
+    }
+
+    func tripOutfits(tripID: UUID) throws -> [Outfit] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT o.* FROM outfits o JOIN trip_outfits t ON t.outfit_id = o.id WHERE t.trip_id = ? ORDER BY o.name COLLATE NOCASE", arguments: [tripID.uuidString]).map { try makeOutfit(from: $0, in: database) }
+        }
+    }
+
+    func packingItems(tripID: UUID) throws -> [PackingItem] {
+        try database.read { database in
+            let rows = try Row.fetchAll(database, sql: "SELECT i.*, p.is_packed FROM packing_items p JOIN items i ON i.id = p.item_id WHERE p.trip_id = ? ORDER BY i.category, i.name COLLATE NOCASE", arguments: [tripID.uuidString])
+            return try rows.map { row in
+                let item = try garmentItem(from: row)
+                let outfitIDs = try String.fetchAll(database, sql: "SELECT DISTINCT oi.outfit_id FROM outfit_items oi JOIN trip_outfits t ON t.outfit_id = oi.outfit_id WHERE t.trip_id = ? AND oi.item_id = ?", arguments: [tripID.uuidString, item.id.uuidString]).compactMap(UUID.init(uuidString:))
+                return PackingItem(tripID: tripID, item: item, isPacked: row["is_packed"], outfitIDs: outfitIDs)
+            }
+        }
+    }
+
+    func setPacked(tripID: UUID, itemID: UUID, isPacked: Bool) throws {
+        try database.write { database in
+            try database.execute(sql: "UPDATE packing_items SET is_packed = ? WHERE trip_id = ? AND item_id = ?", arguments: [isPacked, tripID.uuidString, itemID.uuidString])
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.tripNotFound(tripID) }
+        }
+    }
+
+    func deleteTrip(id: UUID) throws {
+        try database.write { database in
+            try database.execute(sql: "DELETE FROM trips WHERE id = ?", arguments: [id.uuidString])
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.tripNotFound(id) }
+        }
+    }
+
     func logWear(itemID: UUID, outfitID: UUID? = nil, wornAt: Date? = nil) throws -> WearLog {
         let log = WearLog(id: UUID(), itemID: itemID, outfitID: outfitID, wornAt: wornAt ?? now(), createdAt: now())
         try database.write { database in
@@ -574,6 +626,10 @@ private func makeOutfit(from row: Row, in database: Database) throws -> Outfit {
 
 private func outfitPlan(from row: Row) throws -> OutfitPlan {
     OutfitPlan(id: try uuid(row["id"]), outfitID: try uuid(row["outfit_id"]), scheduledFor: row["scheduled_for"], occasion: row["occasion"], sourceEventID: row["source_event_id"], createdAt: row["created_at"], updatedAt: row["updated_at"])
+}
+
+private func trip(from row: Row) throws -> Trip {
+    Trip(id: try uuid(row["id"]), destination: row["destination"], startDate: row["start_date"], endDate: row["end_date"], activities: try decode(row["activities_json"]), luggageConstraints: row["luggage_constraints"], weatherNote: row["weather_note"], createdAt: row["created_at"], updatedAt: row["updated_at"])
 }
 
 private func wearLog(from row: Row) throws -> WearLog {

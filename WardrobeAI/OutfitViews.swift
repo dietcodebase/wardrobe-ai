@@ -9,6 +9,7 @@ struct OutfitView: View {
     @State private var errorMessage: String?
     @State private var isCheckingMirror = false
     @State private var isShowingPlanner = false
+    @State private var isShowingTrips = false
 
     var body: some View {
         NavigationStack {
@@ -68,6 +69,10 @@ struct OutfitView: View {
             .navigationTitle("Looks")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { isShowingTrips = true } label: { IconoirLabel(title: "Trips", icon: .suitcase) }
+                        .accessibilityLabel("Open trips and packing lists")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { isShowingPlanner = true } label: { IconoirLabel(title: "Planner", icon: .calendar) }
                         .accessibilityLabel("Open weekly outfit planner")
                 }
@@ -81,6 +86,7 @@ struct OutfitView: View {
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
             .sheet(isPresented: $isCheckingMirror) { MirrorFitCheckSheet(store: store) }
             .sheet(isPresented: $isShowingPlanner) { OutfitWeekPlanner(store: store) }
+            .sheet(isPresented: $isShowingTrips) { TripsView(store: store) }
             .sheet(item: $selectedOutfit) { outfit in OutfitDetail(outfit: outfit, store: store) }
             .alert("Couldn’t update wear history", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
@@ -310,6 +316,143 @@ private struct PlannerPlanEditor: View {
         do { try store.removePlan(plan); dismiss() }
         catch { errorMessage = error.localizedDescription }
     }
+}
+
+private struct TripsView: View {
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var isCreating = false
+    @State private var selectedTrip: Trip?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if store.trips.isEmpty {
+                    ContentUnavailableView("No trips yet", systemImage: "suitcase", description: Text("Create a trip to build an offline packing list from your planned looks."))
+                } else {
+                    ForEach(store.trips) { trip in
+                        Button { selectedTrip = trip } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(trip.destination).font(.headline)
+                                Text("\(trip.startDate.formatted(date: .abbreviated, time: .omitted)) – \(trip.endDate.formatted(date: .abbreviated, time: .omitted))").font(.footnote).foregroundStyle(.secondary)
+                                if !trip.activities.isEmpty { Text(trip.activities.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+                            }
+                        }.buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Trips")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button("New trip") { isCreating = true } }
+            }
+            .sheet(isPresented: $isCreating) { TripEditor(store: store) }
+            .sheet(item: $selectedTrip) { trip in PackingListView(trip: trip, store: store) }
+        }
+    }
+}
+
+private struct TripEditor: View {
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var destination = ""
+    @State private var startDate = Date.now
+    @State private var endDate = Calendar.current.date(byAdding: .day, value: 3, to: .now) ?? .now
+    @State private var activities = ""
+    @State private var constraints = ""
+    @State private var weather = ""
+    @State private var selectedOutfitIDs = Set<UUID>()
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Trip") {
+                    TextField("Destination", text: $destination).textInputAutocapitalization(.words)
+                    DatePicker("Start", selection: $startDate, displayedComponents: .date)
+                    DatePicker("End", selection: $endDate, in: startDate..., displayedComponents: .date)
+                    TextField("Activities, separated by commas", text: $activities)
+                    TextField("Luggage constraints", text: $constraints, axis: .vertical).lineLimit(2...4)
+                    TextField("Weather note (optional)", text: $weather)
+                }
+                Section("Looks for this trip") {
+                    if store.outfits.isEmpty { Text("Save a look before making a packing list.").foregroundStyle(.secondary) }
+                    ForEach(store.outfits) { outfit in
+                        Toggle(outfit.name, isOn: Binding(get: { selectedOutfitIDs.contains(outfit.id) }, set: { selected in if selected { selectedOutfitIDs.insert(outfit.id) } else { selectedOutfitIDs.remove(outfit.id) } }))
+                    }
+                    Text("Select planned or saved looks. Their garments are deduplicated into one packing list.").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("New trip")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Create") { create() }.disabled(destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || selectedOutfitIDs.isEmpty) }
+            }
+            .alert("Couldn’t create trip", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) { } } message: { Text(errorMessage ?? "") }
+            .onAppear { selectPlansInDateRange() }
+        }
+    }
+
+    private func selectPlansInDateRange() {
+        let planned = store.outfitPlans.filter { $0.scheduledFor >= Calendar.current.startOfDay(for: startDate) && $0.scheduledFor <= endDate }.map(\.outfitID)
+        selectedOutfitIDs.formUnion(planned)
+    }
+
+    private func create() {
+        do {
+            try store.createTrip(destination: destination, startDate: startDate, endDate: endDate, activities: activities.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }, luggageConstraints: constraints.nilIfBlank, weatherNote: weather.nilIfBlank, outfitIDs: Array(selectedOutfitIDs))
+            dismiss()
+        } catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct PackingListView: View {
+    let trip: Trip
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmingDelete = false
+    @State private var errorMessage: String?
+
+    private var items: [PackingItem] { store.packingItems(trip) }
+    private var looks: [Outfit] { store.tripOutfits(trip) }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section("Trip") {
+                    Text("\(trip.startDate.formatted(date: .abbreviated, time: .omitted)) – \(trip.endDate.formatted(date: .abbreviated, time: .omitted))")
+                    if !trip.activities.isEmpty { LabeledContent("Activities", value: trip.activities.joined(separator: ", ")) }
+                    if let constraints = trip.luggageConstraints { LabeledContent("Constraints", value: constraints) }
+                    if let weather = trip.weatherNote { LabeledContent("Weather", value: weather) }
+                }
+                Section("Packing list · \(items.filter(\.isPacked).count)/\(items.count) packed") {
+                    if items.isEmpty { Text("Add a saved look to generate a packing list.").foregroundStyle(.secondary) }
+                    ForEach(items) { packing in
+                        Toggle(isOn: Binding(get: { packing.isPacked }, set: { packed in setPacked(packing, packed) })) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(packing.item.name)
+                                Text(looksFor(packing).joined(separator: " · ")).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .accessibilityLabel("\(packing.item.name), used by \(looksFor(packing).joined(separator: ", "))")
+                    }
+                }
+                Section("Looks included") { ForEach(looks) { outfit in Text(outfit.name) } }
+                Section { Button("Delete trip", role: .destructive) { confirmingDelete = true } }
+            }
+            .navigationTitle(trip.destination)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { ShareLink(item: printableChecklist) { Text("Share") } } }
+            .confirmationDialog("Delete this trip?", isPresented: $confirmingDelete, titleVisibility: .visible) { Button("Delete trip", role: .destructive) { deleteTrip() } }
+            .alert("Couldn’t update packing", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) { } } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private var printableChecklist: String {
+        (["Packing list — \(trip.destination)"] + items.map { "\($0.isPacked ? "✓" : "☐") \($0.item.name)" }).joined(separator: "\n")
+    }
+    private func looksFor(_ packing: PackingItem) -> [String] { packing.outfitIDs.compactMap { id in looks.first(where: { $0.id == id })?.name } }
+    private func setPacked(_ packing: PackingItem, _ isPacked: Bool) { do { try store.setPacked(packing, isPacked: isPacked) } catch { errorMessage = error.localizedDescription } }
+    private func deleteTrip() { do { try store.deleteTrip(trip); dismiss() } catch { errorMessage = error.localizedDescription } }
 }
 
 private struct MirrorFitCheckSheet: View {

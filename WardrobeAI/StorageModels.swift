@@ -125,6 +125,26 @@ struct OutfitPlan: Identifiable, Equatable, Sendable {
     var updatedAt: Date
 }
 
+struct Trip: Identifiable, Equatable, Sendable {
+    let id: UUID
+    var destination: String
+    var startDate: Date
+    var endDate: Date
+    var activities: [String]
+    var luggageConstraints: String?
+    var weatherNote: String?
+    let createdAt: Date
+    var updatedAt: Date
+}
+
+struct PackingItem: Identifiable, Equatable, Sendable {
+    let tripID: UUID
+    let item: GarmentItem
+    var isPacked: Bool
+    var outfitIDs: [UUID]
+    var id: UUID { item.id }
+}
+
 struct WearItemSummary: Identifiable, Equatable, Sendable {
     let item: GarmentItem
     let wearCount: Int
@@ -226,6 +246,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
     case corruptRecord
     case planNotFound(UUID)
     case invalidPlanDate
+    case tripNotFound(UUID)
     case itemNotInOutfit(itemID: UUID, outfitID: UUID)
     case wearEventLogRequiresUndo(UUID)
 
@@ -241,6 +262,7 @@ enum WardrobeRepositoryError: Error, Equatable, LocalizedError {
         case .corruptRecord: "A local wardrobe record could not be read."
         case .planNotFound: "That outfit plan no longer exists."
         case .invalidPlanDate: "Choose a valid date for this outfit plan."
+        case .tripNotFound: "That trip no longer exists."
         case .itemNotInOutfit: "That garment is not part of the selected outfit."
         case .wearEventLogRequiresUndo: "Undo the wear event instead of removing one of its garment records."
         }

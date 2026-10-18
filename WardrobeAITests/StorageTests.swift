@@ -271,6 +271,37 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testTripPackingDeduplicatesGarmentsAndRecordsDependentLooks() throws {
+        let repository = try makeRepository()
+        let shirt = try repository.createItem(GarmentDraft(name: "Linen shirt", category: "Top"))
+        let trousers = try repository.createItem(GarmentDraft(name: "Trousers", category: "Bottom"))
+        let shorts = try repository.createItem(GarmentDraft(name: "Shorts", category: "Bottom"))
+        let dinner = try repository.createOutfit(OutfitDraft(name: "Dinner", itemIDs: [shirt.id, trousers.id]))
+        let daytime = try repository.createOutfit(OutfitDraft(name: "Daytime", itemIDs: [shirt.id, shorts.id]))
+        let store = WardrobeStore(repository: repository)
+
+        try store.createTrip(
+            destination: "Lisbon",
+            startDate: Date(timeIntervalSince1970: 1_800_000_000),
+            endDate: Date(timeIntervalSince1970: 1_800_172_800),
+            activities: ["Dinner", "Walking"],
+            luggageConstraints: "Carry-on only",
+            weatherNote: "Warm",
+            outfitIDs: [dinner.id, daytime.id]
+        )
+
+        let trip = try XCTUnwrap(store.trips.first)
+        let packing = store.packingItems(trip)
+        XCTAssertEqual(Set(packing.map(\.item.id)), Set([shirt.id, trousers.id, shorts.id]))
+        XCTAssertEqual(Set(try XCTUnwrap(packing.first(where: { $0.item.id == shirt.id })).outfitIDs), Set([dinner.id, daytime.id]))
+
+        let shirtPacking = try XCTUnwrap(packing.first(where: { $0.item.id == shirt.id }))
+        try store.setPacked(shirtPacking, isPacked: true)
+        XCTAssertTrue(try XCTUnwrap(store.packingItems(trip).first(where: { $0.item.id == shirt.id })).isPacked)
+        XCTAssertTrue(try repository.wearEvents().isEmpty)
+    }
+
+    @MainActor
     func testRepeatedWearSuggestionReusesOutfitAndWearEvent() throws {
         let repository = try makeRepository()
         let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))
