@@ -8,6 +8,7 @@ struct OutfitView: View {
     @State private var selectedOutfit: Outfit?
     @State private var errorMessage: String?
     @State private var isCheckingMirror = false
+    @State private var isShowingPlanner = false
 
     var body: some View {
         NavigationStack {
@@ -67,6 +68,10 @@ struct OutfitView: View {
             .navigationTitle("Looks")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button { isShowingPlanner = true } label: { IconoirLabel(title: "Planner", icon: .calendar) }
+                        .accessibilityLabel("Open weekly outfit planner")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { isCheckingMirror = true } label: { IconoirLabel(title: "Mirror fit check", icon: .camera) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -75,6 +80,7 @@ struct OutfitView: View {
             }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
             .sheet(isPresented: $isCheckingMirror) { MirrorFitCheckSheet(store: store) }
+            .sheet(isPresented: $isShowingPlanner) { OutfitWeekPlanner(store: store) }
             .sheet(item: $selectedOutfit) { outfit in OutfitDetail(outfit: outfit, store: store) }
             .alert("Couldn’t update wear history", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }
@@ -85,6 +91,225 @@ struct OutfitView: View {
     }
     private func remove(_ plan: OutfitPlan) { do { try store.removePlan(plan) } catch { errorMessage = error.localizedDescription } }
 
+}
+
+private struct OutfitWeekPlanner: View {
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.calendar) private var calendar
+    @State private var weekStart = Date.now
+    @State private var selectedPlan: OutfitPlan?
+    @State private var isAddingPlan = false
+    @State private var errorMessage: String?
+
+    private var startOfWeek: Date {
+        calendar.dateInterval(of: .weekOfYear, for: weekStart)?.start ?? calendar.startOfDay(for: weekStart)
+    }
+
+    private var days: [Date] {
+        (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: startOfWeek) }
+    }
+
+    private var weekPlans: [OutfitPlan] {
+        guard let end = calendar.date(byAdding: .day, value: 7, to: startOfWeek) else { return [] }
+        return store.outfitPlans.filter { $0.scheduledFor >= startOfWeek && $0.scheduledFor < end }
+    }
+
+    private var unscheduledLooks: [Outfit] {
+        let planned = Set(store.outfitPlans.map(\.outfitID))
+        return store.outfits.filter { !planned.contains($0.id) }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    DatePicker("Week of", selection: $weekStart, displayedComponents: .date)
+                    Text("Plans stay separate from actual wear. Moving a plan never records a wear event.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
+                ForEach(days, id: \.self) { day in
+                    Section(day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())) {
+                        let plans = weekPlans.filter { calendar.isDate($0.scheduledFor, inSameDayAs: day) }
+                        let worn = store.wearEvents.filter { calendar.isDate($0.wornAt, inSameDayAs: day) }
+                        if plans.isEmpty && worn.isEmpty {
+                            Text("No plan or recorded wear.").foregroundStyle(.secondary)
+                        }
+                        ForEach(plans) { plan in
+                            Button { selectedPlan = plan } label: {
+                                PlannerPlanRow(plan: plan, store: store)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Planned look \(outfitName(for: plan)) on \(day.formatted(date: .abbreviated, time: .omitted))")
+                        }
+                        ForEach(worn) { event in
+                            HStack {
+                                IconoirIcon(.checkCircle, size: 16).foregroundStyle(.green)
+                                VStack(alignment: .leading) {
+                                    Text(event.outfitID.flatMap { outfitName(for: $0) } ?? "Worn outfit")
+                                    Text("Worn").font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            .accessibilityLabel("Worn: \(event.outfitID.flatMap { outfitName(for: $0) } ?? "outfit")")
+                        }
+                    }
+                }
+
+                Section("Unscheduled looks") {
+                    if unscheduledLooks.isEmpty {
+                        Text("Every saved look has a plan.").foregroundStyle(.secondary)
+                    } else {
+                        ForEach(unscheduledLooks) { outfit in
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(outfit.name)
+                                    Text(outfit.itemIDs.compactMap { store.item(id: $0)?.name }.joined(separator: " · "))
+                                        .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                }
+                                Spacer()
+                                Button("Plan") { selectedPlan = OutfitPlan(id: UUID(), outfitID: outfit.id, scheduledFor: calendar.startOfDay(for: Date.now), occasion: nil, sourceEventID: nil, createdAt: .now, updatedAt: .now) }
+                                    .buttonStyle(.bordered)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Week planner")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) { Button("Plan a look") { isAddingPlan = true } }
+            }
+            .sheet(item: $selectedPlan) { plan in
+                PlannerPlanEditor(plan: plan, isNew: !store.outfitPlans.contains(where: { $0.id == plan.id }), store: store)
+            }
+            .sheet(isPresented: $isAddingPlan) { PlannerLookPicker(store: store, initialDate: calendar.startOfDay(for: Date.now)) }
+            .alert("Couldn’t update planner", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
+                Button("OK", role: .cancel) { }
+            } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func outfitName(for plan: OutfitPlan) -> String { outfitName(for: plan.outfitID) }
+    private func outfitName(for id: UUID) -> String { store.outfits.first(where: { $0.id == id })?.name ?? "Removed outfit" }
+}
+
+private struct PlannerPlanRow: View {
+    let plan: OutfitPlan
+    @ObservedObject var store: WardrobeStore
+
+    var body: some View {
+        HStack {
+            IconoirIcon(.calendar, size: 16).foregroundStyle(WardrobeDesign.Color.signal)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(store.outfits.first(where: { $0.id == plan.outfitID })?.name ?? "Removed outfit")
+                Text(plan.occasion?.isEmpty == false ? plan.occasion! : "Planned")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            IconoirIcon(.navArrowRight, size: 16).foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct PlannerLookPicker: View {
+    @ObservedObject var store: WardrobeStore
+    let initialDate: Date
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedOutfitID: UUID?
+    @State private var date: Date
+    @State private var occasion = ""
+    @State private var errorMessage: String?
+
+    init(store: WardrobeStore, initialDate: Date) {
+        self.store = store
+        self.initialDate = initialDate
+        _selectedOutfitID = State(initialValue: store.outfits.first?.id)
+        _date = State(initialValue: initialDate)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Look") {
+                    Picker("Saved look", selection: $selectedOutfitID) {
+                        ForEach(store.outfits) { Text($0.name).tag(Optional($0.id)) }
+                    }
+                    DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    Picker("Occasion", selection: $occasion) {
+                        Text("None").tag("")
+                        ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                Section { Text("This creates a private in-app plan. It does not create a wear event or write to your calendar.").font(.footnote).foregroundStyle(.secondary) }
+            }
+            .navigationTitle("Plan a look")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.disabled(selectedOutfitID == nil) }
+            }
+            .alert("Couldn’t save plan", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) { } } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func save() {
+        guard let id = selectedOutfitID, let outfit = store.outfits.first(where: { $0.id == id }) else { return }
+        do { try store.schedule(outfit, for: date, occasion: occasion.nilIfBlank); dismiss() }
+        catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct PlannerPlanEditor: View {
+    let plan: OutfitPlan
+    let isNew: Bool
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var date: Date
+    @State private var occasion: String
+    @State private var errorMessage: String?
+
+    init(plan: OutfitPlan, isNew: Bool, store: WardrobeStore) {
+        self.plan = plan; self.isNew = isNew; self.store = store
+        _date = State(initialValue: plan.scheduledFor)
+        _occasion = State(initialValue: plan.occasion ?? "")
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Plan") {
+                    Text(store.outfits.first(where: { $0.id == plan.outfitID })?.name ?? "Removed outfit")
+                    DatePicker("When", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    Picker("Occasion", selection: $occasion) {
+                        Text("None").tag("")
+                        ForEach(GarmentTaxonomy.occasions, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                Section { Text("Changing this plan does not log a wear event.").font(.footnote).foregroundStyle(.secondary) }
+                if !isNew { Section { Button("Remove plan", role: .destructive) { remove() } } }
+            }
+            .navigationTitle(isNew ? "Plan a look" : "Reschedule look")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+            }
+            .alert("Couldn’t update plan", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) { } } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func save() {
+        guard let outfit = store.outfits.first(where: { $0.id == plan.outfitID }) else { return }
+        do {
+            if isNew { try store.schedule(outfit, for: date, occasion: occasion.nilIfBlank) }
+            else { try store.reschedule(plan, for: date, occasion: occasion.nilIfBlank) }
+            dismiss()
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func remove() {
+        do { try store.removePlan(plan); dismiss() }
+        catch { errorMessage = error.localizedDescription }
+    }
 }
 
 private struct MirrorFitCheckSheet: View {

@@ -211,6 +211,14 @@ final class WardrobeStore: ObservableObject {
         loadOutfitData()
     }
 
+    func reschedule(_ plan: OutfitPlan, for date: Date, occasion: String? = nil) throws {
+        var updated = plan
+        updated.scheduledFor = date
+        updated.occasion = occasion ?? plan.occasion
+        _ = try repository.updatePlan(updated)
+        loadOutfitData()
+    }
+
     func recommendations(for occasion: String?, anchorItemID: UUID? = nil, weather: WeatherSnapshot? = nil, weatherFreshness: WeatherFreshness? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
         let preferences = try repository.preferences()
         let context = RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, preferredCategories: preferences.preferredCategories, anchorItemID: anchorItemID, weather: weather, weatherFreshness: weatherFreshness)

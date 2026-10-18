@@ -251,6 +251,26 @@ final class StorageTests: XCTestCase {
     }
 
     @MainActor
+    func testReschedulingPlanPreservesWearHistoryAndPlanIdentity() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(name: "Shirt", category: "Top"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Work", itemIDs: [item.id]))
+        let store = WardrobeStore(repository: repository)
+        let originalDate = Date(timeIntervalSince1970: 1_800_000_000)
+        let movedDate = Date(timeIntervalSince1970: 1_800_086_400)
+        try store.schedule(outfit, for: originalDate, occasion: "Work")
+        let original = try XCTUnwrap(repository.plans().first)
+
+        try store.reschedule(original, for: movedDate, occasion: "Evening")
+
+        let moved = try XCTUnwrap(repository.plans().first)
+        XCTAssertEqual(moved.id, original.id)
+        XCTAssertEqual(moved.scheduledFor, movedDate)
+        XCTAssertEqual(moved.occasion, "Evening")
+        XCTAssertTrue(try repository.wearEvents().isEmpty)
+    }
+
+    @MainActor
     func testRepeatedWearSuggestionReusesOutfitAndWearEvent() throws {
         let repository = try makeRepository()
         let top = try repository.createItem(GarmentDraft(name: "Top", category: "Top"))

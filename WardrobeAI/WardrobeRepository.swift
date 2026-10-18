@@ -313,6 +313,19 @@ final class WardrobeRepository {
         }
     }
 
+    func updatePlan(_ plan: OutfitPlan) throws -> OutfitPlan {
+        try database.write { database in
+            guard try outfitExists(plan.outfitID, in: database) else { throw WardrobeRepositoryError.outfitNotFound(plan.outfitID) }
+            let updatedAt = now()
+            try database.execute(
+                sql: "UPDATE outfit_plans SET outfit_id = ?, scheduled_for = ?, occasion = ?, source_event_id = ?, updated_at = ? WHERE id = ?",
+                arguments: [plan.outfitID.uuidString, plan.scheduledFor, plan.occasion?.trimmingCharacters(in: .whitespacesAndNewlines), plan.sourceEventID, updatedAt, plan.id.uuidString]
+            )
+            guard database.changesCount == 1 else { throw WardrobeRepositoryError.planNotFound(plan.id) }
+            return OutfitPlan(id: plan.id, outfitID: plan.outfitID, scheduledFor: plan.scheduledFor, occasion: plan.occasion?.trimmingCharacters(in: .whitespacesAndNewlines), sourceEventID: plan.sourceEventID, createdAt: plan.createdAt, updatedAt: updatedAt)
+        }
+    }
+
     func deletePlan(id: UUID) throws {
         try database.write { database in
             try database.execute(sql: "DELETE FROM outfit_plans WHERE id = ?", arguments: [id.uuidString])
