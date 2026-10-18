@@ -13,9 +13,12 @@ It does not make body measurements, body judgments, or continuous-video claims.
    saved outfits. Add a second top to demonstrate an owned swap.
 2. Open **Outfits** and choose **Mirror fit check**.
 3. Select a saved outfit, optionally enter an occasion, then capture or choose a
-   full-frame still photo.
-4. Confirm the clothing check names only the saved garments and the supplied
-   context. It must not evaluate the person's body.
+   full-frame still photo. The app runs its existing on-device Vision garment
+   classifier against that photo.
+4. Confirm the clothing check reflects the category recognized in the photo and
+   compares it with the selected outfit and supplied occasion. It must not
+   evaluate the person's body. If recognition fails, the UI states that and
+   leaves the saved outfit available as a manual reference.
 5. Open an owned-item swap and confirm the displayed replacement still exists in
    the wardrobe. Repeat with an outfit that has no same-category alternative and
    confirm the explicit no-swap outcome.
@@ -28,10 +31,10 @@ It does not make body measurements, body judgments, or continuous-video claims.
 |---|---|
 | Still photo from library | Implemented; device permission path needs final validation |
 | Still photo from camera | Implemented; requires camera permission and a physical device |
-| Clothing-only local feedback | Implemented from selected wardrobe items and optional context |
+| Clothing-only local feedback | Uses the on-device Vision garment category, selected outfit, and optional occasion |
 | Verified owned-item swaps | Implemented when a same-category alternative exists |
 | Weather-aware wording | Engine supports supplied weather context; release wiring/measurement pending |
-| Visual model critique | Not claimed until M01 generation/vision qualification passes |
+| Generative visual critique | Not claimed until M01 generation/vision qualification passes |
 | Continuous video inference | Out of scope |
 
 ## Assets and dependencies

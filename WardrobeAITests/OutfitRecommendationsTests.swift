@@ -85,6 +85,7 @@ final class OutfitRecommendationsTests: XCTestCase {
         let assessment = MirrorFitCheckEngine().assess(
             outfit: outfit,
             items: [selectedTop, alternateTop, trousers],
+            observedCategory: "Top",
             context: .init(occasion: "Work", weather: nil)
         )
 
@@ -99,10 +100,37 @@ final class OutfitRecommendationsTests: XCTestCase {
         let dress = item("Dress", "Dress")
         let outfit = Outfit(id: UUID(), name: "Evening", notes: nil, isFavorite: false, createdAt: .now, updatedAt: .now, itemIDs: [dress.id])
 
-        let assessment = MirrorFitCheckEngine().assess(outfit: outfit, items: [dress])
+        let assessment = MirrorFitCheckEngine().assess(outfit: outfit, items: [dress], observedCategory: "Dress")
 
         XCTAssertTrue(assessment.swaps.isEmpty)
         XCTAssertTrue(assessment.clothingComment.contains("Dress"))
+    }
+
+    func testMirrorCheckUsesPhotoCategoryToIdentifyOutfitMismatch() {
+        let savedTop = item("Blue shirt", "Top")
+        let savedBottom = item("Trousers", "Bottom")
+        let observedDress = item("Black dress", "Dress")
+        let outfit = Outfit(id: UUID(), name: "Work set", notes: nil, isFavorite: false, createdAt: .now, updatedAt: .now, itemIDs: [savedTop.id, savedBottom.id])
+
+        let assessment = MirrorFitCheckEngine().assess(
+            outfit: outfit,
+            items: [savedTop, savedBottom, observedDress],
+            observedCategory: "Dress"
+        )
+
+        XCTAssertTrue(assessment.clothingComment.contains("photo suggests a dress"))
+        XCTAssertTrue(assessment.clothingComment.contains("Work set contains"))
+        XCTAssertTrue(assessment.swaps.isEmpty)
+    }
+
+    func testMirrorCheckReportsHonestUnavailablePhotoRecognition() {
+        let top = item("Blue shirt", "Top")
+        let outfit = Outfit(id: UUID(), name: "Work", notes: nil, isFavorite: false, createdAt: .now, updatedAt: .now, itemIDs: [top.id])
+
+        let assessment = MirrorFitCheckEngine().assess(outfit: outfit, items: [top], observedCategory: nil)
+
+        XCTAssertTrue(assessment.clothingComment.contains("couldn’t identify"))
+        XCTAssertTrue(assessment.swaps.isEmpty)
     }
 
     private func item(_ name: String, _ category: String, tags: [String] = [], color: String? = nil) -> GarmentItem {

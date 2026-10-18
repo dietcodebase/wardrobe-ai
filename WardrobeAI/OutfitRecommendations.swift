@@ -46,15 +46,31 @@ struct MirrorFitAssessment: Equatable, Sendable {
 }
 
 struct MirrorFitCheckEngine {
-    func assess(outfit: Outfit, items: [GarmentItem], context: MirrorFitContext = .none) -> MirrorFitAssessment {
+    func assess(
+        outfit: Outfit,
+        items: [GarmentItem],
+        observedCategory: String?,
+        context: MirrorFitContext = .none
+    ) -> MirrorFitAssessment {
         let owned = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         let selected = outfit.itemIDs.compactMap { owned[$0] }
         let names = selected.map(\.name).joined(separator: ", ")
         let clothingComment: String
+        guard let observedCategory, GarmentTaxonomy.isKnownCategory(observedCategory) else {
+            clothingComment = "I couldn’t identify a clothing category in this photo. Check the saved outfit manually or try a clearer still photo."
+            var contextParts: [String] = []
+            if let occasion = context.occasion?.trimmingCharacters(in: .whitespacesAndNewlines), !occasion.isEmpty {
+                contextParts.append("Context: \(occasion).")
+            }
+            if contextParts.isEmpty { contextParts.append("The photo could not be matched to an owned garment.") }
+            return MirrorFitAssessment(clothingComment: clothingComment, contextComment: contextParts.joined(separator: " "), swaps: [])
+        }
         if names.isEmpty {
             clothingComment = "This saved outfit no longer has available garments. Choose another outfit before checking a photo."
+        } else if selected.contains(where: { $0.category == observedCategory }) {
+            clothingComment = "The photo suggests a \(observedCategory.lowercased()), which is included in \(outfit.name). Review how the saved layers work together for your plans."
         } else {
-            clothingComment = "Photo check ready for \(names). Review the visible layers, color balance, and comfort before you head out."
+            clothingComment = "The photo suggests a \(observedCategory.lowercased()), while \(outfit.name) contains \(names). Check whether that photographed piece belongs with this saved outfit."
         }
 
         var contextParts: [String] = []
@@ -69,16 +85,18 @@ struct MirrorFitCheckEngine {
         }
 
         let selectedIDs = Set(outfit.itemIDs)
-        let swaps = selected.compactMap { current -> OwnedItemSwap? in
+        let selectedObservedCategory = selected.first { $0.category == observedCategory }
+        let swapSource = selectedObservedCategory.map { [$0] } ?? []
+        let swaps = swapSource.compactMap { current -> OwnedItemSwap? in
             let replacement = items
-                .filter { $0.category == current.category && $0.id != current.id && !selectedIDs.contains($0.id) }
+                .filter { $0.category == observedCategory && $0.id != current.id && !selectedIDs.contains($0.id) }
                 .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
                 .first
             guard let replacement else { return nil }
             return OwnedItemSwap(
                 replacingItemID: current.id,
                 replacementItemID: replacement.id,
-                reason: "An available \(replacement.category.lowercased()) option from your wardrobe."
+                reason: "The photo suggests a \(observedCategory.lowercased()); this is an available owned option."
             )
         }
         return MirrorFitAssessment(clothingComment: clothingComment, contextComment: contextParts.joined(separator: " "), swaps: swaps)

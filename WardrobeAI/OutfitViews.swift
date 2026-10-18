@@ -119,6 +119,11 @@ private struct MirrorFitCheckSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedOutfitID: UUID?
     @State private var photo: UIImage?
+    @State private var photoData: Data?
+    @State private var photoID: UUID?
+    @State private var observedCategory: String?
+    @State private var isAssessingPhoto = false
+    @State private var photoAssessmentError: String?
     @State private var occasion = ""
 
     private var selectedOutfit: Outfit? {
@@ -131,6 +136,7 @@ private struct MirrorFitCheckSheet: View {
         return MirrorFitCheckEngine().assess(
             outfit: selectedOutfit,
             items: store.allGarments,
+            observedCategory: observedCategory,
             context: MirrorFitContext(occasion: occasion, weather: nil)
         )
     }
@@ -160,15 +166,21 @@ private struct MirrorFitCheckSheet: View {
                             .frame(maxHeight: 260)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .accessibilityLabel("Still outfit photo ready for a fit check")
-                        Button("Retake or choose another photo") { self.photo = nil }
+                        Button("Retake or choose another photo") { clearPhoto() }
                     } else {
-                        GarmentPhotoSource(onImage: { self.photo = $0 })
+                        GarmentPhotoSource(onImage: acceptPhoto)
                     }
                     Text("The full-frame still stays in this sheet and is discarded when you close it. Feedback is limited to the selected clothing and context, never your body.")
                         .font(.footnote).foregroundStyle(.secondary)
+                    if isAssessingPhoto {
+                        HStack { ProgressView(); Text("Checking visible clothing on device…").foregroundStyle(.secondary) }
+                    }
+                    if let photoAssessmentError {
+                        Text(photoAssessmentError).foregroundStyle(.secondary)
+                    }
                 }
 
-                if let assessment, photo != nil {
+                if let assessment, photo != nil, !isAssessingPhoto {
                     Section("Clothing check") {
                         Text(assessment.clothingComment)
                         Text(assessment.contextComment).foregroundStyle(.secondary)
@@ -202,6 +214,44 @@ private struct MirrorFitCheckSheet: View {
             }
             .navigationTitle("Mirror fit check")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .task(id: photoID) { await assessPhoto() }
+        }
+    }
+
+    private func acceptPhoto(_ image: UIImage) {
+        photo = image
+        photoData = image.jpegData(compressionQuality: 0.88)
+        photoID = UUID()
+        observedCategory = nil
+        photoAssessmentError = nil
+    }
+
+    private func clearPhoto() {
+        photo = nil
+        photoData = nil
+        photoID = nil
+        observedCategory = nil
+        photoAssessmentError = nil
+        isAssessingPhoto = false
+    }
+
+    @MainActor
+    private func assessPhoto() async {
+        guard let photoData, photoID != nil else {
+            isAssessingPhoto = false
+            return
+        }
+        isAssessingPhoto = true
+        defer { isAssessingPhoto = false }
+        do {
+            let provenance = try await GarmentClassificationCoordinator().classify(imageData: photoData)
+            try Task.checkCancellation()
+            observedCategory = provenance.suggestion.category
+        } catch is CancellationError {
+            return
+        } catch {
+            observedCategory = nil
+            photoAssessmentError = "On-device clothing recognition is unavailable for this photo. You can still use the saved outfit and occasion as a manual reference."
         }
     }
 }
