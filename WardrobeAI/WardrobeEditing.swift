@@ -241,7 +241,15 @@ struct GarmentEditor: View {
                 fit: editedFit,
                 formality: editedFormality,
                 seasons: editedSeasons,
-                occasions: editedOccasions
+                occasions: editedOccasions,
+                colorFamily: classification.suggestion.colorFamily,
+                secondaryColors: classification.suggestion.secondaryColors,
+                silhouette: classification.suggestion.silhouette,
+                texture: classification.suggestion.texture,
+                layering: classification.suggestion.layering,
+                warmth: classification.suggestion.warmth,
+                styleKeywords: classification.suggestion.styleKeywords,
+                pairingNotes: classification.suggestion.pairingNotes
            ) {
             classification = ClassificationProvenance(
                 modelID: classification.modelID,

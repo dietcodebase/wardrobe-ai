@@ -16,6 +16,14 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
     let formality: String?
     let seasons: [String]
     let occasions: [String]
+    let colorFamily: String?
+    let secondaryColors: [String]
+    let silhouette: String?
+    let texture: String?
+    let layering: String?
+    let warmth: String?
+    let styleKeywords: [String]
+    let pairingNotes: [String]
 
     init(
         category: String,
@@ -27,7 +35,15 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
         fit: String? = nil,
         formality: String? = nil,
         seasons: [String] = [],
-        occasions: [String] = []
+        occasions: [String] = [],
+        colorFamily: String? = nil,
+        secondaryColors: [String] = [],
+        silhouette: String? = nil,
+        texture: String? = nil,
+        layering: String? = nil,
+        warmth: String? = nil,
+        styleKeywords: [String] = [],
+        pairingNotes: [String] = []
     ) throws {
         let normalizedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
         guard GarmentTaxonomy.isKnownCategory(normalizedCategory) else {
@@ -43,6 +59,43 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
         self.formality = Self.boundedOptional(formality, field: "formality", limit: 32)
         self.seasons = try Self.boundedValues(seasons, limit: 4, field: "season")
         self.occasions = try Self.boundedValues(occasions, limit: 4, field: "occasion")
+        self.colorFamily = Self.boundedOptional(colorFamily, field: "color family", limit: 32)
+        self.secondaryColors = try Self.boundedValues(secondaryColors, limit: 3, field: "secondary color")
+        self.silhouette = Self.boundedOptional(silhouette, field: "silhouette", limit: 32)
+        self.texture = Self.boundedOptional(texture, field: "texture", limit: 32)
+        self.layering = Self.boundedOptional(layering, field: "layering", limit: 32)
+        self.warmth = Self.boundedOptional(warmth, field: "warmth", limit: 24)
+        self.styleKeywords = try Self.boundedValues(styleKeywords, limit: 6, field: "style keyword")
+        self.pairingNotes = try Self.boundedValues(pairingNotes, limit: 4, field: "pairing note")
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case category, color, tags, materialGuess, garmentType, pattern, fit, formality, seasons, occasions
+        case colorFamily, secondaryColors, silhouette, texture, layering, warmth, styleKeywords, pairingNotes
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            category: values.decode(String.self, forKey: .category),
+            color: values.decodeIfPresent(String.self, forKey: .color),
+            tags: values.decodeIfPresent([String].self, forKey: .tags) ?? [],
+            materialGuess: values.decodeIfPresent(String.self, forKey: .materialGuess),
+            garmentType: values.decodeIfPresent(String.self, forKey: .garmentType),
+            pattern: values.decodeIfPresent(String.self, forKey: .pattern),
+            fit: values.decodeIfPresent(String.self, forKey: .fit),
+            formality: values.decodeIfPresent(String.self, forKey: .formality),
+            seasons: values.decodeIfPresent([String].self, forKey: .seasons) ?? [],
+            occasions: values.decodeIfPresent([String].self, forKey: .occasions) ?? [],
+            colorFamily: values.decodeIfPresent(String.self, forKey: .colorFamily),
+            secondaryColors: values.decodeIfPresent([String].self, forKey: .secondaryColors) ?? [],
+            silhouette: values.decodeIfPresent(String.self, forKey: .silhouette),
+            texture: values.decodeIfPresent(String.self, forKey: .texture),
+            layering: values.decodeIfPresent(String.self, forKey: .layering),
+            warmth: values.decodeIfPresent(String.self, forKey: .warmth),
+            styleKeywords: values.decodeIfPresent([String].self, forKey: .styleKeywords) ?? [],
+            pairingNotes: values.decodeIfPresent([String].self, forKey: .pairingNotes) ?? []
+        )
     }
 
     private static func boundedTags(_ tags: [String]) throws -> [String] {
@@ -121,6 +174,14 @@ enum GarmentClassificationResponse {
         let formality: String?
         let seasons: [String]?
         let occasions: [String]?
+        let colorFamily: String?
+        let secondaryColors: [String]?
+        let silhouette: String?
+        let texture: String?
+        let layering: String?
+        let warmth: String?
+        let styleKeywords: [String]?
+        let pairingNotes: [String]?
     }
 
     static func decode(_ text: String) throws -> GarmentClassificationSuggestion {
@@ -137,7 +198,15 @@ enum GarmentClassificationResponse {
             fit: payload.fit,
             formality: payload.formality,
             seasons: payload.seasons ?? [],
-            occasions: payload.occasions ?? []
+            occasions: payload.occasions ?? [],
+            colorFamily: payload.colorFamily,
+            secondaryColors: payload.secondaryColors ?? [],
+            silhouette: payload.silhouette,
+            texture: payload.texture,
+            layering: payload.layering,
+            warmth: payload.warmth,
+            styleKeywords: payload.styleKeywords ?? [],
+            pairingNotes: payload.pairingNotes ?? []
         )
     }
 }
@@ -175,7 +244,7 @@ struct OllamaGarmentClassifier: GarmentClassifying {
             format: "json",
             think: false,
             messages: [
-                .init(role: "system", content: "You tag one clothing item. Return JSON only with category, color, tags, materialGuess, garmentType, pattern, fit, formality, seasons, occasions. category must be one of Top, Bottom, Dress, One-piece outfit, Outerwear, Shoes, Accessory. Use concise strings. tags max 8; seasons and occasions max 4 each. Never infer a body or person.", images: nil),
+                .init(role: "system", content: "You tag one clothing item. Return JSON only with category, color, colorFamily, secondaryColors, tags, materialGuess, garmentType, pattern, texture, silhouette, fit, formality, layering, warmth, seasons, occasions, styleKeywords, pairingNotes. category must be one of Top, Bottom, Dress, One-piece outfit, Outerwear, Shoes, Accessory. Use concise visual observations; tags max 8, styleKeywords max 6, seasons/occasions/pairingNotes max 4, secondaryColors max 3. material is a visual guess, never a certainty. Never infer a body or person.", images: nil),
                 .init(role: "user", content: "Classify the garment in this image.", images: [imageData.base64EncodedString()])
             ]
         ))

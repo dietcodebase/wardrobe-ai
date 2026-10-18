@@ -4,7 +4,7 @@ import XCTest
 
 final class GarmentClassificationTests: XCTestCase {
     func testDecoderAcceptsOnlyBoundedKnownOutput() throws {
-        let suggestion = try GarmentClassificationResponse.decode(#"{"category":"Top","color":" Navy ","tags":["work","WORK","smart"],"materialGuess":"linen","garmentType":"Oxford shirt","pattern":"solid","fit":"regular","formality":"smart casual","seasons":["spring","autumn"],"occasions":["work","travel"]}"#)
+        let suggestion = try GarmentClassificationResponse.decode(#"{"category":"Top","color":" Navy ","tags":["work","WORK","smart"],"materialGuess":"linen","garmentType":"Oxford shirt","pattern":"solid","fit":"regular","formality":"smart casual","seasons":["spring","autumn"],"occasions":["work","travel"],"colorFamily":"blue","secondaryColors":["white"],"silhouette":"straight","texture":"woven","layering":"mid layer","warmth":"light","styleKeywords":["classic","preppy"],"pairingNotes":["works with denim"]}"#)
         XCTAssertEqual(suggestion.category, "Top")
         XCTAssertEqual(suggestion.color, "Navy")
         XCTAssertEqual(suggestion.tags, ["work", "smart"])
@@ -15,6 +15,14 @@ final class GarmentClassificationTests: XCTestCase {
         XCTAssertEqual(suggestion.formality, "smart casual")
         XCTAssertEqual(suggestion.seasons, ["spring", "autumn"])
         XCTAssertEqual(suggestion.occasions, ["work", "travel"])
+        XCTAssertEqual(suggestion.colorFamily, "blue")
+        XCTAssertEqual(suggestion.secondaryColors, ["white"])
+        XCTAssertEqual(suggestion.silhouette, "straight")
+        XCTAssertEqual(suggestion.texture, "woven")
+        XCTAssertEqual(suggestion.layering, "mid layer")
+        XCTAssertEqual(suggestion.warmth, "light")
+        XCTAssertEqual(suggestion.styleKeywords, ["classic", "preppy"])
+        XCTAssertEqual(suggestion.pairingNotes, ["works with denim"])
     }
 
     func testDecoderRejectsMalformedAndUnknownCategoryOutput() {
