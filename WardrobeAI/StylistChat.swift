@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import Iconoir
 
 /// Persisted connection details for an Ollama server. The endpoint is intentionally
 /// user-configured: a device's `localhost` is not the same machine as a remote
@@ -486,10 +487,10 @@ struct StylistChatView: View {
                 Text("Gemma 4 is the default once you enter your remote Ollama server URL. Until then, the stylist uses its offline wardrobe rules.")
                     .font(.footnote).foregroundStyle(.secondary)
             } else if configuration.isConfigured {
-                Label("Gemma 4 is the preferred stylist responder.", systemImage: "network")
+                IconoirLabel(title: "Gemma 4 is the preferred stylist responder.", icon: .network)
                     .font(.footnote).foregroundStyle(.secondary)
             } else {
-                Label("Enter a full HTTP(S) server URL, such as https://ollama.example.net.", systemImage: "exclamationmark.triangle")
+                IconoirLabel(title: "Enter a full HTTP(S) server URL, such as https://ollama.example.net.", icon: .warningTriangle)
                     .font(.footnote).foregroundStyle(WardrobeDesign.Color.quiet)
             }
         }

@@ -190,35 +190,50 @@ enum GarmentClassificationResponse {
     }
 
     static func decode(_ text: String) throws -> GarmentClassificationSuggestion {
-        guard let data = jsonData(from: text), let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+        guard let data = jsonData(from: text),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw GarmentClassificationError.malformedResponse
         }
-        let category = normalizedCategory(payload.category ?? payload.garmentType ?? payload.suggestedName ?? "")
-            ?? inferCategory(from: [payload.garmentType, payload.suggestedName] + (payload.tags ?? []).map(Optional.some))
+        let value = { (key: String) in object[key] }
+        let string = { (key: String) -> String? in
+            if let string = value(key) as? String { return string }
+            if let number = value(key) as? NSNumber { return number.stringValue }
+            return nil
+        }
+        let strings = { (key: String, limit: Int) -> [String] in
+            if let values = value(key) as? [String] { return cleanValues(values, limit: limit) }
+            if let value = value(key) as? String { return cleanValues(value.split(separator: ",").map(String.init), limit: limit) }
+            return []
+        }
+        let rawCategory = string("category")
+        let garmentType = string("garmentType")
+        let suggestedName = string("suggestedName")
+        let category = normalizedCategory(rawCategory ?? garmentType ?? suggestedName ?? "")
+            ?? inferCategory(from: [garmentType, suggestedName] + strings("tags", 8).map(Optional.some))
         guard let category else {
-            if let rawCategory = payload.category { throw GarmentClassificationError.unknownCategory(rawCategory) }
+            if let rawCategory { throw GarmentClassificationError.unknownCategory(rawCategory) }
             throw GarmentClassificationError.malformedResponse
         }
         return try GarmentClassificationSuggestion(
             category: category,
-            suggestedName: payload.suggestedName,
-            color: payload.color,
-            tags: cleanValues(payload.tags, limit: 8),
-            materialGuess: payload.materialGuess,
-            garmentType: payload.garmentType,
-            pattern: payload.pattern,
-            fit: payload.fit,
-            formality: payload.formality,
-            seasons: cleanValues(payload.seasons, limit: 4),
-            occasions: cleanValues(payload.occasions, limit: 4),
-            colorFamily: payload.colorFamily,
-            secondaryColors: cleanValues(payload.secondaryColors, limit: 3),
-            silhouette: payload.silhouette,
-            texture: payload.texture,
-            layering: payload.layering,
-            warmth: payload.warmth,
-            styleKeywords: cleanValues(payload.styleKeywords, limit: 6),
-            pairingNotes: cleanValues(payload.pairingNotes, limit: 4)
+            suggestedName: suggestedName,
+            color: string("color"),
+            tags: strings("tags", 8),
+            materialGuess: string("materialGuess"),
+            garmentType: garmentType,
+            pattern: string("pattern"),
+            fit: string("fit"),
+            formality: string("formality"),
+            seasons: strings("seasons", 4),
+            occasions: strings("occasions", 4),
+            colorFamily: string("colorFamily"),
+            secondaryColors: strings("secondaryColors", 3),
+            silhouette: string("silhouette"),
+            texture: string("texture"),
+            layering: string("layering"),
+            warmth: string("warmth"),
+            styleKeywords: strings("styleKeywords", 6),
+            pairingNotes: strings("pairingNotes", 4)
         )
     }
 

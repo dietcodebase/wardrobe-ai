@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import Iconoir
 
 struct ModelStatusView: View {
     @Environment(\.scenePhase) private var scenePhase
@@ -22,9 +23,9 @@ struct ModelStatusView: View {
     var body: some View {
         List {
             Section {
-                Label("Manual wardrobe is available without a model.", systemImage: "checkmark.circle")
+                IconoirLabel(title: "Manual wardrobe is available without a model.", icon: .checkCircle)
                     .accessibilityIdentifier("manual-wardrobe-status")
-                Label("Imported and downloaded models are verified before they are stored.", systemImage: "checkmark.shield")
+                IconoirLabel(title: "Imported and downloaded models are verified before they are stored.", icon: .shieldCheck)
                     .foregroundStyle(.secondary)
             } header: {
                 Text("Local AI status")

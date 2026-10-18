@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Iconoir
 
 /// The app's primary surface. The assistant has the conversation, while the
 /// wardrobe remains the owned-item source of truth behind every suggestion.
@@ -57,12 +58,12 @@ struct AssistantConversationView: View {
                     Divider()
                     Button("Local AI status", action: showModelStatus)
                 } label: {
-                    Label("Wardrobe actions", systemImage: "square.grid.2x2")
+                    IconoirLabel(title: "Wardrobe actions", icon: .viewGrid)
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingSettings = true } label: {
-                    Image(systemName: "slider.horizontal.3")
+                    IconoirIcon(.settings, size: 20)
                 }
                 .accessibilityLabel("Assistant settings")
             }
@@ -109,7 +110,7 @@ struct AssistantConversationView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles")
+                IconoirIcon(.sparks, size: 20)
                     .font(WardrobeDesign.display(18))
                     .foregroundStyle(.white)
                     .frame(width: 42, height: 42)
@@ -121,9 +122,9 @@ struct AssistantConversationView: View {
                 Spacer()
             }
             HStack(spacing: 8) {
-                Label("\(store.allGarments.count) pieces", systemImage: "tshirt")
+                IconoirLabel(title: "\(store.allGarments.count) pieces", icon: .shirt)
                 Divider().frame(height: 14)
-                Label("Ask, compare, decide", systemImage: "arrow.triangle.branch")
+                IconoirLabel(title: "Ask, compare, decide", icon: .gitBranch)
             }
             .font(WardrobeDesign.metadata())
             .foregroundStyle(WardrobeDesign.Color.quiet)
@@ -143,10 +144,10 @@ struct AssistantConversationView: View {
             Text("Tell me the occasion, weather, mood, or a piece you want to wear. I’ll compare only what you own and explain the choice in plain language.")
                 .foregroundStyle(.secondary)
             FlowLayout(spacing: 8) {
-                PromptChip("Work today", icon: "briefcase") { ask("Suggest an outfit for work today and explain why it works") }
-                PromptChip("Weekend plans", icon: "figure.walk") { ask("Build a relaxed weekend outfit from what I own") }
-                PromptChip("Dress around a piece", icon: "tshirt") { ask("What can I wear with one of my favorite pieces?") }
-                PromptChip("Find a gap", icon: "magnifyingglass") { ask("What kinds of occasions is my wardrobe best prepared for?") }
+                PromptChip("Work today", icon: .suitcase) { ask("Suggest an outfit for work today and explain why it works") }
+                PromptChip("Weekend plans", icon: .walking) { ask("Build a relaxed weekend outfit from what I own") }
+                PromptChip("Dress around a piece", icon: .shirt) { ask("What can I wear with one of my favorite pieces?") }
+                PromptChip("Find a gap", icon: .search) { ask("What kinds of occasions is my wardrobe best prepared for?") }
             }
             if store.allGarments.isEmpty {
                 HStack {
@@ -182,7 +183,7 @@ struct AssistantConversationView: View {
     @ViewBuilder
     private var recommendationCards: some View {
         if suggestions.isEmpty {
-            Label("Add a few garments and I’ll make owned-item outfit ideas.", systemImage: "tshirt")
+            IconoirLabel(title: "Add a few garments and I’ll make owned-item outfit ideas.", icon: .shirt)
                 .font(.footnote).foregroundStyle(.secondary)
         } else {
             HStack(alignment: .firstTextBaseline) {
@@ -214,7 +215,7 @@ struct AssistantConversationView: View {
                 Button("Cancel", action: chat.cancel).buttonStyle(.bordered)
             } else {
                 Button(action: { ask(draft) }) {
-                    Image(systemName: "arrow.up").fontWeight(.bold)
+                    IconoirIcon(.arrowUp, size: 16)
                         .foregroundStyle(WardrobeDesign.Color.canvas)
                 }
                 .buttonStyle(.borderedProminent)
@@ -288,6 +289,7 @@ private struct MessageBubble: View {
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 11)
+            .frame(maxWidth: 430, alignment: .leading)
             .background(message.role == .user ? WardrobeDesign.Color.ink : WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
             if message.role == .assistant { Spacer(minLength: 48) }
         }
@@ -329,18 +331,24 @@ struct StylistResponseView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            ForEach(sections) { section in
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(sections.enumerated()), id: \.element.id) { index, section in
                 VStack(alignment: .leading, spacing: 4) {
                     if let heading = section.heading {
                         Text(heading.uppercased())
                             .font(WardrobeDesign.metadata(10))
                             .foregroundStyle(WardrobeDesign.Color.quiet)
+                            .tracking(0.7)
                     }
                     Text(section.body)
                         .font(WardrobeDesign.body(15))
                         .foregroundStyle(WardrobeDesign.Color.ink)
+                        .lineSpacing(4)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.vertical, 9)
+                if index < sections.count - 1 {
+                    Divider().overlay(WardrobeDesign.Color.hairline)
                 }
             }
         }
@@ -377,7 +385,7 @@ private struct OutfitRecommendationCard: View {
             }
 
             HStack(alignment: .top, spacing: WardrobeDesign.Space.sm) {
-                Image(systemName: "sparkles")
+                IconoirIcon(.sparks, size: 16)
                     .foregroundStyle(WardrobeDesign.Color.signal)
                 Text(suggestion.explanation)
                     .font(WardrobeDesign.body(14))
@@ -387,7 +395,7 @@ private struct OutfitRecommendationCard: View {
 
             HStack(spacing: WardrobeDesign.Space.sm) {
                 Button(action: save) {
-                    Label("Save outfit", systemImage: "bookmark")
+                    IconoirLabel(title: "Save outfit", icon: .bookmark)
                         .foregroundStyle(WardrobeDesign.Color.canvas)
                 }
                 .buttonStyle(.borderedProminent)
@@ -453,8 +461,7 @@ private struct GarmentPreviewTile: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Image(systemName: symbol)
-                        .font(.title2)
+                    IconoirIcon(icon, size: 28)
                         .foregroundStyle(WardrobeDesign.Color.quiet)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(WardrobeDesign.Color.canvas)
@@ -476,23 +483,23 @@ private struct GarmentPreviewTile: View {
         .accessibilityLabel("\(item.category): \(item.name)")
     }
 
-    private var symbol: String {
+    private var icon: Iconoir {
         switch item.category {
-        case "Shoes": return "shoeprints.fill"
-        case "Accessory": return "bag.fill"
-        case "Outerwear": return "jacket.fill"
-        case "Bottom": return "rectangle.portrait"
-        default: return "tshirt.fill"
+        case "Shoes": return .shirt
+        case "Accessory": return .bag
+        case "Outerwear": return .shirt
+        case "Bottom": return .viewColumns2
+        default: return .shirt
         }
     }
 }
 
 private struct PromptChip: View {
     let title: String
-    let icon: String
+    let icon: Iconoir
     let action: () -> Void
 
-    init(_ title: String, icon: String, action: @escaping () -> Void) {
+    init(_ title: String, icon: Iconoir, action: @escaping () -> Void) {
         self.title = title
         self.icon = icon
         self.action = action
@@ -500,7 +507,7 @@ private struct PromptChip: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: icon).font(.subheadline).padding(.horizontal, 12).padding(.vertical, 9)
+            IconoirLabel(title: title, icon: icon).font(.subheadline).padding(.horizontal, 12).padding(.vertical, 9)
         }
         .buttonStyle(.bordered)
     }
@@ -527,7 +534,7 @@ private struct AssistantSettingsView: View {
                         if isTestingConnection {
                             HStack { ProgressView(); Text("Checking connection…") }
                         } else {
-                            Label("Test Ollama connection", systemImage: "network")
+                            IconoirLabel(title: "Test Ollama connection", icon: .network)
                         }
                     }
                     .disabled(isTestingConnection)

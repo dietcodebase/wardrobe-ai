@@ -4,6 +4,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 import Vision
+import Iconoir
 
 struct AverageSwatch: Equatable {
     let red: CGFloat
@@ -164,10 +165,10 @@ struct GarmentPhotoSource: View {
     var body: some View {
         HStack {
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                Label("Choose photo", systemImage: "photo.on.rectangle")
+                        IconoirLabel(title: "Choose photo", icon: .mediaImage)
             }
             .accessibilityLabel("Choose garment photo from library")
-            Button { requestCamera() } label: { Label("Camera", systemImage: "camera") }
+            Button { requestCamera() } label: { IconoirLabel(title: "Camera", icon: .camera) }
                 .accessibilityLabel("Photograph garment")
         }
         .buttonStyle(.bordered)
@@ -216,7 +217,7 @@ struct GarmentCaptureSheet: View {
             Group {
                 if candidates.isEmpty {
                     ContentUnavailableView {
-                        Label("Add a garment photo", systemImage: "camera")
+                        IconoirLabel(title: "Add a garment photo", icon: .camera)
                     } description: {
                         Text("Take a single-item photo or choose one from your library. You can keep the full photo if no cutout is useful.")
                     } actions: {
@@ -235,7 +236,7 @@ struct GarmentCaptureSheet: View {
                                                 .font(.caption).foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        if selection == candidate.id { Image(systemName: "checkmark.circle.fill").foregroundStyle(.tint) }
+                                        if selection == candidate.id { IconoirIcon(.checkCircle, size: 20).foregroundStyle(.tint) }
                                     }
                                 }.buttonStyle(.plain).accessibilityLabel(candidate.kind == .foreground ? "Select foreground cutout" : "Select original photo")
                             }

@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import Iconoir
 
 struct OutfitView: View {
     @ObservedObject var store: WardrobeStore
@@ -25,7 +26,7 @@ struct OutfitView: View {
                 }
                 if store.outfits.isEmpty {
                     ContentUnavailableView {
-                        Label("No saved outfits", systemImage: "square.grid.2x2")
+                        IconoirLabel(title: "No saved outfits", icon: .viewGrid)
                     } description: {
                         Text("Combine garments into an outfit, then record it only when you actually wear it.")
                     } actions: {
@@ -85,10 +86,10 @@ struct OutfitView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isCheckingMirror = true } label: { Label("Mirror fit check", systemImage: "camera.viewfinder") }
+                    Button { isCheckingMirror = true } label: { IconoirLabel(title: "Mirror fit check", icon: .camera) }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { isAdding = true } label: { Label("Create outfit", systemImage: "plus") }
+                    Button { isAdding = true } label: { IconoirLabel(title: "Create outfit", icon: .plus) }
                 }
             }
             .sheet(isPresented: $isAdding) { OutfitEditor(store: store) }
@@ -284,7 +285,7 @@ private struct CalendarContextSummary: View {
         switch access {
         case .authorized:
             if events.isEmpty { Text("No calendar events today.").foregroundStyle(.secondary) }
-            else { ForEach(events) { event in Label(event.timeLabel, systemImage: event.isAllDay ? "calendar" : "clock") } }
+                            else { ForEach(events) { event in IconoirLabel(title: event.timeLabel, icon: event.isAllDay ? .calendar : .clock) } }
         case .notDetermined:
             Button("Show calendar context", action: request)
         case .denied:
@@ -301,7 +302,7 @@ private struct OutfitRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Label(outfit.name, systemImage: outfit.isFavorite ? "heart.fill" : "square.grid.2x2")
+            IconoirLabel(title: outfit.name, icon: outfit.isFavorite ? .heartSolid : .viewGrid)
                 .foregroundStyle(outfit.isFavorite ? .pink : .primary)
             Text(itemNames(for: outfit).joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
         }

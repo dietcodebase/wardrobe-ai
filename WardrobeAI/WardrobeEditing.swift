@@ -1,4 +1,5 @@
 import SwiftUI
+import Iconoir
 
 struct GarmentDetail: View {
     let item: GarmentItem
@@ -18,15 +19,26 @@ struct GarmentDetail: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Garment") {
+                Section {
                     LabeledContent("Name", value: displayedItem.name)
                     LabeledContent("Category", value: displayedItem.category)
                     if let color = displayedItem.color, !color.isEmpty { LabeledContent("Color", value: color) }
+                } header: {
+                    IconoirLabel(title: "Garment", icon: .shirt)
                 }
-                if !displayedItem.tags.isEmpty { Section("Tags") { Text(displayedItem.tags.joined(separator: ", ")) } }
+                if !displayedItem.tags.isEmpty {
+                    Section {
+                        Text(displayedItem.tags.joined(separator: "  ·  "))
+                            .font(WardrobeDesign.body(14))
+                            .foregroundStyle(WardrobeDesign.Color.signal)
+                    } header: {
+                        IconoirLabel(title: "Tags", icon: .label)
+                    }
+                }
                 if let suggestion = displayedItem.classification?.suggestion {
-                    Section("Style read") {
+                    Section {
                         TagSummaryGrid(rows: [
+                            ("Garment type", suggestion.garmentType),
                             ("Fabric", suggestion.materialGuess),
                             ("Pattern", suggestion.pattern),
                             ("Texture", suggestion.texture),
@@ -35,16 +47,29 @@ struct GarmentDetail: View {
                             ("Layering", suggestion.layering),
                             ("Warmth", suggestion.warmth),
                             ("Formality", suggestion.formality),
-                            ("Color family", suggestion.colorFamily)
+                            ("Color family", suggestion.colorFamily),
+                            ("Secondary colors", suggestion.secondaryColors.joined(separator: ", ").nilIfBlank),
+                            ("Seasons", suggestion.seasons.joined(separator: ", ").nilIfBlank),
+                            ("Occasions", suggestion.occasions.joined(separator: ", ").nilIfBlank)
                         ])
                         if !suggestion.styleKeywords.isEmpty {
-                            Text(suggestion.styleKeywords.joined(separator: "  ·  "))
-                                .font(WardrobeDesign.metadata())
-                                .foregroundStyle(WardrobeDesign.Color.signal)
+                            LabeledContent("Style keywords", value: suggestion.styleKeywords.joined(separator: ", "))
                         }
+                        if !suggestion.pairingNotes.isEmpty {
+                            LabeledContent("Pairs well with", value: suggestion.pairingNotes.joined(separator: ", "))
+                        }
+                    } header: {
+                        IconoirLabel(title: "Style read", icon: .palette)
                     }
                 }
-                if let notes = displayedItem.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
+                if let notes = displayedItem.notes, !notes.isEmpty {
+                    Section {
+                        Text(notes)
+                            .font(WardrobeDesign.body(14))
+                    } header: {
+                        IconoirLabel(title: "Notes", icon: .text)
+                    }
+                }
                 Section { Button("Delete garment", role: .destructive) { isConfirmingDelete = true } }
             }
             .navigationTitle(displayedItem.name)
@@ -425,8 +450,7 @@ private struct OptionPicker: View {
                 Spacer()
                 Text(selection.isEmpty ? "Not set" : selection)
                     .foregroundStyle(selection.isEmpty ? .secondary : WardrobeDesign.Color.signal)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption.weight(.semibold))
+                IconoirIcon(.filter, size: 15)
                     .foregroundStyle(.secondary)
             }
         }
@@ -452,7 +476,7 @@ private struct GemmaAnalysisPanel: View {
                         .frame(width: 54, height: 54)
                         .clipShape(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip, style: .continuous))
                 } else {
-                    Image(systemName: "camera.macro")
+                    IconoirIcon(.camera, size: 26)
                         .frame(width: 54, height: 54)
                         .background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip))
                 }
@@ -461,10 +485,23 @@ private struct GemmaAnalysisPanel: View {
                     Text(statusDetail).font(WardrobeDesign.body(13)).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if isClassifying {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Gemma is analyzing")
+                } else if capturedImage != nil {
+                    Button(classification == nil ? "Auto-fill" : "Refresh") { analyze() }
+                        .font(WardrobeDesign.metadata(10))
+                        .buttonStyle(.borderedProminent)
+                        .tint(WardrobeDesign.Color.ink)
+                }
             }
 
             if isClassifying {
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Building a complete garment profile…")
+                        .font(WardrobeDesign.metadata(10))
+                        .foregroundStyle(WardrobeDesign.Color.quiet)
                     SkeletonLine(width: 0.72)
                     SkeletonLine(width: 0.48)
                     SkeletonLine(width: 0.62)
@@ -493,9 +530,15 @@ private struct GemmaAnalysisPanel: View {
                         .tint(WardrobeDesign.Color.ink)
                 }
             } else {
-                Button(capturedImage == nil ? "Upload photo to analyze" : "Analyze with Gemma", action: capturedImage == nil ? upload : analyze)
-                    .buttonStyle(.borderedProminent)
-                    .tint(WardrobeDesign.Color.ink)
+                if capturedImage == nil {
+                    Button("Upload photo to analyze", action: upload)
+                        .buttonStyle(.borderedProminent)
+                        .tint(WardrobeDesign.Color.ink)
+                } else {
+                    Text("Use Auto-fill above to add editable garment details.")
+                        .font(WardrobeDesign.body(13))
+                        .foregroundStyle(WardrobeDesign.Color.quiet)
+                }
             }
         }
         .animation(.easeOut(duration: 0.2), value: isClassifying)

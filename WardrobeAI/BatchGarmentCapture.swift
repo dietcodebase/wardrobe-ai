@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UIKit
+import Iconoir
 
 enum BatchClassificationState: Equatable, Sendable {
     case pending
@@ -126,7 +127,7 @@ struct BatchGarmentCaptureSheet: View {
             Group {
                 if entries.isEmpty {
                     ContentUnavailableView {
-                        Label("Add a batch photo", systemImage: "rectangle.3.group")
+                        IconoirLabel(title: "Add a batch photo", icon: .viewColumns3)
                     } description: {
                         Text("Choose a photo with two or three separated garments. Select only useful cutouts before saving.")
                     } actions: {

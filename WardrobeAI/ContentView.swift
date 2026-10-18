@@ -1,4 +1,34 @@
 import SwiftUI
+import Iconoir
+
+struct IconoirIcon: View {
+    let icon: Iconoir
+    let size: CGFloat
+
+    init(_ icon: Iconoir, size: CGFloat = 18) {
+        self.icon = icon
+        self.size = size
+    }
+
+    var body: some View {
+        icon.asImage
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    }
+}
+
+struct IconoirLabel: View {
+    let title: String
+    let icon: Iconoir
+
+    var body: some View {
+        HStack(spacing: 7) {
+            IconoirIcon(icon, size: 16)
+            Text(title)
+        }
+    }
+}
 
 enum AppTab: String, CaseIterable, Identifiable {
     case wardrobe = "Wardrobe"
@@ -22,13 +52,13 @@ struct ContentView: View {
             NavigationStack {
                 WardrobeView(store: store)
             }
-            .tabItem { Label("Wardrobe", systemImage: AppTab.wardrobe.symbol) }
+            .tabItem { Label { Text("Wardrobe") } icon: { IconoirIcon(.shirt, size: 16) } }
             .tag(AppTab.wardrobe)
 
             NavigationStack {
                 OutfitView(store: store)
             }
-            .tabItem { Label("Outfits", systemImage: AppTab.outfits.symbol) }
+            .tabItem { Label { Text("Outfits") } icon: { IconoirIcon(.viewGrid, size: 16) } }
             .tag(AppTab.outfits)
 
             NavigationStack {
@@ -40,7 +70,7 @@ struct ContentView: View {
                     showModelStatus: { showingModelStatus = true }
                 )
             }
-            .tabItem { Label("Stylist", systemImage: AppTab.stylist.symbol) }
+            .tabItem { Label { Text("Stylist") } icon: { IconoirIcon(.sparks, size: 16) } }
             .tag(AppTab.stylist)
         }
         .tint(WardrobeDesign.Color.signal)
@@ -66,21 +96,25 @@ private struct WardrobeView: View {
     var body: some View {
         Group {
             if let error = store.errorMessage {
-                ContentUnavailableView("Couldn’t load wardrobe", systemImage: "exclamationmark.triangle", description: Text(error))
+                ContentUnavailableView {
+                    IconoirLabel(title: "Couldn’t load wardrobe", icon: .warningTriangle)
+                } description: {
+                    Text(error)
+                }
             } else if store.items.isEmpty {
                 PhotoFirstEmptyState(startPhotoFlow: { isPhotoCapture = true }, startBatch: { isBatchCapturing = true })
             } else {
                 ScrollView {
                     Button(action: { isPhotoCapture = true }) {
                         HStack(spacing: WardrobeDesign.Space.sm) {
-                            Image(systemName: "plus.viewfinder")
+                            IconoirIcon(.plus, size: 22)
                                 .font(.title2.weight(.semibold))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Add a garment from a photo").font(WardrobeDesign.body(16).weight(.semibold))
                                 Text("Gemma will fill in the details for you.").font(WardrobeDesign.body(13)).foregroundStyle(WardrobeDesign.Color.quiet)
                             }
                             Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(WardrobeDesign.Color.quiet)
+                            IconoirIcon(.navArrowRight).foregroundStyle(WardrobeDesign.Color.quiet)
                         }
                         .padding(WardrobeDesign.Space.md)
                         .foregroundStyle(WardrobeDesign.Color.ink)
@@ -90,7 +124,7 @@ private struct WardrobeView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
                         if let message = store.searchModeMessage {
-                            Label(message, systemImage: "text.magnifyingglass")
+                IconoirLabel(title: message, icon: .textMagnifyingGlass)
                                 .font(.footnote).foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal).padding(.top, 8)
                                 .accessibilityLabel("Search mode: \(message)")
@@ -110,12 +144,12 @@ private struct WardrobeView: View {
         .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu { Button("All categories") { store.selectedCategory = nil }; Divider(); ForEach(GarmentTaxonomy.categories, id: \.self) { category in Button(category) { store.selectedCategory = category } } } label: {
-                        Label(store.selectedCategory ?? "Category", systemImage: "line.3.horizontal.decrease.circle")
+                    IconoirLabel(title: store.selectedCategory ?? "Category", icon: .filterListCircle)
                     }.accessibilityLabel("Filter by category")
                 }
-                ToolbarItem(placement: .topBarTrailing) { Button { isShowingPreferences = true } label: { Label("Style profile", systemImage: "person.crop.circle") } }
-                ToolbarItem(placement: .topBarTrailing) { Button { isBatchCapturing = true } label: { Label("Capture batch", systemImage: "rectangle.3.group") } }
-                ToolbarItem(placement: .topBarTrailing) { Button { isPhotoCapture = true } label: { Label("Add garment photo", systemImage: "plus") } }
+                ToolbarItem(placement: .topBarTrailing) { Button { isShowingPreferences = true } label: { IconoirLabel(title: "Style profile", icon: .user) } }
+                ToolbarItem(placement: .topBarTrailing) { Button { isBatchCapturing = true } label: { IconoirLabel(title: "Capture batch", icon: .viewColumns3) } }
+                ToolbarItem(placement: .topBarTrailing) { Button { isPhotoCapture = true } label: { IconoirLabel(title: "Add garment photo", icon: .plus) } }
         }
         .safeAreaInset(edge: .bottom) { if !store.availableTags.isEmpty { TagFilter(tags: store.availableTags, selected: $store.selectedTag) } }
         .sheet(isPresented: $isAdding) { GarmentEditor(store: store) }
@@ -134,7 +168,7 @@ private struct PhotoFirstEmptyState: View {
     var body: some View {
         VStack(alignment: .leading, spacing: WardrobeDesign.Space.lg) {
             Spacer()
-            Image(systemName: "camera.macro")
+            IconoirIcon(.camera, size: 28)
                 .font(.system(size: 36, weight: .medium))
                 .foregroundStyle(WardrobeDesign.Color.ink)
                 .frame(width: 72, height: 72)
@@ -145,7 +179,7 @@ private struct PhotoFirstEmptyState: View {
                 .font(WardrobeDesign.body(16))
                 .foregroundStyle(WardrobeDesign.Color.quiet)
             Button(action: startPhotoFlow) {
-                Label("Upload garment photo", systemImage: "photo.on.rectangle")
+                IconoirLabel(title: "Upload garment photo", icon: .mediaImage)
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -195,7 +229,7 @@ private struct GarmentThumbnail: View {
         RoundedRectangle(cornerRadius: 16).fill(WardrobeDesign.Color.canvas)
             .overlay {
                 if let image { Image(uiImage: image).resizable().scaledToFill().clipShape(RoundedRectangle(cornerRadius: 16)) }
-                else { Image(systemName: "tshirt").font(.largeTitle).foregroundStyle(.secondary) }
+                else { IconoirIcon(.shirt, size: 34).foregroundStyle(.secondary) }
             }
             .clipped()
             .task(id: item.imagePath) { image = store.imageData(for: item).flatMap(UIImage.init(data:)) }
