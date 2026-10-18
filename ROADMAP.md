@@ -1,14 +1,14 @@
 # Wardrobe AI roadmap
 
-Status: M00–M06 merged; M07 is in review. Feature implementation is proceeding before consolidated release validation. Updated 17 October 2026.
+Status: M00–M15 feature code merged; physical-device qualification and release acceptance remain open. Updated 19 October 2026.
 
-Read [validation and corrections](docs/PLAN-VALIDATION.md) before implementation. The [original proposal](docs/implementation-plan-v2.md) is preserved as reference; this roadmap is the execution plan. No time estimates are promised before runtime/device qualification.
+Read [validation and corrections](docs/PLAN-VALIDATION.md) before implementation. The [original proposal](docs/implementation-plan-v2.md) is preserved as reference; this roadmap is the execution plan. The [delivery mind map](docs/mindmap.md) links to its milestone cards. No time estimates are promised before runtime/device qualification.
 
-## Delivery mode: implement first, validate together
+## Delivery mode: qualify the integrated code
 
-The project owner chose deferred validation on 17 October 2026 to finish the remaining feature work before spending device time. Implement M07–M15 in numeric order, preserve each milestone's small commits and evidence file, and keep every PR draft or otherwise unmerged until the final validation pass is complete.
+Feature code for M00–M15 has now been merged through PRs, while the owner-deferred physical-device gates are still open. Treat merged code as implementation history, not evidence that the scan → AI outfit demo works on the iPhone 17. Continue in focused follow-up branches, preserving measured results and honest fallbacks.
 
-Use `$wardrobe-milestone M07` to start, then `$wardrobe-milestone next`. The repository skill is at [.agents/skills/wardrobe-milestone/SKILL.md](.agents/skills/wardrobe-milestone/SKILL.md). Useful requests: `plan M08`, `status`, `resume M07`, or `merge M07`.
+Use `$wardrobe-milestone status` to inspect the next open gate. The repository skill is at [.agents/skills/wardrobe-milestone/SKILL.md](.agents/skills/wardrobe-milestone/SKILL.md).
 
 The final test plan is maintained in [docs/final-validation.md](docs/final-validation.md). It is the single place for raw device evidence, release-build results, regressions, and the final go/no-go decision. Consolidating the testing saves setup time, but it does not turn unchecked acceptance criteria into passes: a failed shared dependency can require fixes in several draft milestones.
 
@@ -22,26 +22,26 @@ The final test plan is maintained in [docs/final-validation.md](docs/final-valid
 | 3 — Retrieval and context | M09–M11 | Semantic search, optional weather, calendar and outfit planning |
 | 4 — Multimodal assistant | M12–M15 | Tool chat, voice, batch capture, still-photo mirror demo, release qualification |
 
-Default delivery order is numeric. Dependencies below remain the technical minimum. During deferred validation, later work may be based on the immediately preceding draft milestone so the app can be exercised as one integration candidate. M01's generation/vision, embedding, and audio gates are deferred checks, not waived requirements; dependent features must retain honest unavailable/manual fallbacks until their gate passes.
+Dependencies below remain the technical minimum. M01's generation/vision, embedding, and audio gates were deferred, not waived; dependent features must retain honest unavailable/manual fallbacks until their gate passes.
 
 | ID | Milestone | Branch | Depends on | State | PR |
 |---|---|---|---|---|---|
 | M00 | Project and delivery foundation | `milestone/m00-foundation` | — | merged | [#1](https://github.com/dietcodebase/wardrobe-ai/pull/1) · [evidence](docs/m00-evidence.md) |
-| M01 | Runtime and device qualification | `milestone/m01-runtime-spike` | M00 | blocked | [#2](https://github.com/dietcodebase/wardrobe-ai/pull/2) · [evidence](docs/runtime-qualification.md) |
-| M02 | Database and file storage | `milestone/m02-storage` | M00 | blocked | [#3](https://github.com/dietcodebase/wardrobe-ai/pull/3) · [evidence](docs/m02-evidence.md) |
-| M03 | Wardrobe browsing and editing | `milestone/m03-wardrobe` | M02 | in-review | [#4](https://github.com/dietcodebase/wardrobe-ai/pull/4) · [evidence](docs/m03-evidence.md) |
-| M04 | Single-item capture and cutout | `milestone/m04-capture` | M03 | in-review | [#5](https://github.com/dietcodebase/wardrobe-ai/pull/5) · [evidence](docs/m04-evidence.md) |
-| M05 | Saved outfits and wear history | `milestone/m05-outfits-wear` | M03 | blocked | [#6](https://github.com/dietcodebase/wardrobe-ai/pull/6) · [evidence](docs/m05-evidence.md) |
-| M06 | Model provisioning and lifecycle | `milestone/m06-model-manager` | M01, M04, M05 | in-review | [#7](https://github.com/dietcodebase/wardrobe-ai/pull/7) · [evidence](docs/m06-evidence.md) |
-| M07 | Automatic garment classification | `milestone/m07-classification` | M06 | in-review | [#8](https://github.com/dietcodebase/wardrobe-ai/pull/8) · [evidence](docs/m07-evidence.md) |
-| M08 | Outfit suggestions and explanations | `milestone/m08-recommendations` | M07 | in-review | [#9](https://github.com/dietcodebase/wardrobe-ai/pull/9) · [evidence](docs/m08-evidence.md) |
-| M09 | Semantic wardrobe search | `milestone/m09-semantic-search` | M08, embedding gate from M01 | in-review | [#10](https://github.com/dietcodebase/wardrobe-ai/pull/10) · [evidence](docs/m09-evidence.md) |
-| M10 | Optional weather context | `milestone/m10-weather` | M08 | merged | [#12](https://github.com/dietcodebase/wardrobe-ai/pull/12) · [evidence](docs/m10-evidence.md) |
-| M11 | Calendar and outfit scheduling | `milestone/m11-calendar` | M05, M10 | merged | [#13](https://github.com/dietcodebase/wardrobe-ai/pull/13) · [evidence](docs/m11-evidence.md) |
-| M12 | Text stylist with bounded tools | `milestone/m12-stylist-chat` | M08, M11 | merged | [#15](https://github.com/dietcodebase/wardrobe-ai/pull/15) · [evidence](docs/m12-evidence.md) |
-| M13 | Voice input | `milestone/m13-voice` | M12, audio gate from M01 | merged | [#16](https://github.com/dietcodebase/wardrobe-ai/pull/16) · [evidence](docs/m13-evidence.md) |
-| M14 | Batch garment capture | `milestone/m14-batch-capture` | M07 | merged | [#19](https://github.com/dietcodebase/wardrobe-ai/pull/19) · [evidence](docs/m14-evidence.md) |
-| M15 | Mirror fit-check and demo release | `milestone/m15-mirror-release` | M09–M14 | in-review | [#18](https://github.com/dietcodebase/wardrobe-ai/pull/18) · [evidence](docs/m15-evidence.md) |
+| M01 | Runtime and device qualification | `milestone/m01-runtime-spike` | M00 | code merged; device gate open | [#2](https://github.com/dietcodebase/wardrobe-ai/pull/2) · [evidence](docs/runtime-qualification.md) |
+| M02 | Database and file storage | `milestone/m02-storage` | M00 | code merged; acceptance open | [#3](https://github.com/dietcodebase/wardrobe-ai/pull/3) · [evidence](docs/m02-evidence.md) |
+| M03 | Wardrobe browsing and editing | `milestone/m03-wardrobe` | M02 | code merged; acceptance open | [#4](https://github.com/dietcodebase/wardrobe-ai/pull/4) · [evidence](docs/m03-evidence.md) |
+| M04 | Single-item capture and cutout | `milestone/m04-capture` | M03 | code merged; device gate open | [#5](https://github.com/dietcodebase/wardrobe-ai/pull/5) · [evidence](docs/m04-evidence.md) |
+| M05 | Saved outfits and wear history | `milestone/m05-outfits-wear` | M03 | code merged; acceptance open | [#6](https://github.com/dietcodebase/wardrobe-ai/pull/6) · [evidence](docs/m05-evidence.md) |
+| M06 | Model provisioning and lifecycle | `milestone/m06-model-manager` | M01, M04, M05 | code merged; device gate open | [#7](https://github.com/dietcodebase/wardrobe-ai/pull/7) · [evidence](docs/m06-evidence.md) |
+| M07 | Automatic garment classification | `milestone/m07-classification` | M06 | code merged; device gate open | [#8](https://github.com/dietcodebase/wardrobe-ai/pull/8) · [evidence](docs/m07-evidence.md) |
+| M08 | Outfit suggestions and explanations | `milestone/m08-recommendations` | M07 | code merged; device gate open | [#9](https://github.com/dietcodebase/wardrobe-ai/pull/9) · [evidence](docs/m08-evidence.md) |
+| M09 | Semantic wardrobe search | `milestone/m09-semantic-search` | M08, embedding gate from M01 | code merged; device gate open | [#10](https://github.com/dietcodebase/wardrobe-ai/pull/10) · [evidence](docs/m09-evidence.md) |
+| M10 | Optional weather context | `milestone/m10-weather` | M08 | code merged; acceptance open | [#12](https://github.com/dietcodebase/wardrobe-ai/pull/12) · [evidence](docs/m10-evidence.md) |
+| M11 | Calendar and outfit scheduling | `milestone/m11-calendar` | M05, M10 | code merged; acceptance open | [#13](https://github.com/dietcodebase/wardrobe-ai/pull/13) · [evidence](docs/m11-evidence.md) |
+| M12 | Text stylist with bounded tools | `milestone/m12-stylist-chat` | M08, M11 | code merged; acceptance open | [#15](https://github.com/dietcodebase/wardrobe-ai/pull/15) · [evidence](docs/m12-evidence.md) |
+| M13 | Voice input | `milestone/m13-voice` | M12, audio gate from M01 | code merged; device gate open | [#16](https://github.com/dietcodebase/wardrobe-ai/pull/16) · [evidence](docs/m13-evidence.md) |
+| M14 | Batch garment capture | `milestone/m14-batch-capture` | M07 | code merged; device gate open | [#19](https://github.com/dietcodebase/wardrobe-ai/pull/19) · [evidence](docs/m14-evidence.md) |
+| M15 | Mirror fit-check and demo release | `milestone/m15-mirror-release` | M09–M14 | code merged; release gate open | [#18](https://github.com/dietcodebase/wardrobe-ai/pull/18) · [evidence](docs/m15-evidence.md) |
 
 ## Git and review contract
 
@@ -52,10 +52,6 @@ Default delivery order is numeric. Dependencies below remain the technical minim
 5. PRs identify the milestone, show before/after behavior, list verification and include screenshots for UI changes. They normally target `main`; an intentionally stacked deferred-validation PR targets its predecessor until the integration pass. Use [.github/pull_request_template.md](.github/pull_request_template.md).
 6. Merge only through the PR after the final validation tracker records the required checks, review and milestone acceptance pass. Prefer merge commits to preserve small commits; rebase merge is acceptable if the repository requires it. Do not squash the entire milestone into one large commit by default. Never bypass branch protection.
 7. Update the table to `in-progress`, `in-review`, `blocked`, or `merged`, with the PR URL and evidence. Merge status is verified from the host, not inferred from local code. Record a completed merge in the next roadmap update; avoid a standalone PR solely to change a status cell.
-
-### Initial repository bootstrap
-
-The directory currently has no Git history or remote. M00 may create one empty initial commit on `main` locally so a feature branch can have a base, then place all substantive files on its branch. A remote with that base branch is needed for a PR. Discover an existing configured destination or ask for the repository URL/owner and visibility; do not invent a public repository. The empty bootstrap commit is the only exception to the PR-only rule. No Git initialization, remote creation or application build was performed during this planning task.
 
 ## Milestone cards
 
