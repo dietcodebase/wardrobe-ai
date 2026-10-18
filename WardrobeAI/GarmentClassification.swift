@@ -398,7 +398,7 @@ actor GarmentClassificationCoordinator {
     private let classifier: any GarmentClassifying
     private let timeout: Duration
 
-    init(classifier: any GarmentClassifying = OllamaGarmentClassifier(), timeout: Duration = .seconds(30)) {
+    init(classifier: any GarmentClassifying = VisionGarmentClassifier(), timeout: Duration = .seconds(30)) {
         self.classifier = classifier
         self.timeout = timeout
     }

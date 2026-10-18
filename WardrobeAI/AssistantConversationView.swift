@@ -127,9 +127,7 @@ struct AssistantConversationView: View {
         .background(WardrobeDesign.Color.paper, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
     }
 
-    private var connectionLabel: String {
-        OllamaConfiguration.saved().isConfigured ? "Local model connected" : "Private wardrobe context"
-    }
+    private var connectionLabel: String { "Private wardrobe context" }
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -149,10 +147,8 @@ struct AssistantConversationView: View {
                         .buttonStyle(.borderedProminent)
                 }
             } else {
-                if !OllamaConfiguration.saved().isConfigured {
-                    Text("Connect a local model in Assistant settings for a second opinion. Outfit ideas remain grounded in your wardrobe either way.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
+                Text("Outfit ideas use your saved wardrobe. Gemma responses remain unavailable until the iPhone 17 device check passes.")
+                    .font(.footnote).foregroundStyle(.secondary)
             }
         }
         .padding(WardrobeDesign.Space.xl)
@@ -466,36 +462,13 @@ private struct PromptChip: View {
 
 struct AssistantSettingsView: View {
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(OllamaConfiguration.endpointKey) private var endpoint = ""
-    @AppStorage(OllamaConfiguration.modelKey) private var model = OllamaConfiguration.defaultModel
-    @State private var connectionStatus: String?
-    @State private var isTestingConnection = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Ollama server") {
-                    TextField("Ollama server URL", text: $endpoint)
-                        .accessibilityIdentifier("ollama-server-url")
-                        .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                    TextField("Model", text: $model)
-                        .textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button {
-                        testConnection()
-                    } label: {
-                        if isTestingConnection {
-                            HStack { ProgressView(); Text("Checking connection…") }
-                        } else {
-                            IconoirLabel(title: "Test Ollama connection", icon: .network)
-                        }
-                    }
-                    .disabled(isTestingConnection)
-                    if let connectionStatus {
-                        Text(connectionStatus)
-                            .font(.footnote)
-                            .foregroundStyle(WardrobeDesign.Color.ink)
-                    }
-                    Text("Enter the server root, for example http://192.168.1.50:11434 or https://ollama.example.net. A copied /api URL also works. Your wardrobe context is sent only to this configured server.")
+                Section("Privacy") {
+                    IconoirLabel(title: "Wardrobe requests stay on this phone", icon: .shieldCheck)
+                    Text("The stylist currently uses owned-item rules and local history. Gemma responses require physical-device qualification.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -504,19 +477,6 @@ struct AssistantSettingsView: View {
         }
     }
 
-    private func testConnection() {
-        let configuration = OllamaConfiguration(endpointText: endpoint, model: model)
-        isTestingConnection = true
-        connectionStatus = nil
-        Task {
-            defer { isTestingConnection = false }
-            do {
-                connectionStatus = try await OllamaClient().verifyConnection(configuration: configuration)
-            } catch {
-                connectionStatus = error.localizedDescription
-            }
-        }
-    }
 }
 
 private struct FlowLayout: Layout {
