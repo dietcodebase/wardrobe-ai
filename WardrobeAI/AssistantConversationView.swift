@@ -150,7 +150,7 @@ struct AssistantConversationView: View {
             }
             if store.allGarments.isEmpty {
                 HStack {
-                    Button("Load 23 demo photos") { loadDemoWardrobe() }
+                    Button("Load 33 demo photos") { loadDemoWardrobe() }
                         .buttonStyle(.borderedProminent)
                     Button("Add a garment", action: showAddGarment)
                         .buttonStyle(.bordered)
@@ -242,10 +242,10 @@ struct AssistantConversationView: View {
         do {
             try store.installDemoWardrobe()
             guard OllamaConfiguration.saved().isConfigured else {
-                demoStatus = "23 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
+                demoStatus = "33 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
                 return
             }
-            demoStatus = "23 demo photos are ready. Gemma is enriching their tags…"
+            demoStatus = "33 demo photos are ready. Gemma is enriching their tags…"
             tagDemoWardrobe()
         } catch {
             demoStatus = error.localizedDescription

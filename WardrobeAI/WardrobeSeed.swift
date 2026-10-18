@@ -32,7 +32,17 @@ enum WardrobeSeed {
         WardrobeSeedEntry(key: "seed-black-agbada-top", assetName: "black-agbada-top", draft: GarmentDraft(name: "Black Agbada Top", category: "Top", color: "Black", tags: ["international", "formal", "statement"])),
         WardrobeSeedEntry(key: "seed-rust-peruvian-cardigan", assetName: "rust-peruvian-cardigan", draft: GarmentDraft(name: "Rust Peruvian Cardigan", category: "Outerwear", color: "Rust", tags: ["international", "knitwear", "pattern"])),
         WardrobeSeedEntry(key: "seed-ivory-qipao-dress", assetName: "ivory-qipao-dress", draft: GarmentDraft(name: "Ivory Qipao Dress", category: "Dress", color: "Ivory", tags: ["international", "evening", "silk"])),
-        WardrobeSeedEntry(key: "seed-charcoal-tartan-kilt", assetName: "charcoal-tartan-kilt", draft: GarmentDraft(name: "Charcoal Tartan Kilt", category: "Bottom", color: "Charcoal", tags: ["international", "tartan", "statement"]))
+        WardrobeSeedEntry(key: "seed-charcoal-tartan-kilt", assetName: "charcoal-tartan-kilt", draft: GarmentDraft(name: "Charcoal Tartan Kilt", category: "Bottom", color: "Charcoal", tags: ["international", "tartan", "statement"])),
+        WardrobeSeedEntry(key: "seed-cobalt-denim-shirt-dress", assetName: "cobalt-denim-shirt-dress", draft: GarmentDraft(name: "Cobalt Denim Shirt Dress", category: "Dress", color: "Cobalt", tags: ["new", "denim", "everyday"])),
+        WardrobeSeedEntry(key: "seed-terracotta-pleated-skirt", assetName: "terracotta-pleated-skirt", draft: GarmentDraft(name: "Terracotta Pleated Skirt", category: "Bottom", color: "Terracotta", tags: ["new", "pleated", "occasion"])),
+        WardrobeSeedEntry(key: "seed-lavender-linen-blazer", assetName: "lavender-linen-blazer", draft: GarmentDraft(name: "Lavender Linen Blazer", category: "Outerwear", color: "Lavender", tags: ["new", "linen", "smart casual"])),
+        WardrobeSeedEntry(key: "seed-mustard-merino-turtleneck", assetName: "mustard-merino-turtleneck", draft: GarmentDraft(name: "Mustard Merino Turtleneck", category: "Top", color: "Mustard", tags: ["new", "merino", "layering"])),
+        WardrobeSeedEntry(key: "seed-geometric-wrap-top", assetName: "geometric-wrap-top", draft: GarmentDraft(name: "Geometric Wrap Top", category: "Top", color: "Ivory", tags: ["new", "pattern", "statement"])),
+        WardrobeSeedEntry(key: "seed-forest-corduroy-trousers", assetName: "forest-corduroy-trousers", draft: GarmentDraft(name: "Forest Corduroy Trousers", category: "Bottom", color: "Forest", tags: ["new", "corduroy", "textured"])),
+        WardrobeSeedEntry(key: "seed-burnt-orange-fringe-jacket", assetName: "burnt-orange-fringe-jacket", draft: GarmentDraft(name: "Burnt Orange Fringe Jacket", category: "Outerwear", color: "Burnt orange", tags: ["new", "suede", "statement"])),
+        WardrobeSeedEntry(key: "seed-pearl-satin-slip-dress", assetName: "pearl-satin-slip-dress", draft: GarmentDraft(name: "Pearl Satin Slip Dress", category: "Dress", color: "Pearl", tags: ["new", "satin", "evening"])),
+        WardrobeSeedEntry(key: "seed-plum-velvet-tuxedo-vest", assetName: "plum-velvet-tuxedo-vest", draft: GarmentDraft(name: "Plum Velvet Tuxedo Vest", category: "Top", color: "Plum", tags: ["new", "velvet", "formal"])),
+        WardrobeSeedEntry(key: "seed-sand-utility-vest", assetName: "sand-utility-vest", draft: GarmentDraft(name: "Sand Utility Vest", category: "Outerwear", color: "Sand", tags: ["new", "utility", "travel"]))
     ]
 
     static func install(in repository: WardrobeRepository, imageStore: WardrobeImageStore? = nil, bundle: Bundle = .main) throws -> [GarmentItem] {
@@ -57,7 +67,10 @@ enum WardrobeSeed {
             ("Emerald evening", ["seed-emerald-sari-blouse", "seed-charcoal-trousers", "seed-black-loafers", "seed-burgundy-crossbody"], "Festive color with a grounded, walkable base."),
             ("Modern heritage", ["seed-black-agbada-top", "seed-charcoal-tartan-kilt", "seed-tan-ankle-boots"], "A statement silhouette balanced by tonal texture."),
             ("Ivory occasion", ["seed-ivory-qipao-dress", "seed-black-loafers", "seed-burgundy-crossbody"], "Polished evening dressing with a practical accent bag."),
-            ("Warm market layers", ["seed-cream-moroccan-kaftan", "seed-rust-peruvian-cardigan", "seed-tan-ankle-boots"], "Soft texture and warm neutrals for cooler nights.")
+            ("Warm market layers", ["seed-cream-moroccan-kaftan", "seed-rust-peruvian-cardigan", "seed-tan-ankle-boots"], "Soft texture and warm neutrals for cooler nights."),
+            ("Cobalt city dress", ["seed-cobalt-denim-shirt-dress", "seed-lavender-linen-blazer", "seed-white-sneakers"], "A polished one-piece with a light tailored layer."),
+            ("Textured autumn", ["seed-mustard-merino-turtleneck", "seed-forest-corduroy-trousers", "seed-sand-utility-vest"], "Warm texture, useful pockets, and a tonal outdoor palette."),
+            ("Plum after-dark", ["seed-plum-velvet-tuxedo-vest", "seed-terracotta-pleated-skirt", "seed-black-loafers"], "Rich texture and movement for an evening plan.")
         ]
         let existingNames = Set(try repository.allOutfits().map(\.name))
         for (name, keys, notes) in outfitSeeds where !existingNames.contains(name) {
