@@ -61,6 +61,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     private var recordingURL: URL?
     private var startedAt: Date?
     private var isFinishing = false
+    private var wantsRecording = false
 
     init(permission: any VoiceRecordingPermission = SystemVoiceRecordingPermission(), fileManager: FileManager = .default) {
         self.permission = permission
@@ -69,10 +70,13 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     func begin() async {
         guard !isRecording else { return }
+        wantsRecording = true
         guard await permission.requestRecordPermission() else {
+            wantsRecording = false
             statusMessage = VoiceInputError.permissionDenied.localizedDescription
             return
         }
+        guard wantsRecording else { return }
 
         let session = AVAudioSession.sharedInstance()
         do {
@@ -103,6 +107,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     }
 
     func finish() -> VoiceRecording? {
+        wantsRecording = false
         guard isRecording, let recorder, let url = recordingURL, let startedAt else { return nil }
         isFinishing = true
         recorder.stop()
@@ -130,6 +135,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     }
 
     func cancel() {
+        wantsRecording = false
         isFinishing = true
         recorder?.stop()
         cleanup()
@@ -168,6 +174,7 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
         isRecording = false
         recordingURL = nil
         startedAt = nil
+        wantsRecording = false
         if let url { try? fileManager.removeItem(at: url) }
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }

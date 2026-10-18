@@ -267,16 +267,16 @@ struct StylistChatView: View {
                 }
             }
             HStack {
-                Button(voice.isRecording ? "Stop recording" : "Hold to talk") {
-                    if voice.isRecording {
-                        Task {
-                            if let recording = voice.finish() { await chat.sendVoice(recording) }
-                        }
-                    } else {
+                Button(voice.isRecording ? "Recording…" : "Hold to talk", action: {})
+                .onLongPressGesture(minimumDuration: 0.1, maximumDistance: 50, pressing: { pressing in
+                    if pressing {
                         Task { await voice.begin() }
+                    } else if let recording = voice.finish() {
+                        Task { await chat.sendVoice(recording) }
                     }
-                }
+                }, perform: {})
                 .disabled(chat.isResponding)
+                .accessibilityHint("Press and hold to record a voice request. Release to send it to the local runtime.")
                 if voice.isRecording {
                     Button("Cancel voice") { voice.cancel() }
                 }
