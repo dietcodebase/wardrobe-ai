@@ -220,7 +220,7 @@ private struct TodayView: View {
                 if isRefining { ProgressView().controlSize(.small).accessibilityLabel("Refining outfit ideas") }
             }
             ForEach(suggestions.prefix(3)) { suggestion in
-                TodaySuggestionCard(suggestion: suggestion, store: store, save: { save(suggestion) }, wear: { wear(suggestion) })
+                TodaySuggestionCard(suggestion: suggestion, store: store, save: { save(suggestion) }, wear: { wear(suggestion) }, skip: { skip(suggestion) })
             }
         }
     }
@@ -246,6 +246,11 @@ private struct TodayView: View {
         catch { message = error.localizedDescription }
     }
 
+    private func skip(_ suggestion: OutfitSuggestion) {
+        do { try store.recordRecommendationOutcome(suggestion, outcome: .skipped); message = "We’ll keep this feedback with the recommendation." }
+        catch { message = error.localizedDescription }
+    }
+
     private func wear(_ suggestion: OutfitSuggestion) {
         do { _ = try store.wearSuggestion(suggestion); message = "Recorded as worn today." }
         catch { message = error.localizedDescription }
@@ -256,6 +261,9 @@ private struct TodayView: View {
         if let anchorItemID, store.item(id: anchorItemID) == nil { self.anchorItemID = nil; return }
         let candidates = heuristicSuggestions
         refinedSuggestions = []
+        let preferences = (try? store.repository.preferences()) ?? .empty
+        let recommendationContext = RecommendationContext(occasion: occasion == "Everyday" ? nil : occasion, preferredColors: preferences.preferredColors, preferredCategories: preferences.preferredCategories, anchorItemID: anchorItemID)
+        try? store.recordRecommendation(candidates, context: recommendationContext, source: candidates.first?.source ?? .noContext, outcome: candidates.isEmpty ? .failedToGenerate : .generated)
         guard !candidates.isEmpty else { return }
         isRefining = true
         defer { if suggestionInputID == inputID { isRefining = false } }
@@ -270,9 +278,11 @@ private struct TodayView: View {
             let context = "occasion=\(contextOccasion)\(anchorContext)"
             let refined = try await OllamaOutfitAdvisor().recommendations(candidates: candidates, items: store.allGarments, context: context)
             guard !Task.isCancelled, suggestionInputID == inputID else { return }
+            try store.recordRecommendation(refined, context: recommendationContext, source: .ollamaRanking, outcome: .generated)
             refinedSuggestions = refined
         } catch {
-            // The deterministic planner remains visible when the optional local model is unavailable.
+            try? store.recordRecommendation(candidates, context: recommendationContext, source: .ollamaRanking, outcome: .failedToGenerate)
+            // The deterministic planner remains visible when optional ranking is unavailable.
         }
     }
 }
@@ -282,6 +292,8 @@ private struct TodaySuggestionCard: View {
     @ObservedObject var store: WardrobeStore
     let save: () -> Void
     let wear: () -> Void
+    let skip: () -> Void
+    @State private var showingWhy = false
 
     private var names: [String] { suggestion.itemIDs.compactMap { store.item(id: $0)?.name } }
 
@@ -289,17 +301,48 @@ private struct TodaySuggestionCard: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(names.joined(separator: " · ")).font(WardrobeDesign.body(17).weight(.semibold))
             Text(suggestion.explanation).font(WardrobeDesign.body(14)).foregroundStyle(WardrobeDesign.Color.quiet)
+            Button("Why this look?") { showingWhy = true }.buttonStyle(.plain).font(.footnote.weight(.semibold))
             HStack {
                 Button("Save", action: save).buttonStyle(.bordered)
                 Button("Wear today", action: wear).buttonStyle(.borderedProminent).tint(WardrobeDesign.Color.ink)
+                Button("Not today", action: skip).buttonStyle(.bordered)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(WardrobeDesign.Space.md)
         .background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.card, style: .continuous).stroke(WardrobeDesign.Color.hairline))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Outfit idea: \(names.joined(separator: ", ")). \(suggestion.explanation)")
+        .sheet(isPresented: $showingWhy) {
+            NavigationStack {
+                List {
+                    Section("Recommendation") {
+                        LabeledContent("Score", value: "\(suggestion.score)")
+                        LabeledContent("Source", value: suggestion.source.rawValue)
+                    }
+                    Section("Items and roles") {
+                        ForEach(suggestion.itemIDs, id: \.self) { id in
+                            if let item = store.item(id: id) {
+                                LabeledContent(item.name, value: item.category)
+                            }
+                        }
+                    }
+                    Section("Scoring factors") {
+                        ForEach(suggestion.factors) { factor in
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack { Text(factor.name.capitalized); Spacer(); Text(factor.value >= 0 ? "+\(factor.value)" : "\(factor.value)").monospacedDigit() }
+                                Text(factor.reason).font(.footnote).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                }
+                .navigationTitle("Why this look?")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Done") { showingWhy = false } } }
+            }
+        }
+        .task(id: "\(suggestion.recommendationID?.uuidString ?? "none"):\(suggestion.source.rawValue)") {
+            try? store.recordRecommendationOutcome(suggestion, outcome: .viewed)
+        }
     }
 }
 

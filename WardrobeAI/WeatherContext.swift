@@ -24,6 +24,10 @@ enum WeatherCondition: String, Codable, Equatable, Sendable {
     }
 }
 
+enum WeatherFreshness: String, Codable, Equatable, Sendable {
+    case fresh, cached, stale, unavailable
+}
+
 struct WeatherSnapshot: Codable, Equatable, Sendable {
     var location: WeatherLocation
     var temperatureCelsius: Double

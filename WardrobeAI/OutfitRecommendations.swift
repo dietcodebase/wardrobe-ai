@@ -3,10 +3,37 @@ import Foundation
 struct RecommendationContext: Equatable, Sendable {
     var occasion: String?
     var preferredColors: [String]
+    var preferredCategories: [String] = []
     var anchorItemID: UUID? = nil
     var weather: WeatherSnapshot? = nil
+    var weatherFreshness: WeatherFreshness? = nil
 
-    static let everyday = RecommendationContext(occasion: nil, preferredColors: [], anchorItemID: nil, weather: nil)
+    static let everyday = RecommendationContext(occasion: nil, preferredColors: [], preferredCategories: [], anchorItemID: nil, weather: nil, weatherFreshness: nil)
+}
+
+struct RecommendationFactor: Equatable, Sendable, Identifiable {
+    let name: String
+    let value: Int
+    let reason: String
+    var id: String { name }
+}
+
+enum RecommendationOutcome: String, Codable, Sendable {
+    case generated, viewed, saved, worn, skipped, failedToGenerate
+}
+
+enum RecommendationSource: String, Codable, Sendable {
+    case localRules, ollamaRanking, cachedWeather, noContext
+}
+
+struct RecommendationEvent: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let recommendationID: UUID
+    let candidateIDs: [UUID]
+    let contextSnapshot: String
+    let source: RecommendationSource
+    let outcome: RecommendationOutcome
+    let occurredAt: Date
 }
 
 struct OutfitSuggestion: Identifiable, Equatable, Sendable {
@@ -14,6 +41,19 @@ struct OutfitSuggestion: Identifiable, Equatable, Sendable {
     let itemIDs: [UUID]
     let score: Int
     let explanation: String
+    let factors: [RecommendationFactor]
+    let recommendationID: UUID?
+    let source: RecommendationSource
+
+    init(id: UUID, itemIDs: [UUID], score: Int, explanation: String, factors: [RecommendationFactor] = [], recommendationID: UUID? = nil, source: RecommendationSource = .localRules) {
+        self.id = id
+        self.itemIDs = itemIDs
+        self.score = score
+        self.explanation = explanation
+        self.factors = factors
+        self.recommendationID = recommendationID
+        self.source = source
+    }
 }
 
 /// A bounded, local result for the still-photo mirror flow. The app deliberately
@@ -125,6 +165,7 @@ struct OutfitRecommendationEngine {
     ) -> [OutfitSuggestion] {
         let byCategory = Dictionary(grouping: items, by: \.category)
         let recentIDs = Set(wearEvents.prefix(3).flatMap(\.itemIDs))
+        let recommendationID = UUID()
         var bounded: [OutfitSuggestion] = []
         var evaluations = 0
         func consider(_ candidate: [GarmentItem]) {
@@ -132,7 +173,7 @@ struct OutfitRecommendationEngine {
             evaluations += 1
             guard !candidate.isEmpty, Set(candidate.map(\.id)).count == candidate.count else { return }
             if let anchorID = context.anchorItemID, !candidate.contains(where: { $0.id == anchorID }) { return }
-            let suggestion = makeSuggestion(candidate, preferences: preferences, recentIDs: recentIDs, context: context)
+            let suggestion = makeSuggestion(candidate, preferences: preferences, recentIDs: recentIDs, context: context, recommendationID: recommendationID)
             bounded.append(suggestion)
             bounded.sort { $0.score == $1.score ? $0.explanation < $1.explanation : $0.score > $1.score }
             if bounded.count > maximumCandidates { bounded.removeLast() }
@@ -225,7 +266,7 @@ struct OutfitRecommendationEngine {
         return [anchor] + Array(items.filter { $0.id != anchor.id }.prefix(max(0, limit - 1)))
     }
 
-    private func makeSuggestion(_ items: [GarmentItem], preferences: StylePreferences, recentIDs: Set<UUID>, context: RecommendationContext) -> OutfitSuggestion {
+    private func makeSuggestion(_ items: [GarmentItem], preferences: StylePreferences, recentIDs: Set<UUID>, context: RecommendationContext, recommendationID: UUID) -> OutfitSuggestion {
         let ids = items.map(\.id)
         let occasion = context.occasion?.lowercased()
         let occasionMatches = occasion.map { requested in items.filter { matchesOccasion($0, requested: requested) }.count } ?? 0
@@ -242,6 +283,17 @@ struct OutfitRecommendationEngine {
         let practicality = practicalityAdjustment(for: items)
         let formality = formalityAdjustment(for: items)
         let score = occasionMatches * 4 - occasionConflicts * 3 + colorMatches * 2 + preferredCategories + weatherScore + practicality.score + formality.score - recentPenalty * 3
+        var factors: [RecommendationFactor] = []
+        if let occasion = context.occasion {
+            factors.append(RecommendationFactor(name: "occasion", value: occasionMatches * 4 - occasionConflicts * 3, reason: "Compared item tags and classification metadata with the selected occasion: \(occasion)."))
+        }
+        if colorMatches > 0 { factors.append(RecommendationFactor(name: "preferredColors", value: colorMatches * 2, reason: "Matched \(colorMatches) item color(s) to saved or selected color preferences.")) }
+        if preferredCategories > 0 { factors.append(RecommendationFactor(name: "preferredCategories", value: preferredCategories, reason: "Matched \(preferredCategories) item(s) to saved category preferences.")) }
+        if context.anchorItemID != nil { factors.append(RecommendationFactor(name: "anchor", value: 0, reason: "Includes the garment you selected as the starting piece.")) }
+        if context.weather != nil { factors.append(RecommendationFactor(name: "weather", value: weatherScore, reason: "Adjusted for the supplied weather snapshot and its garment layers.")) }
+        factors.append(RecommendationFactor(name: "recentWear", value: -recentPenalty * 3, reason: recentPenalty == 0 ? "No candidate items appear in the three most recent wear events." : "Reduced score for \(recentPenalty) item(s) in the three most recent wear events."))
+        factors.append(RecommendationFactor(name: "completeness", value: practicality.score, reason: practicality.note + "."))
+        if formality.score != 0 { factors.append(RecommendationFactor(name: "formality", value: formality.score, reason: formality.note + ".")) }
         let names = items.map(\.name).joined(separator: " with ")
         let explanation: String
         var reasons: [String] = []
@@ -251,7 +303,7 @@ struct OutfitRecommendationEngine {
         if recentPenalty == 0 { reasons.append("gives recently worn pieces a break") }
         explanation = "\((reasons.first ?? "a simple combination from your wardrobe").capitalized) with \(names)."
         let weatherNote = context.weather.map { " Weather context: \($0.description), \(Int($0.temperatureCelsius.rounded()))°C in \($0.location.normalizedCity)." } ?? ""
-        return OutfitSuggestion(id: stableID(for: ids), itemIDs: ids, score: score, explanation: explanation + weatherNote)
+        return OutfitSuggestion(id: stableID(for: ids), itemIDs: ids, score: score, explanation: explanation + weatherNote, factors: factors, recommendationID: recommendationID)
     }
 
     private func practicalityAdjustment(for items: [GarmentItem]) -> (score: Int, note: String) {

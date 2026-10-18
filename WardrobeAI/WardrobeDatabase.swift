@@ -129,6 +129,20 @@ enum WardrobeDatabase {
             try database.create(index: "outfit_plans_event", on: "outfit_plans", columns: ["source_event_id"])
         }
 
+        migrator.registerMigration("v7_recommendation_events") { database in
+            try database.create(table: "recommendation_events") { table in
+                table.column("id", .text).primaryKey()
+                table.column("recommendation_id", .text).notNull()
+                table.column("candidate_ids_json", .text).notNull()
+                table.column("context_snapshot", .text).notNull()
+                table.column("source", .text).notNull()
+                table.column("outcome", .text).notNull()
+                table.column("occurred_at", .datetime).notNull()
+            }
+            try database.create(index: "recommendation_events_id", on: "recommendation_events", columns: ["recommendation_id"])
+            try database.create(index: "recommendation_events_date", on: "recommendation_events", columns: ["occurred_at"])
+        }
+
         return migrator
     }()
 }

@@ -47,6 +47,42 @@ final class OutfitRecommendationsTests: XCTestCase {
         }
     }
 
+    func testPhaseZeroRecommendationFixturesCoverTenWardrobeContexts() {
+        let top = item("Oxford shirt", "Top", tags: ["Work", "Formal"], color: "White")
+        let bottom = item("Travel trousers", "Bottom", tags: ["Travel", "Everyday"], color: "Navy")
+        let dress = item("Evening dress", "Dress", tags: ["Formal", "Evening"], color: "Black")
+        let coat = item("Rain coat", "Outerwear", tags: ["Rain"], color: "Navy")
+        let shoes = item("Walking shoes", "Shoes", tags: ["Travel"], color: "White")
+        let accessory = item("Scarf", "Accessory", color: "Navy")
+        let largeWardrobe = (0..<36).map { index in item("Extra top \(index)", "Top", tags: index.isMultiple(of: 2) ? ["Work"] : [], color: "Blue") }
+        let workWeather = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 18, condition: .clouds, description: "cloudy", fetchedAt: .now)
+        let rainWeather = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 12, condition: .rain, description: "rain", fetchedAt: .now)
+        let hotWeather = WeatherSnapshot(location: .init(city: "Pune"), temperatureCelsius: 32, condition: .clear, description: "clear", fetchedAt: .now)
+        let fixtures: [(String, [GarmentItem], RecommendationContext)] = [
+            ("sparse", [top], .init(occasion: nil, preferredColors: [])),
+            ("work", [top, bottom, shoes], .init(occasion: "Work", preferredColors: [])),
+            ("formal", [top, bottom, dress, shoes], .init(occasion: "Formal", preferredColors: [])),
+            ("rain", [top, bottom, coat, shoes], .init(occasion: "Travel", preferredColors: [], weather: rainWeather, weatherFreshness: .fresh)),
+            ("hot", [top, bottom, dress, shoes], .init(occasion: "Everyday", preferredColors: [], weather: hotWeather, weatherFreshness: .fresh)),
+            ("travel", [top, bottom, shoes, accessory], .init(occasion: "Travel", preferredColors: ["Navy"])),
+            ("large", [top, bottom, coat, shoes, accessory] + largeWardrobe, .init(occasion: "Work", preferredColors: ["Blue"])),
+            ("anchored", [top, bottom, coat, shoes], .init(occasion: "Work", preferredColors: [], anchorItemID: coat.id)),
+            ("cached weather", [top, bottom, coat], .init(occasion: "Everyday", preferredColors: [], weather: workWeather, weatherFreshness: .cached)),
+            ("no context", [dress, shoes], .init(occasion: nil, preferredColors: []))
+        ]
+
+        for (name, wardrobe, context) in fixtures {
+            let results = OutfitRecommendationEngine().suggestions(items: wardrobe, preferences: .empty, wearEvents: [], context: context)
+            XCTAssertFalse(results.isEmpty, "fixture: \(name)")
+            for result in results {
+                XCTAssertTrue(Set(result.itemIDs).isSubset(of: Set(wardrobe.map(\.id))), "fixture: \(name)")
+                XCTAssertEqual(result.itemIDs.count, Set(result.itemIDs).count, "fixture: \(name)")
+                XCTAssertEqual(result.factors.map(\.name).contains("completeness"), true, "fixture: \(name)")
+                XCTAssertTrue(result.factors.allSatisfy { !$0.reason.isEmpty }, "fixture: \(name)")
+            }
+        }
+    }
+
     func testAnchorAppearsAndOptionalAlternativesAreConsideredWithinBound() {
         let top = item("Top", "Top")
         let bottom = item("Bottom", "Bottom")

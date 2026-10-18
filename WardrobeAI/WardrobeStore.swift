@@ -190,17 +190,54 @@ final class WardrobeStore: ObservableObject {
         loadOutfitData()
     }
 
-    func recommendations(for occasion: String?, anchorItemID: UUID? = nil, weather: WeatherSnapshot? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
+    func recommendations(for occasion: String?, anchorItemID: UUID? = nil, weather: WeatherSnapshot? = nil, weatherFreshness: WeatherFreshness? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
         let preferences = try repository.preferences()
-        return OutfitRecommendationEngine(ranker: ranker).suggestions(
+        let context = RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, preferredCategories: preferences.preferredCategories, anchorItemID: anchorItemID, weather: weather, weatherFreshness: weatherFreshness)
+        let generated = OutfitRecommendationEngine(ranker: ranker).suggestions(
             items: allGarments,
             preferences: preferences,
             wearEvents: wearEvents,
-            context: RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, anchorItemID: anchorItemID, weather: weather)
+            context: context
         )
+        let hasContext = context.occasion != nil || context.anchorItemID != nil || !context.preferredColors.isEmpty || !context.preferredCategories.isEmpty || weather != nil
+        let source: RecommendationSource = ranker != nil ? .ollamaRanking : (context.weatherFreshness == .cached ? .cachedWeather : (hasContext ? .localRules : .noContext))
+        let results = generated.map { OutfitSuggestion(id: $0.id, itemIDs: $0.itemIDs, score: $0.score, explanation: $0.explanation, factors: $0.factors, recommendationID: $0.recommendationID, source: source) }
+        return results
+    }
+
+    func recordRecommendation(_ suggestions: [OutfitSuggestion], context: RecommendationContext, source: RecommendationSource, outcome: RecommendationOutcome) throws {
+        let recommendationID = suggestions.first?.recommendationID ?? UUID()
+        let snapshot: [String: Any] = [
+            "occasion": context.occasion as Any? ?? NSNull(),
+            "anchorItemID": context.anchorItemID?.uuidString as Any? ?? NSNull(),
+            "preferredColors": context.preferredColors,
+            "preferredCategories": context.preferredCategories,
+            "recentWearItemIDs": Array(Set(wearEvents.prefix(3).flatMap(\.itemIDs))).map(\.uuidString).sorted(),
+            "weatherFreshness": context.weatherFreshness?.rawValue as Any? ?? NSNull(),
+            "weather": context.weather.map { ["city": $0.location.normalizedCity, "temperatureCelsius": $0.temperatureCelsius, "condition": $0.condition.rawValue, "fetchedAt": $0.fetchedAt.timeIntervalSince1970] as [String: Any] } as Any? ?? NSNull()
+        ]
+        var snapshotWithCandidates = snapshot
+        snapshotWithCandidates["candidateItems"] = Dictionary(uniqueKeysWithValues: suggestions.map { ($0.id.uuidString, $0.itemIDs.map(\.uuidString)) })
+        let data = try JSONSerialization.data(withJSONObject: snapshotWithCandidates, options: [.sortedKeys])
+        let candidateIDs = suggestions.map(\.id)
+        let event = RecommendationEvent(id: UUID(), recommendationID: recommendationID, candidateIDs: candidateIDs, contextSnapshot: String(decoding: data, as: UTF8.self), source: source, outcome: outcome, occurredAt: .now)
+        try repository.recordRecommendationEvent(event)
+    }
+
+    func recordRecommendationOutcome(_ suggestion: OutfitSuggestion, outcome: RecommendationOutcome) throws {
+        guard let recommendationID = suggestion.recommendationID else { return }
+        let context = try repository.recommendationContext(recommendationID: recommendationID)
+        let event = RecommendationEvent(id: UUID(), recommendationID: recommendationID, candidateIDs: [suggestion.id], contextSnapshot: context?.snapshot ?? "{}", source: suggestion.source, outcome: outcome, occurredAt: .now)
+        try repository.recordRecommendationEvent(event)
     }
 
     func saveSuggestion(_ suggestion: OutfitSuggestion) throws -> Outfit {
+        let outfit = try persistSuggestion(suggestion)
+        try recordRecommendationOutcome(suggestion, outcome: .saved)
+        return outfit
+    }
+
+    private func persistSuggestion(_ suggestion: OutfitSuggestion) throws -> Outfit {
         let suggestionItems = Set(suggestion.itemIDs)
         if let existing = try repository.allOutfits().first(where: { Set($0.itemIDs) == suggestionItems }) {
             return existing
@@ -212,7 +249,9 @@ final class WardrobeStore: ObservableObject {
     }
 
     func wearSuggestion(_ suggestion: OutfitSuggestion) throws -> WearEvent {
-        let outfit = try saveSuggestion(suggestion)
-        return try wearToday(outfit)
+        let outfit = try persistSuggestion(suggestion)
+        let event = try wearToday(outfit)
+        try recordRecommendationOutcome(suggestion, outcome: .worn)
+        return event
     }
 }

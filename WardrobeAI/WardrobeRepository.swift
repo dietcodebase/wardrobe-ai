@@ -456,6 +456,34 @@ final class WardrobeRepository {
         }
     }
 
+    func recordRecommendationEvent(_ event: RecommendationEvent) throws {
+        try database.write { database in
+            try database.execute(sql: """
+                INSERT INTO recommendation_events (id, recommendation_id, candidate_ids_json, context_snapshot, source, outcome, occurred_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, arguments: [event.id.uuidString, event.recommendationID.uuidString, try encode(event.candidateIDs.map(\.uuidString)), event.contextSnapshot, event.source.rawValue, event.outcome.rawValue, event.occurredAt])
+        }
+    }
+
+    func recommendationEvents(limit: Int = 500) throws -> [RecommendationEvent] {
+        try database.read { database in
+            try Row.fetchAll(database, sql: "SELECT * FROM recommendation_events ORDER BY occurred_at DESC LIMIT ?", arguments: [limit]).map { row in
+                guard let source = RecommendationSource(rawValue: row["source"]),
+                      let outcome = RecommendationOutcome(rawValue: row["outcome"]) else { throw WardrobeRepositoryError.corruptRecord }
+                let ids: [String] = try decode(row["candidate_ids_json"])
+                return RecommendationEvent(id: try uuid(row["id"]), recommendationID: try uuid(row["recommendation_id"]), candidateIDs: ids.compactMap(UUID.init(uuidString:)), contextSnapshot: row["context_snapshot"], source: source, outcome: outcome, occurredAt: row["occurred_at"])
+            }
+        }
+    }
+
+    func recommendationContext(recommendationID: UUID) throws -> (snapshot: String, source: RecommendationSource)? {
+        try database.read { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT context_snapshot, source FROM recommendation_events WHERE recommendation_id = ? ORDER BY occurred_at ASC LIMIT 1", arguments: [recommendationID.uuidString]),
+                  let source = RecommendationSource(rawValue: row["source"]) else { return nil }
+            return (row["context_snapshot"], source)
+        }
+    }
+
     private func localDay(for date: Date) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return String(format: "%04d-%02d-%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)

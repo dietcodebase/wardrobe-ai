@@ -210,7 +210,7 @@ struct OllamaOutfitAdvisor: Sendable {
             guard let candidate = allowed[choice.id], seen.insert(choice.id).inserted else { return nil }
             // The local planner owns the explanation because it is traceable to
             // known wardrobe metadata. The model is permitted to rank only.
-            return candidate
+            return OutfitSuggestion(id: candidate.id, itemIDs: candidate.itemIDs, score: candidate.score, explanation: candidate.explanation, factors: candidate.factors, recommendationID: candidate.recommendationID, source: .ollamaRanking)
         }
         guard !results.isEmpty else { throw OllamaError.invalidResponse }
         // A valid response may choose fewer than three. Keep the remaining

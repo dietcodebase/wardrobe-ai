@@ -3,6 +3,22 @@ import XCTest
 @testable import WardrobeAI
 
 final class StorageTests: XCTestCase {
+    func testRecommendationEventsRoundTripWithoutDiagnosticText() throws {
+        let repository = try makeRepository()
+        let garment = try repository.createItem(GarmentDraft(name: "Oxford shirt", category: "Top", tags: ["Work"]))
+        let event = RecommendationEvent(
+            id: UUID(), recommendationID: UUID(), candidateIDs: [garment.id],
+            contextSnapshot: #"{"occasion":"Work","anchorItemID":null,"recentWearItemIDs":[]}"#,
+            source: .localRules, outcome: .generated, occurredAt: .now
+        )
+
+        try repository.recordRecommendationEvent(event)
+        let loaded = try XCTUnwrap(repository.recommendationEvents().first)
+        XCTAssertEqual(loaded, event)
+        XCTAssertFalse(loaded.contextSnapshot.localizedCaseInsensitiveContains("chain of thought"))
+        XCTAssertNil(try repository.recommendationContext(recommendationID: UUID()))
+    }
+
     func testItemCRUDTagFilterAndPreferencesRoundTrip() throws {
         let repository = try makeRepository()
         let item = try repository.createItem(GarmentDraft(
