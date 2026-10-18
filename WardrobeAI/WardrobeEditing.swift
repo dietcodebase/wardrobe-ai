@@ -108,6 +108,7 @@ struct GarmentEditor: View {
     @State private var notes: String
     @State private var capturedImage: GarmentCaptureCandidate?
     @State private var isCapturing = false
+    @State private var isConfirmingDelete = false
     @State private var errorMessage: String?
     @State private var classification: ClassificationProvenance?
     @State private var isClassifying = false
@@ -210,6 +211,15 @@ struct GarmentEditor: View {
                     }
                 }
                 Section("Occasion ideas") { Text(GarmentTaxonomy.occasions.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary) }
+                if item != nil {
+                    Section {
+                        Button("Remove from wardrobe", role: .destructive) {
+                            isConfirmingDelete = true
+                        }
+                    } footer: {
+                        Text("This removes the garment and its saved photo. Garments used by an outfit or wear history must be removed there first.")
+                    }
+                }
             }
             .navigationTitle(item == nil ? "Add garment" : "Edit garment")
             .toolbar {
@@ -217,6 +227,11 @@ struct GarmentEditor: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.accessibilityLabel("Save garment") }
             }
             .alert("Couldn’t save garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+            .confirmationDialog("Remove \(item?.name ?? "this garment") from your wardrobe?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                Button("Remove garment", role: .destructive) { deleteGarment() }
+            } message: {
+                Text("This cannot be undone.")
+            }
             .sheet(isPresented: $isCapturing) { GarmentCaptureSheet { candidate in
                 capturedImage = candidate
                 startClassification()
@@ -240,6 +255,16 @@ struct GarmentEditor: View {
             } else { try store.create(draft, imageData: capturedImage?.data) }
             dismiss()
         } catch { errorMessage = error.localizedDescription }
+    }
+
+    private func deleteGarment() {
+        guard let item else { return }
+        do {
+            try store.delete(item)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func startClassification() {
