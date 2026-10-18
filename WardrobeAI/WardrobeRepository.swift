@@ -385,6 +385,51 @@ final class WardrobeRepository {
         }
     }
 
+    func outfitBoard(outfitID: UUID) throws -> OutfitBoard? {
+        try database.read { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM outfit_boards WHERE outfit_id = ?", arguments: [outfitID.uuidString]) else { return nil }
+            return OutfitBoard(outfitID: try uuid(row["outfit_id"]), positions: try decodeBoardPositions(row["positions_json"]), updatedAt: row["updated_at"])
+        }
+    }
+
+    func saveOutfitBoard(outfitID: UUID, positions: [UUID: BoardPosition]) throws -> OutfitBoard {
+        let board = OutfitBoard(outfitID: outfitID, positions: positions, updatedAt: now())
+        try database.write { database in
+            guard try outfitExists(outfitID, in: database) else { throw WardrobeRepositoryError.outfitNotFound(outfitID) }
+            try database.execute(sql: "INSERT INTO outfit_boards (outfit_id, positions_json, updated_at) VALUES (?, ?, ?) ON CONFLICT(outfit_id) DO UPDATE SET positions_json = excluded.positions_json, updated_at = excluded.updated_at", arguments: [outfitID.uuidString, try encodeBoardPositions(positions), board.updatedAt])
+        }
+        return board
+    }
+
+    func wearMemory(eventID: UUID) throws -> WearMemory? {
+        try database.read { database in
+            guard let row = try Row.fetchOne(database, sql: "SELECT * FROM wear_memories WHERE event_id = ?", arguments: [eventID.uuidString]) else { return nil }
+            return try makeWearMemory(from: row)
+        }
+    }
+
+    func saveWearMemory(eventID: UUID, imagePath: String?, comfort: Int?, confidence: Int?, weatherNote: String?, alterationsNote: String?) throws -> WearMemory {
+        let timestamp = now()
+        return try database.write { database in
+            let exists = try Bool.fetchOne(database, sql: "SELECT EXISTS(SELECT 1 FROM wear_events WHERE id = ?)", arguments: [eventID.uuidString]) ?? false
+            guard exists else { throw WardrobeRepositoryError.corruptRecord }
+            if let existing = try Row.fetchOne(database, sql: "SELECT * FROM wear_memories WHERE event_id = ?", arguments: [eventID.uuidString]) {
+                let id = try uuid(existing["id"])
+                try database.execute(sql: "UPDATE wear_memories SET image_path = ?, comfort = ?, confidence = ?, weather_note = ?, alterations_note = ?, updated_at = ? WHERE event_id = ?", arguments: [imagePath, comfort, confidence, normalizedOptional(weatherNote), normalizedOptional(alterationsNote), timestamp, eventID.uuidString])
+                return WearMemory(id: id, eventID: eventID, imagePath: imagePath, comfort: comfort, confidence: confidence, weatherNote: normalizedOptional(weatherNote), alterationsNote: normalizedOptional(alterationsNote), createdAt: existing["created_at"], updatedAt: timestamp)
+            }
+            let memory = WearMemory(id: UUID(), eventID: eventID, imagePath: imagePath, comfort: comfort, confidence: confidence, weatherNote: normalizedOptional(weatherNote), alterationsNote: normalizedOptional(alterationsNote), createdAt: timestamp, updatedAt: timestamp)
+            try database.execute(sql: "INSERT INTO wear_memories (id, event_id, image_path, comfort, confidence, weather_note, alterations_note, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", arguments: [memory.id.uuidString, memory.eventID.uuidString, memory.imagePath, memory.comfort, memory.confidence, memory.weatherNote, memory.alterationsNote, memory.createdAt, memory.updatedAt])
+            return memory
+        }
+    }
+
+    func deleteWearMemory(eventID: UUID) throws {
+        try database.write { database in
+            try database.execute(sql: "DELETE FROM wear_memories WHERE event_id = ?", arguments: [eventID.uuidString])
+        }
+    }
+
     func logWear(itemID: UUID, outfitID: UUID? = nil, wornAt: Date? = nil) throws -> WearLog {
         let log = WearLog(id: UUID(), itemID: itemID, outfitID: outfitID, wornAt: wornAt ?? now(), createdAt: now())
         try database.write { database in
@@ -646,6 +691,10 @@ private func makeWearEvent(from row: Row, in database: Database) throws -> WearE
     return WearEvent(id: id, outfitID: try optionalUUID(row["outfit_id"]), wornAt: row["worn_at"], localDay: row["local_day"], createdAt: row["created_at"], itemIDs: itemIDs)
 }
 
+private func makeWearMemory(from row: Row) throws -> WearMemory {
+    WearMemory(id: try uuid(row["id"]), eventID: try uuid(row["event_id"]), imagePath: row["image_path"], comfort: row["comfort"], confidence: row["confidence"], weatherNote: row["weather_note"], alterationsNote: row["alterations_note"], createdAt: row["created_at"], updatedAt: row["updated_at"])
+}
+
 private func itemExists(_ id: UUID, in database: Database) throws -> Bool {
     try Bool.fetchOne(database, sql: "SELECT EXISTS(SELECT 1 FROM items WHERE id = ?)", arguments: [id.uuidString]) ?? false
 }
@@ -665,6 +714,16 @@ private func encode(_ values: [String]) throws -> String {
 
 private func decode(_ value: String) throws -> [String] {
     try JSONDecoder().decode([String].self, from: Data(value.utf8))
+}
+
+private func encodeBoardPositions(_ positions: [UUID: BoardPosition]) throws -> String {
+    let values = Dictionary(uniqueKeysWithValues: positions.map { ($0.key.uuidString, $0.value) })
+    return String(decoding: try JSONEncoder().encode(values), as: UTF8.self)
+}
+
+private func decodeBoardPositions(_ value: String) throws -> [UUID: BoardPosition] {
+    let values = try JSONDecoder().decode([String: BoardPosition].self, from: Data(value.utf8))
+    return Dictionary(uniqueKeysWithValues: values.compactMap { key, value in UUID(uuidString: key).map { ($0, value) } })
 }
 
 private func encode<T: Encodable>(_ value: T?) throws -> String? {

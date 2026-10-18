@@ -193,6 +193,25 @@ enum WardrobeDatabase {
             }
         }
 
+        migrator.registerMigration("v12_visual_outfit_memories") { database in
+            try database.create(table: "outfit_boards") { table in
+                table.column("outfit_id", .text).primaryKey().references("outfits", onDelete: .cascade)
+                table.column("positions_json", .text).notNull().defaults(to: "{}")
+                table.column("updated_at", .datetime).notNull()
+            }
+            try database.create(table: "wear_memories") { table in
+                table.column("id", .text).primaryKey()
+                table.column("event_id", .text).notNull().unique().references("wear_events", onDelete: .cascade)
+                table.column("image_path", .text)
+                table.column("comfort", .integer)
+                table.column("confidence", .integer)
+                table.column("weather_note", .text)
+                table.column("alterations_note", .text)
+                table.column("created_at", .datetime).notNull()
+                table.column("updated_at", .datetime).notNull()
+            }
+        }
+
         return migrator
     }()
 }

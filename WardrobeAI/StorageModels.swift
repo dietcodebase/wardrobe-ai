@@ -145,6 +145,29 @@ struct PackingItem: Identifiable, Equatable, Sendable {
     var id: UUID { item.id }
 }
 
+struct OutfitBoard: Equatable, Sendable {
+    let outfitID: UUID
+    var positions: [UUID: BoardPosition]
+    var updatedAt: Date
+}
+
+struct BoardPosition: Codable, Equatable, Sendable {
+    var x: Double
+    var y: Double
+}
+
+struct WearMemory: Identifiable, Equatable, Sendable {
+    let id: UUID
+    let eventID: UUID
+    var imagePath: String?
+    var comfort: Int?
+    var confidence: Int?
+    var weatherNote: String?
+    var alterationsNote: String?
+    let createdAt: Date
+    var updatedAt: Date
+}
+
 struct WearItemSummary: Identifiable, Equatable, Sendable {
     let item: GarmentItem
     let wearCount: Int

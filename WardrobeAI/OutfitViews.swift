@@ -656,6 +656,7 @@ private struct WearEventRow: View {
     let event: WearEvent
     @ObservedObject var store: WardrobeStore
     let undo: () -> Void
+    @State private var isEditingMemory = false
 
     var body: some View {
         HStack {
@@ -664,9 +665,148 @@ private struct WearEventRow: View {
                 Text(event.wornAt.formatted(date: .abbreviated, time: .omitted)).font(.footnote).foregroundStyle(.secondary)
             }
             Spacer()
+            Button("Memory") { isEditingMemory = true }.buttonStyle(.bordered)
             Button("Undo", action: undo).buttonStyle(.bordered)
         }
+        .sheet(isPresented: $isEditingMemory) { WearMemoryEditor(event: event, store: store) }
     }
+}
+
+private struct OutfitBoardEditor: View {
+    let outfit: Outfit
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var positions: [UUID: BoardPosition] = [:]
+    @State private var errorMessage: String?
+
+    private var items: [GarmentItem] { outfit.itemIDs.compactMap { store.item(id: $0) } }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Drag your saved garment cutouts to compose this look.")
+                    .font(.footnote).foregroundStyle(.secondary).padding(.horizontal)
+                GeometryReader { proxy in
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 20).fill(Color.secondary.opacity(0.1))
+                        ForEach(items) { item in
+                            BoardGarmentCard(item: item, store: store)
+                                .position(point(for: item.id, in: proxy.size))
+                                .gesture(DragGesture().onChanged { value in
+                                    positions[item.id] = BoardPosition(
+                                        x: min(0.88, max(0.12, value.location.x / proxy.size.width)),
+                                        y: min(0.88, max(0.12, value.location.y / proxy.size.height))
+                                    )
+                                })
+                        }
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .padding(.vertical)
+            .navigationTitle("Visual board")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+            }
+            .onAppear { load() }
+            .alert("Couldn’t save board", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func point(for id: UUID, in size: CGSize) -> CGPoint {
+        let index = items.firstIndex(where: { $0.id == id }) ?? 0
+        let position = positions[id] ?? BoardPosition(x: 0.25 + Double(index % 3) * 0.25, y: 0.25 + Double(index / 3) * 0.28)
+        return CGPoint(x: position.x * size.width, y: position.y * size.height)
+    }
+
+    private func load() {
+        positions = store.outfitBoard(outfit)?.positions ?? [:]
+    }
+
+    private func save() {
+        do { try store.saveOutfitBoard(outfit, positions: positions); dismiss() }
+        catch { errorMessage = error.localizedDescription }
+    }
+}
+
+private struct BoardGarmentCard: View {
+    let item: GarmentItem
+    @ObservedObject var store: WardrobeStore
+    @State private var image: UIImage?
+
+    var body: some View {
+        VStack(spacing: 4) {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFit().frame(width: 86, height: 100)
+            } else {
+                RoundedRectangle(cornerRadius: 10).fill(Color.accentColor.opacity(0.15)).frame(width: 86, height: 100)
+                    .overlay(Text(item.category).font(.caption).foregroundStyle(.secondary))
+            }
+            Text(item.name).font(.caption2).lineLimit(1).frame(width: 100)
+        }
+        .padding(7).background(.background, in: RoundedRectangle(cornerRadius: 12)).shadow(radius: 2)
+        .task(id: item.imagePath) { image = store.imageData(for: item).flatMap(UIImage.init(data:)) }
+    }
+}
+
+private struct WearMemoryEditor: View {
+    let event: WearEvent
+    @ObservedObject var store: WardrobeStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var memory: WearMemory?
+    @State private var photo: UIImage?
+    @State private var photoData: Data?
+    @State private var removePhoto = false
+    @State private var comfort = 3
+    @State private var confidence = 3
+    @State private var weather = ""
+    @State private var alterations = ""
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Private OOTD photo") {
+                    if let photo {
+                        Image(uiImage: photo).resizable().scaledToFit().frame(maxHeight: 240)
+                        Button("Remove photo", role: .destructive) { removePhotoAction() }
+                    } else {
+                        GarmentPhotoSource(onImage: accept)
+                    }
+                    Text("This photo stays in your private on-device wardrobe memory and is removable at any time.").font(.footnote).foregroundStyle(.secondary)
+                }
+                Section("How it felt") {
+                    Stepper("Comfort: \(comfort)/5", value: $comfort, in: 1...5)
+                    Stepper("Confidence: \(confidence)/5", value: $confidence, in: 1...5)
+                    TextField("Weather notes", text: $weather)
+                    TextField("Alterations or fit notes", text: $alterations, axis: .vertical)
+                }
+                if memory != nil { Section { Button("Delete memory", role: .destructive) { delete() } } }
+            }
+            .navigationTitle("Wear memory")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Save") { save() } }
+            }
+            .onAppear { load() }
+            .alert("Couldn’t save memory", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+        }
+    }
+
+    private func load() {
+        memory = store.wearMemory(event)
+        guard let memory else { return }
+        comfort = memory.comfort ?? 3
+        confidence = memory.confidence ?? 3
+        weather = memory.weatherNote ?? ""
+        alterations = memory.alterationsNote ?? ""
+        photo = store.wearMemoryImageData(memory).flatMap(UIImage.init(data:))
+    }
+    private func accept(_ image: UIImage) { photo = image; photoData = image.jpegData(compressionQuality: 0.88); removePhoto = false }
+    private func removePhotoAction() { photo = nil; photoData = nil; removePhoto = true }
+    private func save() { do { try store.saveWearMemory(event, imageData: photoData, removeImage: removePhoto, existing: memory, comfort: comfort, confidence: confidence, weatherNote: weather.nilIfBlank, alterationsNote: alterations.nilIfBlank); dismiss() } catch { errorMessage = error.localizedDescription } }
+    private func delete() { do { try store.deleteWearMemory(event); dismiss() } catch { errorMessage = error.localizedDescription } }
 }
 
 private struct OutfitDetail: View {
@@ -677,6 +817,7 @@ private struct OutfitDetail: View {
     @State private var isEditing = false
     @State private var isConfirmingDelete = false
     @State private var isScheduling = false
+    @State private var isShowingBoard = false
     @State private var errorMessage: String?
 
     private var displayedOutfit: Outfit {
@@ -696,12 +837,14 @@ private struct OutfitDetail: View {
                 if let notes = displayedOutfit.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
                 Section { Button(didWearToday ? "Worn today" : "Wear today") { wearToday() }.buttonStyle(.borderedProminent).disabled(didWearToday) }
                 Section { Button("Plan outfit") { isScheduling = true } }
+                Section { Button("Visual board") { isShowingBoard = true } }
                 Section { Button("Delete outfit", role: .destructive) { isConfirmingDelete = true } }
             }
             .navigationTitle(displayedOutfit.name)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Edit") { isEditing = true } } }
             .sheet(isPresented: $isEditing) { OutfitEditor(store: store, outfit: displayedOutfit) }
             .sheet(isPresented: $isScheduling) { OutfitPlanEditor(outfit: displayedOutfit, store: store) }
+            .sheet(isPresented: $isShowingBoard) { OutfitBoardEditor(outfit: displayedOutfit, store: store) }
             .confirmationDialog("Delete \(displayedOutfit.name)?", isPresented: $isConfirmingDelete, titleVisibility: .visible) { Button("Delete", role: .destructive) { delete() } }
             .alert("Couldn’t update outfit", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
         }

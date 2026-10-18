@@ -301,6 +301,22 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(try repository.wearEvents().isEmpty)
     }
 
+    func testVisualBoardAndWearMemoryPersistWithWearEvent() throws {
+        let repository = try makeRepository()
+        let item = try repository.createItem(GarmentDraft(name: "Jacket", category: "Outerwear"))
+        let outfit = try repository.createOutfit(OutfitDraft(name: "Travel", itemIDs: [item.id]))
+        let event = try repository.wearToday(outfitID: outfit.id, wornAt: Date(timeIntervalSince1970: 1_800_000_000))
+
+        _ = try repository.saveOutfitBoard(outfitID: outfit.id, positions: [item.id: BoardPosition(x: 0.4, y: 0.6)])
+        let board = try XCTUnwrap(repository.outfitBoard(outfitID: outfit.id))
+        XCTAssertEqual(board.positions[item.id], BoardPosition(x: 0.4, y: 0.6))
+
+        let saved = try repository.saveWearMemory(eventID: event.id, imagePath: "images/ootd.jpg", comfort: 5, confidence: 4, weatherNote: "Breezy", alterationsNote: "Shorten sleeves")
+        XCTAssertEqual(try repository.wearMemory(eventID: event.id), saved)
+        try repository.deleteWearMemory(eventID: event.id)
+        XCTAssertNil(try repository.wearMemory(eventID: event.id))
+    }
+
     @MainActor
     func testRepeatedWearSuggestionReusesOutfitAndWearEvent() throws {
         let repository = try makeRepository()

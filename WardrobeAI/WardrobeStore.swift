@@ -239,6 +239,40 @@ final class WardrobeStore: ObservableObject {
         loadOutfitData()
     }
 
+    func outfitBoard(_ outfit: Outfit) -> OutfitBoard? { try? repository.outfitBoard(outfitID: outfit.id) }
+
+    func saveOutfitBoard(_ outfit: Outfit, positions: [UUID: BoardPosition]) throws {
+        _ = try repository.saveOutfitBoard(outfitID: outfit.id, positions: positions)
+    }
+
+    func wearMemory(_ event: WearEvent) -> WearMemory? { try? repository.wearMemory(eventID: event.id) }
+
+    func wearMemoryImageData(_ memory: WearMemory) -> Data? {
+        guard let path = memory.imagePath, let imageStore else { return nil }
+        return try? imageStore.data(at: path)
+    }
+
+    func saveWearMemory(_ event: WearEvent, imageData: Data?, removeImage: Bool = false, existing: WearMemory?, comfort: Int?, confidence: Int?, weatherNote: String?, alterationsNote: String?) throws {
+        var newPath = removeImage ? nil : existing?.imagePath
+        if let imageData {
+            guard let imageStore else { throw WardrobeStoreError.imageStorageUnavailable }
+            newPath = try imageStore.store(imageData)
+        }
+        do {
+            _ = try repository.saveWearMemory(eventID: event.id, imagePath: newPath, comfort: comfort, confidence: confidence, weatherNote: weatherNote, alterationsNote: alterationsNote)
+            if (imageData != nil || removeImage), let oldPath = existing?.imagePath { try? imageStore?.remove(oldPath) }
+        } catch {
+            if imageData != nil, let newPath { try? imageStore?.remove(newPath) }
+            throw error
+        }
+    }
+
+    func deleteWearMemory(_ event: WearEvent) throws {
+        let path = try repository.wearMemory(eventID: event.id)?.imagePath
+        try repository.deleteWearMemory(eventID: event.id)
+        if let path { try? imageStore?.remove(path) }
+    }
+
     func recommendations(for occasion: String?, anchorItemID: UUID? = nil, weather: WeatherSnapshot? = nil, weatherFreshness: WeatherFreshness? = nil, ranker: (any OutfitCandidateRanker)? = nil) throws -> [OutfitSuggestion] {
         let preferences = try repository.preferences()
         let context = RecommendationContext(occasion: occasion, preferredColors: preferences.preferredColors, preferredCategories: preferences.preferredCategories, anchorItemID: anchorItemID, weather: weather, weatherFreshness: weatherFreshness)
