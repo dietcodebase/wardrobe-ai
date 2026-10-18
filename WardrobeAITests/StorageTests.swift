@@ -15,7 +15,16 @@ final class StorageTests: XCTestCase {
 
         try repository.recordRecommendationEvent(event)
         let loaded = try XCTUnwrap(repository.recommendationEvents().first)
-        XCTAssertEqual(loaded, event)
+        XCTAssertEqual(loaded.id, event.id)
+        XCTAssertEqual(loaded.recommendationID, event.recommendationID)
+        XCTAssertEqual(loaded.candidateIDs, event.candidateIDs)
+        XCTAssertEqual(loaded.contextSnapshot, event.contextSnapshot)
+        XCTAssertEqual(loaded.source, event.source)
+        XCTAssertEqual(loaded.outcome, event.outcome)
+        XCTAssertEqual(loaded.lockedItemIDs, event.lockedItemIDs)
+        XCTAssertEqual(loaded.requestedSlots, event.requestedSlots)
+        XCTAssertEqual(loaded.outcomeReason, event.outcomeReason)
+        XCTAssertEqual(loaded.occurredAt.timeIntervalSince1970, event.occurredAt.timeIntervalSince1970, accuracy: 0.001)
         XCTAssertFalse(loaded.contextSnapshot.localizedCaseInsensitiveContains("chain of thought"))
         XCTAssertNil(try repository.recommendationContext(recommendationID: UUID()))
     }
@@ -100,8 +109,10 @@ final class StorageTests: XCTestCase {
         let imageStore = WardrobeImageStore(rootURL: directory)
         let store = WardrobeStore(repository: repository, imageStore: imageStore)
         let classifier = DemoSeedClassifier()
+        let appBundleURL = Bundle(for: StorageTests.self).bundleURL.deletingLastPathComponent().deletingLastPathComponent()
+        let appBundle = try XCTUnwrap(Bundle(url: appBundleURL))
 
-        let tagged = try await store.tagDemoWardrobe(classifier: classifier)
+        let tagged = try await store.tagDemoWardrobe(classifier: classifier, bundle: appBundle)
 
         XCTAssertEqual(tagged, WardrobeSeed.entries.count)
         let seedItem = try XCTUnwrap(repository.item(seedKey: "seed-navy-oxford"))
@@ -110,7 +121,7 @@ final class StorageTests: XCTestCase {
         XCTAssertTrue(seedItem.tags.contains("gemma-tag"))
         XCTAssertNotNil(seedItem.imagePath)
 
-        let retried = try await store.tagDemoWardrobe(classifier: classifier)
+        let retried = try await store.tagDemoWardrobe(classifier: classifier, bundle: appBundle)
         let totalCalls = await classifier.callCount()
         XCTAssertEqual(retried, 0)
         XCTAssertEqual(totalCalls, WardrobeSeed.entries.count)
