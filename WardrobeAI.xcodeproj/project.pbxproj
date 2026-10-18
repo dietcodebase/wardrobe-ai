@@ -1,110 +1,569 @@
 // !$*UTF8*$!
-{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
-396C0841C14FE1AA1175BD3C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeAIApp.swift; sourceTree = "<group>"; };
-F9770CC4CE47A49D81BC3947 = { isa = PBXBuildFile; fileRef = 396C0841C14FE1AA1175BD3C; };
-8D3E35D01B70DA0CAA7A6526 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ContentView.swift; sourceTree = "<group>"; };
-B10F7E3EFA607590ED428C53 = { isa = PBXBuildFile; fileRef = 8D3E35D01B70DA0CAA7A6526; };
-AA0000010000000000000001 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/StorageModels.swift; sourceTree = "<group>"; };
-AA0000020000000000000002 = { isa = PBXBuildFile; fileRef = AA0000010000000000000001; };
-AA0000080000000000000008 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeDatabase.swift; sourceTree = "<group>"; };
-AA0000090000000000000009 = { isa = PBXBuildFile; fileRef = AA0000080000000000000008; };
-AA0000030000000000000003 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeRepository.swift; sourceTree = "<group>"; };
-AA0000040000000000000004 = { isa = PBXBuildFile; fileRef = AA0000030000000000000003; };
-AA0000100000000000000010 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeImageStore.swift; sourceTree = "<group>"; };
-AA0000110000000000000011 = { isa = PBXBuildFile; fileRef = AA0000100000000000000010; };
-AA0000120000000000000012 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeSeed.swift; sourceTree = "<group>"; };
-AA0000130000000000000013 = { isa = PBXBuildFile; fileRef = AA0000120000000000000012; };
-AA0000160000000000000016 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeStore.swift; sourceTree = "<group>"; };
-AA0000170000000000000017 = { isa = PBXBuildFile; fileRef = AA0000160000000000000016; };
-AA0000180000000000000018 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeEditing.swift; sourceTree = "<group>"; };
-AA0000190000000000000019 = { isa = PBXBuildFile; fileRef = AA0000180000000000000018; };
-AA0000200000000000000020 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/GarmentCapture.swift; sourceTree = "<group>"; };
-AA0000210000000000000021 = { isa = PBXBuildFile; fileRef = AA0000200000000000000020; };
-AA0000220000000000000022 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/OutfitViews.swift; sourceTree = "<group>"; };
-AA0000230000000000000023 = { isa = PBXBuildFile; fileRef = AA0000220000000000000022; };
-AA0000240000000000000024 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ModelProvisioning.swift; sourceTree = "<group>"; };
-AA0000250000000000000025 = { isa = PBXBuildFile; fileRef = AA0000240000000000000024; };
-AA0000260000000000000026 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/ModelProvisioningTests.swift; sourceTree = "<group>"; };
-AA0000270000000000000027 = { isa = PBXBuildFile; fileRef = AA0000260000000000000026; };
-AA0000280000000000000028 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/ModelInferenceCoordinatorTests.swift; sourceTree = "<group>"; };
-AA0000290000000000000029 = { isa = PBXBuildFile; fileRef = AA0000280000000000000028; };
-AA0000300000000000000030 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ModelStatusView.swift; sourceTree = "<group>"; };
-AA0000310000000000000031 = { isa = PBXBuildFile; fileRef = AA0000300000000000000030; };
-AA0000320000000000000032 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/GarmentClassification.swift; sourceTree = "<group>"; };
-AA0000330000000000000033 = { isa = PBXBuildFile; fileRef = AA0000320000000000000032; };
-AA0000340000000000000034 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/GarmentClassificationTests.swift; sourceTree = "<group>"; };
-AA0000350000000000000035 = { isa = PBXBuildFile; fileRef = AA0000340000000000000034; };
-AA0000360000000000000036 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/OutfitRecommendations.swift; sourceTree = "<group>"; };
-AA0000370000000000000037 = { isa = PBXBuildFile; fileRef = AA0000360000000000000036; };
-AA0000380000000000000038 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/OutfitRecommendationsTests.swift; sourceTree = "<group>"; };
-AA0000390000000000000039 = { isa = PBXBuildFile; fileRef = AA0000380000000000000038; };
-AA0000400000000000000040 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/SemanticSearch.swift; sourceTree = "<group>"; };
-AA0000410000000000000041 = { isa = PBXBuildFile; fileRef = AA0000400000000000000040; };
-AA0000420000000000000042 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/SemanticSearchTests.swift; sourceTree = "<group>"; };
-AA0000430000000000000043 = { isa = PBXBuildFile; fileRef = AA0000420000000000000042; };
-AA0000440000000000000044 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WeatherContext.swift; sourceTree = "<group>"; };
-AA0000450000000000000045 = { isa = PBXBuildFile; fileRef = AA0000440000000000000044; };
-AA0000460000000000000046 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/WeatherContextTests.swift; sourceTree = "<group>"; };
-AA0000470000000000000047 = { isa = PBXBuildFile; fileRef = AA0000460000000000000046; };
-AA0000480000000000000048 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/CalendarContext.swift; sourceTree = "<group>"; };
-AA0000490000000000000049 = { isa = PBXBuildFile; fileRef = AA0000480000000000000048; };
-AA0000500000000000000050 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/CalendarContextTests.swift; sourceTree = "<group>"; };
-AA0000510000000000000051 = { isa = PBXBuildFile; fileRef = AA0000500000000000000050; };
-AA0000520000000000000052 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/StylistChat.swift; sourceTree = "<group>"; };
-AA0000530000000000000053 = { isa = PBXBuildFile; fileRef = AA0000520000000000000052; };
-AA0000540000000000000054 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/StylistChatTests.swift; sourceTree = "<group>"; };
-AA0000550000000000000055 = { isa = PBXBuildFile; fileRef = AA0000540000000000000054; };
-AA0000560000000000000056 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/VoiceInput.swift; sourceTree = "<group>"; };
-AA0000570000000000000057 = { isa = PBXBuildFile; fileRef = AA0000560000000000000056; };
-AA0000580000000000000058 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/VoiceInputTests.swift; sourceTree = "<group>"; };
-AA0000590000000000000059 = { isa = PBXBuildFile; fileRef = AA0000580000000000000058; };
-AA0000600000000000000060 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/BatchGarmentCapture.swift; sourceTree = "<group>"; };
-AA0000610000000000000061 = { isa = PBXBuildFile; fileRef = AA0000600000000000000060; };
-AA0000620000000000000062 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/BatchGarmentCaptureTests.swift; sourceTree = "<group>"; };
-AA0000630000000000000063 = { isa = PBXBuildFile; fileRef = AA0000620000000000000062; };
-AA0000640000000000000064 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/AssistantConversationView.swift; sourceTree = "<group>"; };
-AA0000650000000000000065 = { isa = PBXBuildFile; fileRef = AA0000640000000000000064; };
-AA0000660000000000000066 = { isa = PBXFileReference; lastKnownFileType = folder; path = WardrobeAI/SeedAssets; sourceTree = "<group>"; };
-AA0000670000000000000067 = { isa = PBXBuildFile; fileRef = AA0000660000000000000066; };
-AA0000140000000000000014 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/StorageTests.swift; sourceTree = "<group>"; };
-AA0000150000000000000015 = { isa = PBXBuildFile; fileRef = AA0000140000000000000014; };
-AA0000050000000000000005 = { isa = XCSwiftPackageProductDependency; productName = GRDB; package = AA0000060000000000000006; };
-AA0000070000000000000007 = { isa = PBXBuildFile; productRef = AA0000050000000000000005; };
-DDCF78B463C15E55D27DCA26 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/AppTabTests.swift; sourceTree = "<group>"; };
-6DE476F09F102915334B5030 = { isa = PBXBuildFile; fileRef = DDCF78B463C15E55D27DCA26; };
-056A54FF242390AE0C754F42 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAIUITests/NavigationSmokeTests.swift; sourceTree = "<group>"; };
-2ADACD4B111DB99891CAC627 = { isa = PBXBuildFile; fileRef = 056A54FF242390AE0C754F42; };
-407315CD7518F4D03F0CC7E2 = { isa = PBXFileReference; explicitFileType = wrapper.application; path = WardrobeAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
-D734DA6A6E953FA5FA176239 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F9770CC4CE47A49D81BC3947, B10F7E3EFA607590ED428C53, AA0000020000000000000002, AA0000090000000000000009, AA0000040000000000000004, AA0000110000000000000011, AA0000130000000000000013, AA0000170000000000000017, AA0000190000000000000019, AA0000210000000000000021, AA0000230000000000000023, AA0000250000000000000025, AA0000310000000000000031, AA0000330000000000000033, AA0000370000000000000037, AA0000410000000000000041, AA0000450000000000000045, AA0000490000000000000049, AA0000530000000000000053, AA0000570000000000000057, AA0000610000000000000061, AA0000650000000000000065); runOnlyForDeploymentPostprocessing = 0; };
-25FBE9A574539CC4BB5A4620 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (AA0000070000000000000007); runOnlyForDeploymentPostprocessing = 0; };
-AA0000680000000000000068 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (AA0000670000000000000067); runOnlyForDeploymentPostprocessing = 0; };
-47D718FFD01F32159E46D24D = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAI; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = "WardrobeAI/Debug-Info.plist"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; }; name = Debug; };
-F15BDB22849D5A21C4BF4CEA = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAI; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_CFBundleDisplayName = "Wardrobe AI"; INFOPLIST_KEY_NSCameraUsageDescription = "Take still photos of garments for your wardrobe or outfits for a mirror fit check."; INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a garment photo to add it to your wardrobe."; INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Show event timing to help plan outfits."; INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record a short wardrobe request for the on-device stylist."; }; name = Release; };
-72AEB4DFE7713295C34CBD9A = { isa = XCConfigurationList; buildConfigurations = (47D718FFD01F32159E46D24D, F15BDB22849D5A21C4BF4CEA); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-F1FFC7CB116E672B619769C4 = { isa = PBXNativeTarget; buildConfigurationList = 72AEB4DFE7713295C34CBD9A; buildPhases = (D734DA6A6E953FA5FA176239, 25FBE9A574539CC4BB5A4620, AA0000680000000000000068); buildRules = (); dependencies = (); name = WardrobeAI; packageProductDependencies = (AA0000050000000000000005); productName = WardrobeAI; productReference = 407315CD7518F4D03F0CC7E2; productType = "com.apple.product-type.application"; };
-34E4C586EE65D423309757A7 = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WardrobeAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-DDAC859ECD9F952B196A7EDF = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (6DE476F09F102915334B5030, AA0000150000000000000015, AA0000270000000000000027, AA0000290000000000000029, AA0000350000000000000035, AA0000390000000000000039, AA0000430000000000000043, AA0000470000000000000047, AA0000510000000000000051, AA0000550000000000000055, AA0000590000000000000059, AA0000630000000000000063); runOnlyForDeploymentPostprocessing = 0; };
-2A79BAACC0B12431E6D6BEED = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-FD284C0801687CEEB3FF73EC = { isa = PBXContainerItemProxy; containerPortal = 98F54143AB4E86B28C3AFEE0; proxyType = 1; remoteGlobalIDString = F1FFC7CB116E672B619769C4; remoteInfo = WardrobeAI; };
-3D34E325F50276D21BC9B072 = { isa = PBXTargetDependency; target = F1FFC7CB116E672B619769C4; targetProxy = FD284C0801687CEEB3FF73EC; };
-195CED8FA52B9DCD948C84D7 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAITests; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WardrobeAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WardrobeAI"; BUNDLE_LOADER = "$(TEST_HOST)"; }; name = Debug; };
-B95608EA620BAE6081926793 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAITests; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WardrobeAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WardrobeAI"; BUNDLE_LOADER = "$(TEST_HOST)"; }; name = Release; };
-94F8A91F397E5CCCA8C0EAC1 = { isa = XCConfigurationList; buildConfigurations = (195CED8FA52B9DCD948C84D7, B95608EA620BAE6081926793); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-05282CD561CEDCC6CA4D2073 = { isa = PBXNativeTarget; buildConfigurationList = 94F8A91F397E5CCCA8C0EAC1; buildPhases = (DDAC859ECD9F952B196A7EDF, 2A79BAACC0B12431E6D6BEED); buildRules = (); dependencies = (3D34E325F50276D21BC9B072); name = WardrobeAITests; productName = WardrobeAITests; productReference = 34E4C586EE65D423309757A7; productType = "com.apple.product-type.bundle.unit-test"; };
-257EB92A3A523410469D10FF = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WardrobeAIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-4589395E61709C8DE45758C6 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (2ADACD4B111DB99891CAC627); runOnlyForDeploymentPostprocessing = 0; };
-E287BFFA414EB0E58A1BD3F6 = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
-E18375208D0C8AB7BC76536D = { isa = PBXContainerItemProxy; containerPortal = 98F54143AB4E86B28C3AFEE0; proxyType = 1; remoteGlobalIDString = F1FFC7CB116E672B619769C4; remoteInfo = WardrobeAI; };
-1784E9A23926F682D51C191B = { isa = PBXTargetDependency; target = F1FFC7CB116E672B619769C4; targetProxy = E18375208D0C8AB7BC76536D; };
-A29F161E6036CD8D3237C53D = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIUITests; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; TEST_TARGET_NAME = WardrobeAI; }; name = Debug; };
-0EFF2218C3E5F9EB368008B0 = { isa = XCBuildConfiguration; buildSettings = { PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIUITests; PRODUCT_NAME = "$(TARGET_NAME)"; GENERATE_INFOPLIST_FILE = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; CODE_SIGN_STYLE = Automatic; TEST_TARGET_NAME = WardrobeAI; }; name = Release; };
-1412643B0FE429058E785990 = { isa = XCConfigurationList; buildConfigurations = (A29F161E6036CD8D3237C53D, 0EFF2218C3E5F9EB368008B0); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-19A9091CA5BCC9902561BDC9 = { isa = PBXNativeTarget; buildConfigurationList = 1412643B0FE429058E785990; buildPhases = (4589395E61709C8DE45758C6, E287BFFA414EB0E58A1BD3F6); buildRules = (); dependencies = (1784E9A23926F682D51C191B); name = WardrobeAIUITests; productName = WardrobeAIUITests; productReference = 257EB92A3A523410469D10FF; productType = "com.apple.product-type.bundle.ui-testing"; };
-89E1FD6268CC0F221A2BE178 = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 18.0; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; ENABLE_TESTABILITY = YES; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Debug; };
-E6DE6C99132752C914FEF632 = { isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; IPHONEOS_DEPLOYMENT_TARGET = 18.0; CLANG_ENABLE_MODULES = YES; SWIFT_OPTIMIZATION_LEVEL = "-O"; ENABLE_TESTABILITY = NO; DEBUG_INFORMATION_FORMAT = dwarf; }; name = Release; };
-862894B703A6DEDF96A9DD6C = { isa = XCConfigurationList; buildConfigurations = (89E1FD6268CC0F221A2BE178, E6DE6C99132752C914FEF632); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
-FBDC4F23F93125BBEEAE800C = { isa = PBXGroup; children = (407315CD7518F4D03F0CC7E2, 34E4C586EE65D423309757A7, 257EB92A3A523410469D10FF); name = Products; sourceTree = "<group>"; };
-DC76E9F0C0006E8F919E0C51 = { isa = PBXGroup; children = (396C0841C14FE1AA1175BD3C, 8D3E35D01B70DA0CAA7A6526, AA0000640000000000000064, AA0000010000000000000001, AA0000080000000000000008, AA0000030000000000000003, AA0000100000000000000010, AA0000120000000000000012, AA0000160000000000000016, AA0000180000000000000018, AA0000200000000000000020, AA0000600000000000000060, AA0000220000000000000022, AA0000240000000000000024, AA0000300000000000000030, AA0000320000000000000032, AA0000360000000000000036, AA0000400000000000000040, AA0000440000000000000044, AA0000480000000000000048, AA0000520000000000000052, AA0000560000000000000056, DDCF78B463C15E55D27DCA26, AA0000140000000000000014, AA0000260000000000000026, AA0000280000000000000028, AA0000340000000000000034, AA0000380000000000000038, AA0000420000000000000042, AA0000460000000000000046, AA0000500000000000000050, AA0000540000000000000054, AA0000580000000000000058, AA0000620000000000000062, 056A54FF242390AE0C754F42, FBDC4F23F93125BBEEAE800C); sourceTree = "<group>"; };
-AA0000060000000000000006 = { isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/groue/GRDB.swift.git"; requirement = { kind = upToNextMajorVersion; minimumVersion = 7.0.0; }; };
-98F54143AB4E86B28C3AFEE0 = { isa = PBXProject; attributes = { BuildIndependentTargetsInParallel = YES; LastUpgradeCheck = 1640; }; buildConfigurationList = 862894B703A6DEDF96A9DD6C; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en, Base); mainGroup = DC76E9F0C0006E8F919E0C51; packageReferences = (AA0000060000000000000006); productRefGroup = FBDC4F23F93125BBEEAE800C; projectDirPath = ""; projectRoot = ""; targets = (F1FFC7CB116E672B619769C4, 05282CD561CEDCC6CA4D2073, 19A9091CA5BCC9902561BDC9); };
-}; rootObject = 98F54143AB4E86B28C3AFEE0; }
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2ADACD4B111DB99891CAC627 /* WardrobeAIUITests/NavigationSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056A54FF242390AE0C754F42 /* WardrobeAIUITests/NavigationSmokeTests.swift */; };
+		6DE476F09F102915334B5030 /* WardrobeAITests/AppTabTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDCF78B463C15E55D27DCA26 /* WardrobeAITests/AppTabTests.swift */; };
+		AA0000020000000000000002 /* WardrobeAI/StorageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000010000000000000001 /* WardrobeAI/StorageModels.swift */; };
+		AA0000040000000000000004 /* WardrobeAI/WardrobeRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000030000000000000003 /* WardrobeAI/WardrobeRepository.swift */; };
+		AA0000070000000000000007 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000050000000000000005 /* GRDB */; };
+		AA0000690000000000000069 /* Iconoir in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000700000000000000070 /* Iconoir */; };
+		AA0000090000000000000009 /* WardrobeAI/WardrobeDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000080000000000000008 /* WardrobeAI/WardrobeDatabase.swift */; };
+		AA0000110000000000000011 /* WardrobeAI/WardrobeImageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000100000000000000010 /* WardrobeAI/WardrobeImageStore.swift */; };
+		AA0000130000000000000013 /* WardrobeAI/WardrobeSeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000120000000000000012 /* WardrobeAI/WardrobeSeed.swift */; };
+		AA0000150000000000000015 /* WardrobeAITests/StorageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000140000000000000014 /* WardrobeAITests/StorageTests.swift */; };
+		AA0000170000000000000017 /* WardrobeAI/WardrobeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000160000000000000016 /* WardrobeAI/WardrobeStore.swift */; };
+		AA0000190000000000000019 /* WardrobeAI/WardrobeEditing.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000180000000000000018 /* WardrobeAI/WardrobeEditing.swift */; };
+		AA0000210000000000000021 /* WardrobeAI/GarmentCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000200000000000000020 /* WardrobeAI/GarmentCapture.swift */; };
+		AA0000230000000000000023 /* WardrobeAI/OutfitViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000220000000000000022 /* WardrobeAI/OutfitViews.swift */; };
+		AA0000250000000000000025 /* WardrobeAI/ModelProvisioning.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000240000000000000024 /* WardrobeAI/ModelProvisioning.swift */; };
+		AA0000270000000000000027 /* WardrobeAITests/ModelProvisioningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000260000000000000026 /* WardrobeAITests/ModelProvisioningTests.swift */; };
+		AA0000290000000000000029 /* WardrobeAITests/ModelInferenceCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000280000000000000028 /* WardrobeAITests/ModelInferenceCoordinatorTests.swift */; };
+		AA0000310000000000000031 /* WardrobeAI/ModelStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000300000000000000030 /* WardrobeAI/ModelStatusView.swift */; };
+		AA0000330000000000000033 /* WardrobeAI/GarmentClassification.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000320000000000000032 /* WardrobeAI/GarmentClassification.swift */; };
+		AA0000350000000000000035 /* WardrobeAITests/GarmentClassificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000340000000000000034 /* WardrobeAITests/GarmentClassificationTests.swift */; };
+		AA0000370000000000000037 /* WardrobeAI/OutfitRecommendations.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000360000000000000036 /* WardrobeAI/OutfitRecommendations.swift */; };
+		AA0000390000000000000039 /* WardrobeAITests/OutfitRecommendationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000380000000000000038 /* WardrobeAITests/OutfitRecommendationsTests.swift */; };
+		AA0000410000000000000041 /* WardrobeAI/SemanticSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000400000000000000040 /* WardrobeAI/SemanticSearch.swift */; };
+		AA0000430000000000000043 /* WardrobeAITests/SemanticSearchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000420000000000000042 /* WardrobeAITests/SemanticSearchTests.swift */; };
+		AA0000450000000000000045 /* WardrobeAI/WeatherContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000440000000000000044 /* WardrobeAI/WeatherContext.swift */; };
+		AA0000470000000000000047 /* WardrobeAITests/WeatherContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000460000000000000046 /* WardrobeAITests/WeatherContextTests.swift */; };
+		AA0000490000000000000049 /* WardrobeAI/CalendarContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000480000000000000048 /* WardrobeAI/CalendarContext.swift */; };
+		AA0000510000000000000051 /* WardrobeAITests/CalendarContextTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000500000000000000050 /* WardrobeAITests/CalendarContextTests.swift */; };
+		AA0000530000000000000053 /* WardrobeAI/StylistChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000520000000000000052 /* WardrobeAI/StylistChat.swift */; };
+		AA0000550000000000000055 /* WardrobeAITests/StylistChatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000540000000000000054 /* WardrobeAITests/StylistChatTests.swift */; };
+		AA0000570000000000000057 /* WardrobeAI/VoiceInput.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000560000000000000056 /* WardrobeAI/VoiceInput.swift */; };
+		AA0000590000000000000059 /* WardrobeAITests/VoiceInputTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000580000000000000058 /* WardrobeAITests/VoiceInputTests.swift */; };
+		AA0000610000000000000061 /* WardrobeAI/BatchGarmentCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000600000000000000060 /* WardrobeAI/BatchGarmentCapture.swift */; };
+		AA0000630000000000000063 /* WardrobeAITests/BatchGarmentCaptureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000620000000000000062 /* WardrobeAITests/BatchGarmentCaptureTests.swift */; };
+		AA0000650000000000000065 /* WardrobeAI/AssistantConversationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000640000000000000064 /* WardrobeAI/AssistantConversationView.swift */; };
+		AA0000670000000000000067 /* WardrobeAI/SeedAssets in Resources */ = {isa = PBXBuildFile; fileRef = AA0000660000000000000066 /* WardrobeAI/SeedAssets */; };
+		B10F7E3EFA607590ED428C53 /* WardrobeAI/ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D3E35D01B70DA0CAA7A6526 /* WardrobeAI/ContentView.swift */; };
+		F9770CC4CE47A49D81BC3947 /* WardrobeAI/WardrobeAIApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396C0841C14FE1AA1175BD3C /* WardrobeAI/WardrobeAIApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E18375208D0C8AB7BC76536D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F1FFC7CB116E672B619769C4;
+			remoteInfo = WardrobeAI;
+		};
+		FD284C0801687CEEB3FF73EC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F1FFC7CB116E672B619769C4;
+			remoteInfo = WardrobeAI;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		056A54FF242390AE0C754F42 /* WardrobeAIUITests/NavigationSmokeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAIUITests/NavigationSmokeTests.swift; sourceTree = "<group>"; };
+		257EB92A3A523410469D10FF /* WardrobeAIUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WardrobeAIUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		34E4C586EE65D423309757A7 /* WardrobeAITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = WardrobeAITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		396C0841C14FE1AA1175BD3C /* WardrobeAI/WardrobeAIApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeAIApp.swift; sourceTree = "<group>"; };
+		407315CD7518F4D03F0CC7E2 /* WardrobeAI.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; path = WardrobeAI.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D3E35D01B70DA0CAA7A6526 /* WardrobeAI/ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ContentView.swift; sourceTree = "<group>"; };
+		AA0000010000000000000001 /* WardrobeAI/StorageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/StorageModels.swift; sourceTree = "<group>"; };
+		AA0000030000000000000003 /* WardrobeAI/WardrobeRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeRepository.swift; sourceTree = "<group>"; };
+		AA0000080000000000000008 /* WardrobeAI/WardrobeDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeDatabase.swift; sourceTree = "<group>"; };
+		AA0000100000000000000010 /* WardrobeAI/WardrobeImageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeImageStore.swift; sourceTree = "<group>"; };
+		AA0000120000000000000012 /* WardrobeAI/WardrobeSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeSeed.swift; sourceTree = "<group>"; };
+		AA0000140000000000000014 /* WardrobeAITests/StorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/StorageTests.swift; sourceTree = "<group>"; };
+		AA0000160000000000000016 /* WardrobeAI/WardrobeStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeStore.swift; sourceTree = "<group>"; };
+		AA0000180000000000000018 /* WardrobeAI/WardrobeEditing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WardrobeEditing.swift; sourceTree = "<group>"; };
+		AA0000200000000000000020 /* WardrobeAI/GarmentCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/GarmentCapture.swift; sourceTree = "<group>"; };
+		AA0000220000000000000022 /* WardrobeAI/OutfitViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/OutfitViews.swift; sourceTree = "<group>"; };
+		AA0000240000000000000024 /* WardrobeAI/ModelProvisioning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ModelProvisioning.swift; sourceTree = "<group>"; };
+		AA0000260000000000000026 /* WardrobeAITests/ModelProvisioningTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/ModelProvisioningTests.swift; sourceTree = "<group>"; };
+		AA0000280000000000000028 /* WardrobeAITests/ModelInferenceCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/ModelInferenceCoordinatorTests.swift; sourceTree = "<group>"; };
+		AA0000300000000000000030 /* WardrobeAI/ModelStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/ModelStatusView.swift; sourceTree = "<group>"; };
+		AA0000320000000000000032 /* WardrobeAI/GarmentClassification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/GarmentClassification.swift; sourceTree = "<group>"; };
+		AA0000340000000000000034 /* WardrobeAITests/GarmentClassificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/GarmentClassificationTests.swift; sourceTree = "<group>"; };
+		AA0000360000000000000036 /* WardrobeAI/OutfitRecommendations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/OutfitRecommendations.swift; sourceTree = "<group>"; };
+		AA0000380000000000000038 /* WardrobeAITests/OutfitRecommendationsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/OutfitRecommendationsTests.swift; sourceTree = "<group>"; };
+		AA0000400000000000000040 /* WardrobeAI/SemanticSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/SemanticSearch.swift; sourceTree = "<group>"; };
+		AA0000420000000000000042 /* WardrobeAITests/SemanticSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/SemanticSearchTests.swift; sourceTree = "<group>"; };
+		AA0000440000000000000044 /* WardrobeAI/WeatherContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/WeatherContext.swift; sourceTree = "<group>"; };
+		AA0000460000000000000046 /* WardrobeAITests/WeatherContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/WeatherContextTests.swift; sourceTree = "<group>"; };
+		AA0000480000000000000048 /* WardrobeAI/CalendarContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/CalendarContext.swift; sourceTree = "<group>"; };
+		AA0000500000000000000050 /* WardrobeAITests/CalendarContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/CalendarContextTests.swift; sourceTree = "<group>"; };
+		AA0000520000000000000052 /* WardrobeAI/StylistChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/StylistChat.swift; sourceTree = "<group>"; };
+		AA0000540000000000000054 /* WardrobeAITests/StylistChatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/StylistChatTests.swift; sourceTree = "<group>"; };
+		AA0000560000000000000056 /* WardrobeAI/VoiceInput.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/VoiceInput.swift; sourceTree = "<group>"; };
+		AA0000580000000000000058 /* WardrobeAITests/VoiceInputTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/VoiceInputTests.swift; sourceTree = "<group>"; };
+		AA0000600000000000000060 /* WardrobeAI/BatchGarmentCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/BatchGarmentCapture.swift; sourceTree = "<group>"; };
+		AA0000620000000000000062 /* WardrobeAITests/BatchGarmentCaptureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/BatchGarmentCaptureTests.swift; sourceTree = "<group>"; };
+		AA0000640000000000000064 /* WardrobeAI/AssistantConversationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAI/AssistantConversationView.swift; sourceTree = "<group>"; };
+		AA0000660000000000000066 /* WardrobeAI/SeedAssets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = WardrobeAI/SeedAssets; sourceTree = "<group>"; };
+		DDCF78B463C15E55D27DCA26 /* WardrobeAITests/AppTabTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WardrobeAITests/AppTabTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		25FBE9A574539CC4BB5A4620 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000070000000000000007 /* GRDB in Frameworks */,
+				AA0000690000000000000069 /* Iconoir in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2A79BAACC0B12431E6D6BEED /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E287BFFA414EB0E58A1BD3F6 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		DC76E9F0C0006E8F919E0C51 = {
+			isa = PBXGroup;
+			children = (
+				396C0841C14FE1AA1175BD3C /* WardrobeAI/WardrobeAIApp.swift */,
+				8D3E35D01B70DA0CAA7A6526 /* WardrobeAI/ContentView.swift */,
+				AA0000640000000000000064 /* WardrobeAI/AssistantConversationView.swift */,
+				AA0000010000000000000001 /* WardrobeAI/StorageModels.swift */,
+				AA0000080000000000000008 /* WardrobeAI/WardrobeDatabase.swift */,
+				AA0000030000000000000003 /* WardrobeAI/WardrobeRepository.swift */,
+				AA0000100000000000000010 /* WardrobeAI/WardrobeImageStore.swift */,
+				AA0000120000000000000012 /* WardrobeAI/WardrobeSeed.swift */,
+				AA0000160000000000000016 /* WardrobeAI/WardrobeStore.swift */,
+				AA0000180000000000000018 /* WardrobeAI/WardrobeEditing.swift */,
+				AA0000200000000000000020 /* WardrobeAI/GarmentCapture.swift */,
+				AA0000600000000000000060 /* WardrobeAI/BatchGarmentCapture.swift */,
+				AA0000220000000000000022 /* WardrobeAI/OutfitViews.swift */,
+				AA0000240000000000000024 /* WardrobeAI/ModelProvisioning.swift */,
+				AA0000300000000000000030 /* WardrobeAI/ModelStatusView.swift */,
+				AA0000320000000000000032 /* WardrobeAI/GarmentClassification.swift */,
+				AA0000360000000000000036 /* WardrobeAI/OutfitRecommendations.swift */,
+				AA0000400000000000000040 /* WardrobeAI/SemanticSearch.swift */,
+				AA0000440000000000000044 /* WardrobeAI/WeatherContext.swift */,
+				AA0000480000000000000048 /* WardrobeAI/CalendarContext.swift */,
+				AA0000520000000000000052 /* WardrobeAI/StylistChat.swift */,
+				AA0000560000000000000056 /* WardrobeAI/VoiceInput.swift */,
+				DDCF78B463C15E55D27DCA26 /* WardrobeAITests/AppTabTests.swift */,
+				AA0000140000000000000014 /* WardrobeAITests/StorageTests.swift */,
+				AA0000260000000000000026 /* WardrobeAITests/ModelProvisioningTests.swift */,
+				AA0000280000000000000028 /* WardrobeAITests/ModelInferenceCoordinatorTests.swift */,
+				AA0000340000000000000034 /* WardrobeAITests/GarmentClassificationTests.swift */,
+				AA0000380000000000000038 /* WardrobeAITests/OutfitRecommendationsTests.swift */,
+				AA0000420000000000000042 /* WardrobeAITests/SemanticSearchTests.swift */,
+				AA0000460000000000000046 /* WardrobeAITests/WeatherContextTests.swift */,
+				AA0000500000000000000050 /* WardrobeAITests/CalendarContextTests.swift */,
+				AA0000540000000000000054 /* WardrobeAITests/StylistChatTests.swift */,
+				AA0000580000000000000058 /* WardrobeAITests/VoiceInputTests.swift */,
+				AA0000620000000000000062 /* WardrobeAITests/BatchGarmentCaptureTests.swift */,
+				056A54FF242390AE0C754F42 /* WardrobeAIUITests/NavigationSmokeTests.swift */,
+				FBDC4F23F93125BBEEAE800C /* Products */,
+				F6CC25933084B028001AF376 /* Recovered References */,
+			);
+			sourceTree = "<group>";
+		};
+		F6CC25933084B028001AF376 /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				AA0000660000000000000066 /* WardrobeAI/SeedAssets */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
+		FBDC4F23F93125BBEEAE800C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				407315CD7518F4D03F0CC7E2 /* WardrobeAI.app */,
+				34E4C586EE65D423309757A7 /* WardrobeAITests.xctest */,
+				257EB92A3A523410469D10FF /* WardrobeAIUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		05282CD561CEDCC6CA4D2073 /* WardrobeAITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 94F8A91F397E5CCCA8C0EAC1 /* Build configuration list for PBXNativeTarget "WardrobeAITests" */;
+			buildPhases = (
+				DDAC859ECD9F952B196A7EDF /* Sources */,
+				2A79BAACC0B12431E6D6BEED /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				3D34E325F50276D21BC9B072 /* PBXTargetDependency */,
+			);
+			name = WardrobeAITests;
+			productName = WardrobeAITests;
+			productReference = 34E4C586EE65D423309757A7 /* WardrobeAITests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		19A9091CA5BCC9902561BDC9 /* WardrobeAIUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1412643B0FE429058E785990 /* Build configuration list for PBXNativeTarget "WardrobeAIUITests" */;
+			buildPhases = (
+				4589395E61709C8DE45758C6 /* Sources */,
+				E287BFFA414EB0E58A1BD3F6 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				1784E9A23926F682D51C191B /* PBXTargetDependency */,
+			);
+			name = WardrobeAIUITests;
+			productName = WardrobeAIUITests;
+			productReference = 257EB92A3A523410469D10FF /* WardrobeAIUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		F1FFC7CB116E672B619769C4 /* WardrobeAI */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72AEB4DFE7713295C34CBD9A /* Build configuration list for PBXNativeTarget "WardrobeAI" */;
+			buildPhases = (
+				D734DA6A6E953FA5FA176239 /* Sources */,
+				25FBE9A574539CC4BB5A4620 /* Frameworks */,
+				AA0000680000000000000068 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = WardrobeAI;
+			packageProductDependencies = (
+				AA0000050000000000000005 /* GRDB */,
+				AA0000700000000000000070 /* Iconoir */,
+			);
+			productName = WardrobeAI;
+			productReference = 407315CD7518F4D03F0CC7E2 /* WardrobeAI.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		98F54143AB4E86B28C3AFEE0 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1640;
+			};
+			buildConfigurationList = 862894B703A6DEDF96A9DD6C /* Build configuration list for PBXProject "WardrobeAI" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = DC76E9F0C0006E8F919E0C51;
+			packageReferences = (
+				AA0000060000000000000006 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				AA0000710000000000000071 /* XCRemoteSwiftPackageReference "iconoir-swift" */,
+			);
+			productRefGroup = FBDC4F23F93125BBEEAE800C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F1FFC7CB116E672B619769C4 /* WardrobeAI */,
+				05282CD561CEDCC6CA4D2073 /* WardrobeAITests */,
+				19A9091CA5BCC9902561BDC9 /* WardrobeAIUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		AA0000680000000000000068 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AA0000670000000000000067 /* WardrobeAI/SeedAssets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		4589395E61709C8DE45758C6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2ADACD4B111DB99891CAC627 /* WardrobeAIUITests/NavigationSmokeTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D734DA6A6E953FA5FA176239 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F9770CC4CE47A49D81BC3947 /* WardrobeAI/WardrobeAIApp.swift in Sources */,
+				B10F7E3EFA607590ED428C53 /* WardrobeAI/ContentView.swift in Sources */,
+				AA0000020000000000000002 /* WardrobeAI/StorageModels.swift in Sources */,
+				AA0000090000000000000009 /* WardrobeAI/WardrobeDatabase.swift in Sources */,
+				AA0000040000000000000004 /* WardrobeAI/WardrobeRepository.swift in Sources */,
+				AA0000110000000000000011 /* WardrobeAI/WardrobeImageStore.swift in Sources */,
+				AA0000130000000000000013 /* WardrobeAI/WardrobeSeed.swift in Sources */,
+				AA0000170000000000000017 /* WardrobeAI/WardrobeStore.swift in Sources */,
+				AA0000190000000000000019 /* WardrobeAI/WardrobeEditing.swift in Sources */,
+				AA0000210000000000000021 /* WardrobeAI/GarmentCapture.swift in Sources */,
+				AA0000230000000000000023 /* WardrobeAI/OutfitViews.swift in Sources */,
+				AA0000250000000000000025 /* WardrobeAI/ModelProvisioning.swift in Sources */,
+				AA0000310000000000000031 /* WardrobeAI/ModelStatusView.swift in Sources */,
+				AA0000330000000000000033 /* WardrobeAI/GarmentClassification.swift in Sources */,
+				AA0000370000000000000037 /* WardrobeAI/OutfitRecommendations.swift in Sources */,
+				AA0000410000000000000041 /* WardrobeAI/SemanticSearch.swift in Sources */,
+				AA0000450000000000000045 /* WardrobeAI/WeatherContext.swift in Sources */,
+				AA0000490000000000000049 /* WardrobeAI/CalendarContext.swift in Sources */,
+				AA0000530000000000000053 /* WardrobeAI/StylistChat.swift in Sources */,
+				AA0000570000000000000057 /* WardrobeAI/VoiceInput.swift in Sources */,
+				AA0000610000000000000061 /* WardrobeAI/BatchGarmentCapture.swift in Sources */,
+				AA0000650000000000000065 /* WardrobeAI/AssistantConversationView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DDAC859ECD9F952B196A7EDF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6DE476F09F102915334B5030 /* WardrobeAITests/AppTabTests.swift in Sources */,
+				AA0000150000000000000015 /* WardrobeAITests/StorageTests.swift in Sources */,
+				AA0000270000000000000027 /* WardrobeAITests/ModelProvisioningTests.swift in Sources */,
+				AA0000290000000000000029 /* WardrobeAITests/ModelInferenceCoordinatorTests.swift in Sources */,
+				AA0000350000000000000035 /* WardrobeAITests/GarmentClassificationTests.swift in Sources */,
+				AA0000390000000000000039 /* WardrobeAITests/OutfitRecommendationsTests.swift in Sources */,
+				AA0000430000000000000043 /* WardrobeAITests/SemanticSearchTests.swift in Sources */,
+				AA0000470000000000000047 /* WardrobeAITests/WeatherContextTests.swift in Sources */,
+				AA0000510000000000000051 /* WardrobeAITests/CalendarContextTests.swift in Sources */,
+				AA0000550000000000000055 /* WardrobeAITests/StylistChatTests.swift in Sources */,
+				AA0000590000000000000059 /* WardrobeAITests/VoiceInputTests.swift in Sources */,
+				AA0000630000000000000063 /* WardrobeAITests/BatchGarmentCaptureTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		1784E9A23926F682D51C191B /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F1FFC7CB116E672B619769C4 /* WardrobeAI */;
+			targetProxy = E18375208D0C8AB7BC76536D /* PBXContainerItemProxy */;
+		};
+		3D34E325F50276D21BC9B072 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F1FFC7CB116E672B619769C4 /* WardrobeAI */;
+			targetProxy = FD284C0801687CEEB3FF73EC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		0EFF2218C3E5F9EB368008B0 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WardrobeAI;
+			};
+			name = Release;
+		};
+		195CED8FA52B9DCD948C84D7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WardrobeAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WardrobeAI";
+			};
+			name = Debug;
+		};
+		47D718FFD01F32159E46D24D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "WardrobeAI/Debug-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Wardrobe AI";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Show event timing to help plan outfits.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take still photos of garments for your wardrobe or outfits for a mirror fit check.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record a short wardrobe request for the on-device stylist.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a garment photo to add it to your wardrobe.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIv02;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		89E1FD6268CC0F221A2BE178 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A29F161E6036CD8D3237C53D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = WardrobeAI;
+			};
+			name = Debug;
+		};
+		B95608EA620BAE6081926793 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/WardrobeAI.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/WardrobeAI";
+			};
+			name = Release;
+		};
+		E6DE6C99132752C914FEF632 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_TESTABILITY = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		F15BDB22849D5A21C4BF4CEA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = X5TSJQATCF;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Wardrobe AI";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Show event timing to help plan outfits.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Take still photos of garments for your wardrobe or outfits for a mirror fit check.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Record a short wardrobe request for the on-device stylist.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Choose a garment photo to add it to your wardrobe.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.wardrobeai.WardrobeAIv02;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1412643B0FE429058E785990 /* Build configuration list for PBXNativeTarget "WardrobeAIUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A29F161E6036CD8D3237C53D /* Debug */,
+				0EFF2218C3E5F9EB368008B0 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		72AEB4DFE7713295C34CBD9A /* Build configuration list for PBXNativeTarget "WardrobeAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				47D718FFD01F32159E46D24D /* Debug */,
+				F15BDB22849D5A21C4BF4CEA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		862894B703A6DEDF96A9DD6C /* Build configuration list for PBXProject "WardrobeAI" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				89E1FD6268CC0F221A2BE178 /* Debug */,
+				E6DE6C99132752C914FEF632 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		94F8A91F397E5CCCA8C0EAC1 /* Build configuration list for PBXNativeTarget "WardrobeAITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				195CED8FA52B9DCD948C84D7 /* Debug */,
+				B95608EA620BAE6081926793 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		AA0000060000000000000006 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.0.0;
+			};
+		};
+		AA0000710000000000000071 /* XCRemoteSwiftPackageReference "iconoir-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/iconoir-icons/iconoir-swift.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA0000050000000000000005 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000060000000000000006 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		AA0000700000000000000070 /* Iconoir */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AA0000710000000000000071 /* XCRemoteSwiftPackageReference "iconoir-swift" */;
+			productName = Iconoir;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 98F54143AB4E86B28C3AFEE0 /* Project object */;
+}
