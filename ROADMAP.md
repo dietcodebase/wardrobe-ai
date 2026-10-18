@@ -39,9 +39,9 @@ Default delivery order is numeric. Dependencies below remain the technical minim
 | M10 | Optional weather context | `milestone/m10-weather` | M08 | merged | [#12](https://github.com/dietcodebase/wardrobe-ai/pull/12) · [evidence](docs/m10-evidence.md) |
 | M11 | Calendar and outfit scheduling | `milestone/m11-calendar` | M05, M10 | merged | [#13](https://github.com/dietcodebase/wardrobe-ai/pull/13) · [evidence](docs/m11-evidence.md) |
 | M12 | Text stylist with bounded tools | `milestone/m12-stylist-chat` | M08, M11 | merged | [#15](https://github.com/dietcodebase/wardrobe-ai/pull/15) · [evidence](docs/m12-evidence.md) |
-| M13 | Voice input | `milestone/m13-voice` | M12, audio gate from M01 | in-review | local branch; PR pending · [evidence](docs/m13-evidence.md) |
-| M14 | Batch garment capture | `milestone/m14-batch-capture` | M07 | in-review | [#17](https://github.com/dietcodebase/wardrobe-ai/pull/17) · [evidence](docs/m14-evidence.md) |
-| M15 | Mirror fit-check and demo release | `milestone/m15-mirror-release` | M09–M14 | planned | — |
+| M13 | Voice input | `milestone/m13-voice` | M12, audio gate from M01 | merged | [#16](https://github.com/dietcodebase/wardrobe-ai/pull/16) · [evidence](docs/m13-evidence.md) |
+| M14 | Batch garment capture | `milestone/m14-batch-capture` | M07 | merged | [#19](https://github.com/dietcodebase/wardrobe-ai/pull/19) · [evidence](docs/m14-evidence.md) |
+| M15 | Mirror fit-check and demo release | `milestone/m15-mirror-release` | M09–M14 | in-review | [#18](https://github.com/dietcodebase/wardrobe-ai/pull/18) · [evidence](docs/m15-evidence.md) |
 
 ## Git and review contract
 
