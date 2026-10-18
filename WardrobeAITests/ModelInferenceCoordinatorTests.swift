@@ -2,6 +2,43 @@ import XCTest
 @testable import WardrobeAI
 
 final class ModelInferenceCoordinatorTests: XCTestCase {
+    func testDownloadedE4BAndEmbeddingRuntimeScenarios() async throws {
+        let store = try ModelStore.applicationSupport()
+        guard let e4b = try store.verifiedModel(for: ModelDescriptor.qualifiedCandidates.first(where: { $0.id == .e4b })!),
+              let embedding = try store.verifiedModel(for: ModelDescriptor.qualifiedCandidates.first(where: { $0.id == .embedding })!)
+        else {
+            throw XCTSkip("E4B and EmbeddingGemma must be installed in this app container for the device runtime suite.")
+        }
+        guard let imageURL = Bundle.main.url(forResource: "navy-oxford", withExtension: "png", subdirectory: "SeedAssets") else {
+            XCTFail("Missing bundled synthetic wardrobe fixture.")
+            return
+        }
+
+        let textWithoutMTP = try await LocalGemmaDiagnostics.text(modelURL: e4b.fileURL, mtp: false)
+        XCTAssertFalse(textWithoutMTP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        let vectors = try await LocalGemmaDiagnostics.embeddings(modelURL: embedding.fileURL, imageURL: imageURL)
+        for vector in [vectors.text, vectors.image] {
+            XCTAssertEqual(vector.count, 768)
+            XCTAssertTrue(vector.allSatisfy(\.isFinite))
+            XCTAssertTrue(vector.contains(where: { $0 != 0 }))
+        }
+
+        let textWithMTP = try await LocalGemmaDiagnostics.text(modelURL: e4b.fileURL, mtp: true)
+        XCTAssertFalse(textWithMTP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        let image = try await LocalGemmaDiagnostics.image(modelURL: e4b.fileURL, imageURL: imageURL)
+        XCTAssertFalse(image.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        let tool = try await LocalGemmaDiagnostics.tool(modelURL: e4b.fileURL)
+        XCTAssertFalse(tool.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+        let audioURL = try LocalGemmaDiagnostics.silentAudioFixture()
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        let audio = try await LocalGemmaDiagnostics.audio(modelURL: e4b.fileURL, audioURL: audioURL)
+        XCTAssertFalse(audio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
+
     func testSwitchingModelsUnloadsBeforeLoadingNextEngine() async throws {
         let loader = RecordingLoader()
         let coordinator = ModelInferenceCoordinator(loader: loader)

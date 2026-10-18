@@ -1,4 +1,117 @@
 import SwiftUI
+import Security
+
+enum OpenRouterSettings {
+    static let enabledKey = "openrouter-fallback-enabled"
+    static let modelKey = "openrouter-fallback-model"
+    static let keychainAccount = "openrouter-api-key"
+    static let defaultModel = "google/gemma-4-26b-a4b-it"
+
+    static var isEnabled: Bool { UserDefaults.standard.bool(forKey: enabledKey) }
+    static var model: String {
+        let value = UserDefaults.standard.string(forKey: modelKey)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? defaultModel : value
+    }
+
+    static func apiKey() -> String? {
+        let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: Bundle.main.bundleIdentifier ?? "com.wardrobeai.ootd1", kSecAttrAccount: keychainAccount, kSecReturnData: true]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data, let key = String(data: data, encoding: .utf8), !key.isEmpty else { return nil }
+        return key
+    }
+
+    static func saveAPIKey(_ value: String) {
+        let key = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: Bundle.main.bundleIdentifier ?? "com.wardrobeai.ootd1", kSecAttrAccount: keychainAccount]
+        if key.isEmpty { SecItemDelete(query as CFDictionary); return }
+        let attributes: [CFString: Any] = [kSecValueData: Data(key.utf8)]
+        if SecItemUpdate(query as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
+            var add = query; add[kSecValueData] = Data(key.utf8); SecItemAdd(add as CFDictionary, nil)
+        }
+    }
+}
+
+enum OpenRouterError: LocalizedError {
+    case missingKey, invalidResponse, server(String)
+    var errorDescription: String? {
+        switch self { case .missingKey: "Add an OpenRouter API key in Cloud fallback settings."; case .invalidResponse: "OpenRouter returned an unreadable response."; case let .server(message): "OpenRouter: \(message)" }
+    }
+}
+
+struct OpenRouterChatRequest: Encodable {
+    struct Message: Encodable {
+        let role: String
+        let content: Content
+
+        init(role: String, content: String) {
+            self.role = role
+            self.content = .text(content)
+        }
+
+        init(role: String, content: Content) {
+            self.role = role
+            self.content = content
+        }
+    }
+
+    enum Content: Encodable {
+        case text(String)
+        case parts([Part])
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            switch self {
+            case let .text(value): try container.encode(value)
+            case let .parts(value): try container.encode(value)
+            }
+        }
+    }
+
+    struct Part: Encodable {
+        let type: String
+        let text: String?
+        let imageURL: String?
+
+        enum CodingKeys: String, CodingKey { case type, text, imageURL = "image_url" }
+
+        static func text(_ value: String) -> Part { Part(type: "text", text: value, imageURL: nil) }
+        static func image(_ value: String) -> Part { Part(type: "image_url", text: nil, imageURL: value) }
+    }
+
+    let model: String; let messages: [Message]; let maxTokens: Int; let temperature: Double
+    enum CodingKeys: String, CodingKey { case model, messages, maxTokens = "max_tokens", temperature }
+}
+
+struct OpenRouterChatResponse: Decodable {
+    struct Choice: Decodable { struct Message: Decodable { let content: String? }; let message: Message }
+    struct APIError: Decodable { let message: String? }
+    let choices: [Choice]?; let error: APIError?
+}
+
+protocol CloudStylistResponding: Sendable { func reply(prompt: String, wardrobe: [GarmentItem]) async throws -> String }
+
+struct OpenRouterClient: CloudStylistResponding {
+    func reply(prompt: String, wardrobe: [GarmentItem]) async throws -> String {
+        let inventory = wardrobe.prefix(24).map { "\($0.name) (\($0.category), \($0.color ?? "unspecified"))" }.joined(separator: "; ")
+        let system = "You are a concise wardrobe stylist. Only recommend items from this owned inventory: \(inventory.isEmpty ? "No items supplied" : inventory). Do not claim to perform actions or record wear. If nothing fits, say so."
+        let payload = OpenRouterChatRequest(model: OpenRouterSettings.model, messages: [.init(role: "system", content: system), .init(role: "user", content: prompt)], maxTokens: 180, temperature: 0.4)
+        return try await Self.complete(payload)
+    }
+
+    static func complete(_ payload: OpenRouterChatRequest) async throws -> String {
+        guard let key = OpenRouterSettings.apiKey() else { throw OpenRouterError.missingKey }
+        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        request.httpMethod = "POST"; request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization"); request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(payload)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw OpenRouterError.invalidResponse }
+        let decoded = try? JSONDecoder().decode(OpenRouterChatResponse.self, from: data)
+        guard (200...299).contains(http.statusCode) else { throw OpenRouterError.server(decoded?.error?.message ?? "HTTP \(http.statusCode)") }
+        guard let text = decoded?.choices?.first?.message.content?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { throw OpenRouterError.invalidResponse }
+        return text
+    }
+}
 
 enum StylistTool: String, Codable, CaseIterable, Sendable {
     case searchWardrobe
@@ -59,6 +172,7 @@ final class StylistToolbox {
 
     func resetCallCount() { callCount = 0 }
     func itemName(_ id: UUID) -> String? { store.item(id: id)?.name }
+    func ownedGarments() -> [GarmentItem] { store.allGarments }
 
     func execute(_ call: StylistToolCall, confirmedByUser: Bool = false) throws -> StylistToolResult {
         guard callCount < maximumCallCount else { throw StylistToolError.callLimitReached }
@@ -99,10 +213,14 @@ final class StylistChat: ObservableObject {
     @Published private(set) var isResponding = false
 
     private let toolbox: StylistToolbox
+    private let cloudResponder: any CloudStylistResponding
     private var responseTask: Task<Void, Never>?
     private var activeResponseID: UUID?
 
-    init(store: WardrobeStore) { toolbox = StylistToolbox(store: store) }
+    init(store: WardrobeStore, cloudResponder: any CloudStylistResponding = OpenRouterClient()) {
+        toolbox = StylistToolbox(store: store)
+        self.cloudResponder = cloudResponder
+    }
 
     func send(_ input: String) {
         let request = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -122,16 +240,17 @@ final class StylistChat: ObservableObject {
                 }
             }
             guard !Task.isCancelled, self.activeResponseID == responseID else { return }
-            let response: String
+            let localResponse: String
             if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
-                response = self.wearSummary()
+                localResponse = self.wearSummary()
             } else if request.localizedCaseInsensitiveContains("plan") || request.localizedCaseInsensitiveContains("calendar") {
-                response = self.contextSummary()
+                localResponse = self.contextSummary()
             } else if Self.isRecommendationRequest(request) {
-                response = self.recommendationSummary()
+                localResponse = self.recommendationSummary()
             } else {
-                response = self.searchSummary(for: Self.searchTerms(from: request))
+                localResponse = self.searchSummary(for: Self.searchTerms(from: request))
             }
+            let response = await self.cloudFallback(for: request, localResponse: localResponse)
             await self.stream(response, responseID: responseID)
         }
     }
@@ -187,6 +306,14 @@ final class StylistChat: ObservableObject {
                 suggestion.itemIDs.compactMap { toolbox.itemName($0) }.joined(separator: " + ")
             }.filter { !$0.isEmpty }.joined(separator: "; ") + "."
         } catch { return error.localizedDescription }
+    }
+
+    private func cloudFallback(for request: String, localResponse: String) async -> String {
+        guard OpenRouterSettings.isEnabled,
+              localResponse.contains("couldn’t find") || localResponse.contains("Add a few garments")
+        else { return localResponse }
+        do { return try await cloudResponder.reply(prompt: request, wardrobe: toolbox.ownedGarments()) }
+        catch { return "\(localResponse) Cloud fallback is unavailable: \(error.localizedDescription)" }
     }
 
     private static func isRecommendationRequest(_ request: String) -> Bool {

@@ -35,4 +35,52 @@ final class GarmentClassificationTests: XCTestCase {
             XCTAssertEqual(error as? GarmentClassificationError, .unavailable)
         }
     }
+
+    func testOpenRouterTaggingRequestUsesAnImageMessageAndBoundedOutput() throws {
+        let payload = OpenRouterGarmentClassifier.request(for: Data([1, 2, 3]))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any])
+        XCTAssertEqual(json["model"] as? String, OpenRouterSettings.model)
+        XCTAssertEqual(json["max_tokens"] as? Int, 180)
+        let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
+        let parts = try XCTUnwrap(messages.last?["content"] as? [[String: String]])
+        XCTAssertEqual(parts.compactMap { $0["type"] }, ["text", "image_url"])
+        XCTAssertEqual(parts.last?["image_url"], "data:image/jpeg;base64,AQID")
+    }
+
+    func testOpenRouterJSONExtractionSupportsMarkdownFences() throws {
+        let response = """
+        ```json
+        {"category":"Top","tags":["casual"]}
+        ```
+        """
+        let suggestion = try GarmentClassificationResponse.decode(OpenRouterGarmentClassifier.jsonObject(in: response))
+        XCTAssertEqual(suggestion.category, "Top")
+        XCTAssertEqual(suggestion.tags, ["casual"])
+    }
+
+    func testOpenRouterLiveTaggingWhenExplicitlyEnabled() async throws {
+        guard ProcessInfo.processInfo.environment["RUN_OPENROUTER_LIVE_TEST"] == "1" else {
+            throw XCTSkip("Set RUN_OPENROUTER_LIVE_TEST=1 to run the billable OpenRouter integration check.")
+        }
+        guard OpenRouterSettings.apiKey() != nil else {
+            XCTFail("The saved OpenRouter API key is unavailable to the app test host.")
+            return
+        }
+        guard let imageURL = Bundle.main.url(forResource: "navy-oxford", withExtension: "png", subdirectory: "SeedAssets") else {
+            XCTFail("Missing bundled wardrobe fixture.")
+            return
+        }
+
+        let previousEnabled = UserDefaults.standard.object(forKey: OpenRouterSettings.enabledKey)
+        UserDefaults.standard.set(true, forKey: OpenRouterSettings.enabledKey)
+        defer {
+            if let previousEnabled { UserDefaults.standard.set(previousEnabled, forKey: OpenRouterSettings.enabledKey) }
+            else { UserDefaults.standard.removeObject(forKey: OpenRouterSettings.enabledKey) }
+        }
+
+        let result = try await OpenRouterGarmentClassifier().classify(imageData: try Data(contentsOf: imageURL))
+        XCTAssertEqual(result.route, "cloud-openrouter-fallback")
+        XCTAssertTrue(GarmentTaxonomy.isKnownCategory(result.suggestion.category))
+        XCTAssertFalse(result.suggestion.tags.isEmpty)
+    }
 }

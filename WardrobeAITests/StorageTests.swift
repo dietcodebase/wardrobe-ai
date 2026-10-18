@@ -50,6 +50,9 @@ final class StorageTests: XCTestCase {
 
         XCTAssertEqual(firstImport.map(\.id), secondImport.map(\.id))
         XCTAssertEqual(try repository.allItems().count, WardrobeSeed.entries.count)
+        let outfits = try repository.allOutfits()
+        XCTAssertEqual(outfits.count, 6)
+        XCTAssertTrue(outfits.allSatisfy { !$0.itemIDs.isEmpty })
     }
 
     func testFileDatabaseMigratesAndPersistsRecords() throws {

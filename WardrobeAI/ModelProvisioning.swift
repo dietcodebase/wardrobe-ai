@@ -1,6 +1,7 @@
 import Combine
 import CryptoKit
 import Foundation
+import LiteRTLM
 #if canImport(UIKit)
 import UIKit
 #endif
@@ -624,4 +625,133 @@ actor ModelInferenceCoordinator {
 
 enum ModelRuntime {
     static let shared = ModelInferenceCoordinator()
+}
+
+enum LocalGemmaDiagnostics {
+    static func text(modelURL: URL, mtp: Bool) async throws -> String {
+        try await generate(modelURL: modelURL, mtp: mtp, contents: [.text("Reply with the word ready.")])
+    }
+
+    static func image(modelURL: URL, imageURL: URL) async throws -> String {
+        try await generate(
+            modelURL: modelURL,
+            mtp: false,
+            contents: [.imageFile(imageURL.path), .text("Describe the garment category and color in one sentence.")],
+            vision: true
+        )
+    }
+
+    static func tool(modelURL: URL) async throws -> String {
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        let cache = try makeCacheDirectory()
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let config = try EngineConfig(modelPath: modelURL.path, backend: .gpu, maxNumTokens: 4096, cacheDir: cache.path)
+        let engine = Engine(engineConfig: config)
+        try await engine.initialize()
+        let conversation = try await engine.createConversation(with: ConversationConfig(
+            tools: [LocalGemmaProbeTool()],
+            thinkingConfig: ThinkingConfig(enableThinking: false, thinkingTokenBudget: 0)
+        ))
+        let response = try await conversation.sendMessage(
+            Message(contents: [.text("Call local_probe_echo once, then repeat its returned value.")]),
+            maxOutputTokens: 128
+        )
+        return response.toString
+    }
+
+    static func audio(modelURL: URL, audioURL: URL) async throws -> String {
+        try await generate(
+            modelURL: modelURL,
+            mtp: false,
+            contents: [.audioFile(audioURL.path), .text("Transcribe this recording.")],
+            audio: true
+        )
+    }
+
+    static func embeddings(modelURL: URL, imageURL: URL) async throws -> (text: [Float], image: [Float]) {
+        let cache = try makeCacheDirectory()
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let engine = EmbeddingEngine(config: .init(modelPath: modelURL.path, backend: .gpu, visionBackend: .gpu, cacheDir: cache.path))
+        do {
+            try await engine.initialize()
+            let text = try await engine.computeEmbedding(
+                contents: [.text("task: search query | text: navy casual shirt")],
+                options: .init(normalize: true)
+            )
+            let image = try await engine.computeEmbedding(
+                contents: [.imageFile(imageURL.path)],
+                options: .init(normalize: true)
+            )
+            await engine.close()
+            return (text.embedding, image.embedding)
+        } catch {
+            await engine.close()
+            throw error
+        }
+    }
+
+    static func silentAudioFixture() throws -> URL {
+        let sampleRate = 16_000
+        let frames = sampleRate
+        let dataBytes = frames * 2
+        var bytes = Data()
+        bytes.append("RIFF".data(using: .ascii)!)
+        appendLE(UInt32(36 + dataBytes), to: &bytes)
+        bytes.append("WAVEfmt ".data(using: .ascii)!)
+        appendLE(UInt32(16), to: &bytes)
+        appendLE(UInt16(1), to: &bytes)
+        appendLE(UInt16(1), to: &bytes)
+        appendLE(UInt32(sampleRate), to: &bytes)
+        appendLE(UInt32(sampleRate * 2), to: &bytes)
+        appendLE(UInt16(2), to: &bytes)
+        appendLE(UInt16(16), to: &bytes)
+        bytes.append("data".data(using: .ascii)!)
+        appendLE(UInt32(dataBytes), to: &bytes)
+        bytes.append(Data(repeating: 0, count: dataBytes))
+        let url = FileManager.default.temporaryDirectory.appending(path: "local-gemma-silence-\(UUID().uuidString).wav")
+        try bytes.write(to: url, options: .atomic)
+        return url
+    }
+
+    private static func generate(modelURL: URL, mtp: Bool, contents: [Content], vision: Bool = false, audio: Bool = false) async throws -> String {
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        ExperimentalFlags.enableSpeculativeDecoding = mtp
+        let cache = try makeCacheDirectory()
+        defer { try? FileManager.default.removeItem(at: cache) }
+        let config = try EngineConfig(
+            modelPath: modelURL.path,
+            backend: .gpu,
+            visionBackend: vision ? .cpu() : nil,
+            audioBackend: audio ? .cpu() : nil,
+            maxNumTokens: 4096,
+            cacheDir: cache.path
+        )
+        let engine = Engine(engineConfig: config)
+        try await engine.initialize()
+        let conversation = try await engine.createConversation(with: ConversationConfig(thinkingConfig: ThinkingConfig(enableThinking: false, thinkingTokenBudget: 0)))
+        let response = try await conversation.sendMessage(Message(contents: contents), maxOutputTokens: 128)
+        return response.toString
+    }
+
+    private static func makeCacheDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appending(path: "local-gemma-cache-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private static func appendLE<T: FixedWidthInteger>(_ value: T, to data: inout Data) {
+        var littleEndian = value.littleEndian
+        withUnsafeBytes(of: &littleEndian) { data.append(contentsOf: $0) }
+    }
+}
+
+private struct LocalGemmaProbeTool: Tool {
+    static let name = "local_probe_echo"
+    static let description = "Return a fixed test token."
+
+    init() {}
+
+    func run() async throws -> Any {
+        ["value": "local-gemma-ok"]
+    }
 }

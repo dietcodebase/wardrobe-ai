@@ -71,8 +71,9 @@ struct WardrobeImageStore {
               !relativePath.hasPrefix("/") else {
             throw ImageStoreError.invalidRelativePath
         }
-        let url = rootURL.appending(path: relativePath).standardizedFileURL
-        guard url.path.hasPrefix(rootURL.path + "/") else { throw ImageStoreError.invalidRelativePath }
+        let url = components.reduce(rootURL) { partial, component in
+            partial.appendingPathComponent(String(component), isDirectory: false)
+        }.standardizedFileURL
         return url
     }
 }

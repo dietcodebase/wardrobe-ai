@@ -152,11 +152,68 @@ struct VisionGarmentClassifier: GarmentClassifying {
     }
 }
 
+struct OpenRouterGarmentClassifier: GarmentClassifying {
+    func classify(imageData: Data) async throws -> ClassificationProvenance {
+        guard OpenRouterSettings.isEnabled else { throw GarmentClassificationError.unavailable }
+        let response = try await OpenRouterClient.complete(Self.request(for: imageData))
+        let suggestion = try GarmentClassificationResponse.decode(Self.jsonObject(in: response))
+        return ClassificationProvenance(
+            modelID: "openrouter/\(OpenRouterSettings.model)",
+            modelRevision: OpenRouterSettings.model,
+            route: "cloud-openrouter-fallback",
+            classifiedAt: Date(),
+            suggestion: suggestion,
+            wasEditedBeforeSave: false
+        )
+    }
+
+    static func request(for imageData: Data) -> OpenRouterChatRequest {
+        let system = "You classify one wardrobe item from an image. Return JSON only with category, color, tags, and materialGuess. category must be exactly one of: Top, Bottom, Dress, Outerwear, Shoes, Accessory. tags must contain at most 8 concise lowercase strings. Do not include markdown or any extra keys."
+        let imageURL = "data:image/jpeg;base64,\(imageData.base64EncodedString())"
+        return OpenRouterChatRequest(
+            model: OpenRouterSettings.model,
+            messages: [
+                .init(role: "system", content: system),
+                .init(role: "user", content: .parts([
+                    .text("Classify the garment in this image."),
+                    .image(imageURL)
+                ]))
+            ],
+            maxTokens: 180,
+            temperature: 0
+        )
+    }
+
+    static func jsonObject(in response: String) -> String {
+        guard let start = response.firstIndex(of: "{"), let end = response.lastIndex(of: "}"), start <= end else { return response }
+        return String(response[start...end])
+    }
+}
+
+struct FallbackGarmentClassifier: GarmentClassifying {
+    private let local: any GarmentClassifying
+    private let cloud: any GarmentClassifying
+
+    init(local: any GarmentClassifying = VisionGarmentClassifier(), cloud: any GarmentClassifying = OpenRouterGarmentClassifier()) {
+        self.local = local
+        self.cloud = cloud
+    }
+
+    func classify(imageData: Data) async throws -> ClassificationProvenance {
+        do {
+            return try await local.classify(imageData: imageData)
+        } catch {
+            guard OpenRouterSettings.isEnabled, OpenRouterSettings.apiKey() != nil else { throw error }
+            return try await cloud.classify(imageData: imageData)
+        }
+    }
+}
+
 actor GarmentClassificationCoordinator {
     private let classifier: any GarmentClassifying
     private let timeout: Duration
 
-    init(classifier: any GarmentClassifying = VisionGarmentClassifier(), timeout: Duration = .seconds(12)) {
+    init(classifier: any GarmentClassifying = FallbackGarmentClassifier(), timeout: Duration = .seconds(12)) {
         self.classifier = classifier
         self.timeout = timeout
     }

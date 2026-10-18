@@ -105,7 +105,7 @@ struct GarmentEditor: View {
                         HStack { ProgressView(); Text("Finding editable suggestions…") }
                         Button("Stop suggestions", role: .cancel) { cancelClassification() }
                     } else if let classification {
-                        Text("Suggested locally by \(classification.modelID.uppercased()). Review and edit every field before saving.")
+                        Text(classification.route == "cloud-openrouter-fallback" ? "Suggested by OpenRouter. Review and edit every field before saving." : "Suggested locally by \(classification.modelID.uppercased()). Review and edit every field before saving.")
                             .font(.footnote).foregroundStyle(.secondary)
                         if let material = classification.suggestion.materialGuess {
                             TextField("Material guess (verify this)", text: $materialGuess)

@@ -1,0 +1,23 @@
+{
+  "originHash" : "ce282c04e2948807b2641f952aa410de8be3df60f7cf58926d27f0cf7396617b",
+  "pins" : [
+    {
+      "identity" : "grdb.swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/groue/GRDB.swift.git",
+      "state" : {
+        "revision" : "b83108d10f42680d78f23fe4d4d80fc88dab3212",
+        "version" : "7.11.1"
+      }
+    },
+    {
+      "identity" : "litert-lm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/google-ai-edge/LiteRT-LM",
+      "state" : {
+        "revision" : "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27"
+      }
+    }
+  ],
+  "version" : 3
+}

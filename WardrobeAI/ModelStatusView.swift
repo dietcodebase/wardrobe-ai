@@ -30,6 +30,8 @@ struct ModelStatusView: View {
                 Text("Local AI status")
             }
 
+            OpenRouterFallbackSettingsView()
+
             Section("Pinned candidates") {
                 ForEach(ModelDescriptor.qualifiedCandidates) { descriptor in
                     modelRow(descriptor)
@@ -280,6 +282,28 @@ struct ModelStatusView: View {
                   weatherCity.trimmingCharacters(in: .whitespacesAndNewlines).caseInsensitiveCompare(requestedCity) == .orderedSame
             else { return }
             weatherState = state
+        }
+    }
+}
+
+private struct OpenRouterFallbackSettingsView: View {
+    @AppStorage(OpenRouterSettings.enabledKey) private var enabled = false
+    @AppStorage(OpenRouterSettings.modelKey) private var model = OpenRouterSettings.defaultModel
+    @State private var apiKey = ""
+
+    var body: some View {
+        Section("Cloud fallback") {
+            Toggle("Use OpenRouter when local AI cannot classify or find a match", isOn: $enabled)
+            TextField("OpenRouter model", text: $model)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField(OpenRouterSettings.apiKey() == nil ? "OpenRouter API key" : "Replace saved API key", text: $apiKey)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Save API key") { OpenRouterSettings.saveAPIKey(apiKey); apiKey = "" }
+                .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            Text("Off by default. When enabled, OpenRouter can answer a local no-match request or classify a garment photo when local AI cannot. The key stays only in this iPhone’s Keychain.")
+                .font(.footnote).foregroundStyle(.secondary)
         }
     }
 }

@@ -11,7 +11,9 @@ struct WardrobeAIApp: App {
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let database = try! WardrobeDatabase.makeQueue(at: url)
         let imageStore = try? WardrobeImageStore.applicationSupport()
-        _store = StateObject(wrappedValue: WardrobeStore(repository: WardrobeRepository(database: database), imageStore: imageStore))
+        let repository = WardrobeRepository(database: database)
+        try? WardrobeSeed.install(in: repository, imageStore: imageStore)
+        _store = StateObject(wrappedValue: WardrobeStore(repository: repository, imageStore: imageStore))
         _modelManager = StateObject(wrappedValue: ModelManager())
     }
 

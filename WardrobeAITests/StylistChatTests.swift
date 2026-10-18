@@ -91,6 +91,19 @@ final class StylistChatTests: XCTestCase {
         XCTAssertTrue(chat.messages.last?.text.contains("Blue shirt") == true)
     }
 
+    func testOpenRouterPayloadPinsConfiguredModelAndBoundedOutput() throws {
+        let payload = OpenRouterChatRequest(
+            model: OpenRouterSettings.defaultModel,
+            messages: [.init(role: "user", content: "Find a navy shirt")],
+            maxTokens: 180,
+            temperature: 0.4
+        )
+        let json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any]
+        XCTAssertEqual(json?["model"] as? String, "google/gemma-4-26b-a4b-it")
+        XCTAssertEqual(json?["max_tokens"] as? Int, 180)
+        XCTAssertEqual((json?["messages"] as? [[String: String]])?.first?["content"], "Find a navy shirt")
+    }
+
     private func makeStore() throws -> WardrobeStore {
         let database = try WardrobeDatabase.makeQueue(at: FileManager.default.temporaryDirectory.appending(path: "stylist-\(UUID().uuidString).sqlite"))
         return WardrobeStore(repository: WardrobeRepository(database: database))
