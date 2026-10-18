@@ -1,7 +1,7 @@
 # Final validation tracker
 
-Status: pending implementation of the remaining milestones.  
-Decision: feature-first delivery approved by the project owner on 17 October 2026. Run this plan against the integrated release candidate before merging the deferred milestone PRs or making support/performance claims.
+Status: feature code through M15 is merged; integrated and physical-device acceptance remain open.
+Decision: feature-first delivery was approved by the project owner on 17 October 2026. Run this plan against the integrated release candidate before making support or performance claims.
 
 This tracker consolidates evidence; it does not waive any milestone's acceptance criteria. Record the exact command, device, OS, build/configuration, model/artifact version, date, result, raw-report location, and issue/PR for every failed or rerun check.
 
@@ -10,7 +10,7 @@ This tracker consolidates evidence; it does not waive any milestone's acceptance
 1. Stabilize the integrated candidate: resolve compilation, unit-test-host/linking, migration, and accessibility regressions.
 2. Run simulator and deterministic unit/integration tests; record the full command output or CI run.
 3. Run physical-device qualification and the end-to-end release scenario on the named demo device.
-4. Fix failures on their owning milestone branches, repeat affected checks, then retarget/merge PRs in dependency order.
+4. Fix failures in focused follow-up PRs, repeat affected checks, and link the evidence from the owning milestone records.
 
 ## Environment record
 
@@ -34,6 +34,7 @@ This tracker consolidates evidence; it does not waive any milestone's acceptance
 - [ ] Run the complete workflow online/offline, after restart, with missing/corrupt/unavailable models, and under constrained storage/network conditions.
 - [ ] Verify Dynamic Type, VoiceOver labels, permission-denial recovery, and temporary-file/data cleanup.
 - [ ] Confirm no models, secrets, personal photos, or private records are committed or exposed by sharing/import paths.
+- [ ] Resolve the remote Ollama stylist path currently present in the app: the v1 privacy contract keeps wardrobe prompts and images on the device. Disable remote submission in the v1 build or obtain a changed product decision before release.
 
 ## M01 runtime gates
 

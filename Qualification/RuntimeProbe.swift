@@ -15,7 +15,7 @@ struct ProbeManifest: Decodable {
 }
 
 enum ProbeMode: String, CaseIterable, Identifiable {
-    case text, image, audio, tools, embedding
+    case text, image, audio, tools, embedding, switching, capture
     var id: String { rawValue }
 }
 
@@ -38,6 +38,8 @@ actor RuntimeProbe {
     private let output: URL
     private let cache: URL
     private var environment: [String: String] = [:]
+    private var captureArtifact: Artifact?
+    private var captureFolder: URL?
 
     init(output: URL, cache: URL) {
         self.output = output
@@ -45,13 +47,14 @@ actor RuntimeProbe {
     }
 
     func run(folder: URL, mode: ProbeMode, e4b: Bool, mtp: Bool) async throws {
+        guard mode != .capture else { throw ProbeError.captureNotReady }
         samples = []
         environment = ["os": ProcessInfo.processInfo.operatingSystemVersionString,
                        "runtimeRevision": "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27",
                        "startedUTC": ISO8601DateFormatter().string(from: Date()),
                        "mode": mode.rawValue, "mtp": String(mtp), "e4b": String(e4b),
                        "backend": "Metal", "contextTokens": "4096",
-                       "visionBackend": mode == .image ? "cpu" : (mode == .embedding ? "gpu" : "disabled"),
+                       "visionBackend": mode == .image || mode == .switching ? "cpu" : (mode == .embedding ? "gpu" : "disabled"),
                        "audioBackend": mode == .audio ? "cpu" : "disabled"]
         var system = utsname()
         uname(&system)
@@ -65,16 +68,25 @@ actor RuntimeProbe {
         let artifact = manifest.models.first { $0.id == id }!
         try verify(folder.appendingPathComponent(artifact.filename), artifact: artifact)
         try record("verified-\(id)-\(artifact.sha256)-mtp-\(mtp)", 0, 0, "metadata only")
+        let embeddingArtifact = mode == .switching ? manifest.models.first { $0.id == "embedding" } : nil
+        if let embeddingArtifact {
+            try verify(folder.appendingPathComponent(embeddingArtifact.filename), artifact: embeddingArtifact)
+            try record("verified-embedding-\(embeddingArtifact.sha256)", 0, 0, "metadata only")
+        }
         ExperimentalFlags.optIntoExperimentalAPIs()
         ExperimentalFlags.enableSpeculativeDecoding = mtp
         // The first load uses a new cache; the second reuses it. Neither implies OS page-cache eviction.
         do {
-            for pass in 0..<2 {
-                try Task.checkCancellation()
-                if mode == .embedding {
-                    try await embeddings(folder: folder, artifact: artifact, pass: pass)
-                } else {
-                    try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+            if let embeddingArtifact {
+                try await switching(folder: folder, generationArtifact: artifact, embeddingArtifact: embeddingArtifact)
+            } else {
+                for pass in 0..<2 {
+                    try Task.checkCancellation()
+                    if mode == .embedding {
+                        try await embeddings(folder: folder, artifact: artifact, pass: pass)
+                    } else {
+                        try await generation(folder: folder, artifact: artifact, mode: mode, pass: pass)
+                    }
                 }
             }
             try record("suite-complete", 0, 0, "Review semantic quality and external memory evidence")
@@ -82,6 +94,68 @@ actor RuntimeProbe {
             try record("suite-failed", 0, 0, String(describing: error))
             throw error
         }
+    }
+
+    // Each call follows a fresh camera dismissal. Keeping the engine scoped to one
+    // operation exposes repeated load/capture/inference pressure in Instruments.
+    func startCaptureSession(folder: URL, mtp: Bool) throws {
+        samples = []
+        environment = ["os": ProcessInfo.processInfo.operatingSystemVersionString,
+                       "runtimeRevision": "b2f686e2ed4718fb84ec398a61dd59ca0f0aff27",
+                       "startedUTC": ISO8601DateFormatter().string(from: Date()),
+                       "mode": ProbeMode.capture.rawValue, "mtp": String(mtp), "e4b": "false",
+                       "backend": "Metal", "contextTokens": "4096",
+                       "visionBackend": "cpu", "audioBackend": "disabled"]
+        var system = utsname()
+        uname(&system)
+        environment["hardware"] = withUnsafeBytes(of: &system.machine) { bytes in
+            String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        try FileManager.default.createDirectory(at: cache, withIntermediateDirectories: true)
+        guard let manifestURL = Bundle.main.url(forResource: "artifacts", withExtension: "json"),
+              let artifact = try JSONDecoder().decode(ProbeManifest.self, from: Data(contentsOf: manifestURL))
+                .models.first(where: { $0.id == "e2b" }) else { throw ProbeError.invalidArtifact }
+        try verify(folder.appendingPathComponent(artifact.filename), artifact: artifact)
+        captureArtifact = artifact
+        captureFolder = folder
+        ExperimentalFlags.optIntoExperimentalAPIs()
+        ExperimentalFlags.enableSpeculativeDecoding = mtp
+        try record("capture-ready-\(artifact.sha256)", 0, 0, "Take ten separate camera photos")
+    }
+
+    func inferCapturedPhoto(_ image: UIImage, iteration: Int) async throws {
+        guard (1...10).contains(iteration), let artifact = captureArtifact,
+              let folder = captureFolder else { throw ProbeError.captureNotReady }
+        let started = ProcessInfo.processInfo.systemUptime
+        do {
+            let imageURL = try preparedCapture(image, iteration: iteration)
+            defer { try? FileManager.default.removeItem(at: imageURL) }
+            let config = try EngineConfig(
+                modelPath: folder.appendingPathComponent(artifact.filename).path,
+                backend: .gpu, visionBackend: .cpu(), maxNumTokens: 4096,
+                cacheDir: cache.path)
+            let engine = Engine(engineConfig: config)
+            try await engine.initialize()
+            let conversation = try await engine.createConversation(with: ConversationConfig(
+                thinkingConfig: ThinkingConfig(enableThinking: false, thinkingTokenBudget: 0)))
+            let response = try await conversation.sendMessage(Message(contents: [
+                .imageFile(imageURL.path),
+                .text("Describe the garment category and color in one sentence.")
+            ]), maxOutputTokens: 128)
+            try record("camera-image", iteration,
+                       ProcessInfo.processInfo.systemUptime - started, response.toString)
+        } catch {
+            try record("camera-image", iteration,
+                       ProcessInfo.processInfo.systemUptime - started, "ERROR: \(error)")
+            throw error
+        }
+    }
+
+    func finishCaptureSession(completed: Bool) throws {
+        try record(completed ? "suite-complete" : "suite-incomplete", 0, 0,
+                   completed ? "Review camera, output, memory and thermal evidence" : "Fewer than ten successful captures")
+        captureArtifact = nil
+        captureFolder = nil
     }
 
     private func verify(_ url: URL, artifact: Artifact) throws {
@@ -172,6 +246,62 @@ actor RuntimeProbe {
         }
     }
 
+    // Ten complete generation → embedding → generation cycles. Each helper releases its
+    // engine before the next one is constructed, so peak memory reflects sequential use.
+    private func switching(folder: URL, generationArtifact: Artifact, embeddingArtifact: Artifact) async throws {
+        for iteration in 1...10 {
+            try Task.checkCancellation()
+            let image = try preparedImage(folder: folder, iteration: iteration)
+            try await switchingGeneration(folder: folder, artifact: generationArtifact,
+                                          iteration: iteration, image: nil, phase: "before-embedding")
+            try await switchingEmbedding(folder: folder, artifact: embeddingArtifact,
+                                         iteration: iteration, image: image)
+            try await switchingGeneration(folder: folder, artifact: generationArtifact,
+                                          iteration: iteration, image: image, phase: "after-embedding")
+        }
+    }
+
+    private func switchingGeneration(folder: URL, artifact: Artifact, iteration: Int,
+                                     image: URL?, phase: String) async throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let config = try EngineConfig(
+            modelPath: folder.appendingPathComponent(artifact.filename).path,
+            backend: .gpu, visionBackend: image == nil ? nil : .cpu(),
+            maxNumTokens: 4096, cacheDir: cache.path)
+        let engine = Engine(engineConfig: config)
+        try await engine.initialize()
+        let conversation = try await engine.createConversation(with: ConversationConfig(
+            thinkingConfig: ThinkingConfig(enableThinking: false, thinkingTokenBudget: 0)))
+        let contents: [Content] = image.map {
+            [.imageFile($0.path), .text("Describe the garment category and color in one sentence.")]
+        } ?? [.text("Reply with the word ready.")]
+        let response = try await conversation.sendMessage(Message(contents: contents), maxOutputTokens: 128)
+        try record("switch-generation-\(phase)", iteration,
+                   ProcessInfo.processInfo.systemUptime - started, response.toString)
+    }
+
+    private func switchingEmbedding(folder: URL, artifact: Artifact, iteration: Int,
+                                    image: URL) async throws {
+        let started = ProcessInfo.processInfo.systemUptime
+        let engine = EmbeddingEngine(config: .init(
+            modelPath: folder.appendingPathComponent(artifact.filename).path,
+            backend: .gpu, visionBackend: .gpu, cacheDir: cache.path))
+        do {
+            try await engine.initialize()
+            let response = try await engine.computeEmbedding(contents: [.imageFile(image.path)],
+                                                             options: .init(normalize: true))
+            guard response.embedding.count == 768,
+                  response.embedding.allSatisfy({ $0.isFinite }),
+                  response.embedding.contains(where: { $0 != 0 }) else { throw ProbeError.invalidEmbedding }
+            try record("switch-embedding", iteration,
+                       ProcessInfo.processInfo.systemUptime - started, "valid 768D image vector")
+            await engine.close()
+        } catch {
+            await engine.close()
+            throw error
+        }
+    }
+
     private func preparedImage(folder: URL, iteration: Int) throws -> URL {
         let source = folder.appendingPathComponent(String(format: "image-%02d.jpg", iteration))
         guard let image = UIImage(contentsOfFile: source.path), image.size.width > 0, image.size.height > 0 else {
@@ -190,6 +320,21 @@ actor RuntimeProbe {
         return target
     }
 
+    private func preparedCapture(_ image: UIImage, iteration: Int) throws -> URL {
+        guard image.size.width > 0, image.size.height > 0 else { throw ProbeError.missingFixture }
+        let scale = min(1, 768 / max(image.size.width, image.size.height))
+        let size = CGSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let data = UIGraphicsImageRenderer(size: size, format: format).jpegData(withCompressionQuality: 0.85) { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
+        let target = cache.appendingPathComponent("captured-\(iteration).jpg")
+        try data.write(to: target, options: .atomic)
+        return target
+    }
+
     private func record(_ phase: String, _ iteration: Int, _ seconds: Double, _ result: String) throws {
         samples.append(ProbeSample(phase: phase, iteration: iteration, seconds: seconds,
                                    thermalState: ProcessInfo.processInfo.thermalState.rawValue, result: result))
@@ -200,7 +345,7 @@ actor RuntimeProbe {
 }
 
 enum ProbeError: Error {
-    case invalidArtifact, missingFixture, invalidEmbedding
+    case invalidArtifact, missingFixture, invalidEmbedding, captureNotReady
 }
 
 actor ToolWitness {

@@ -1,8 +1,8 @@
 # M01 runtime and device qualification
 
-Status: **blocked; draft PR [#2](https://github.com/dietcodebase/wardrobe-ai/pull/2)**.
-Updated 16 October 2026. No runtime/model/device combination is qualified.
-M00 prerequisite PR #1 merged on 16 October 2026 (verified through GitHub).
+Status: **probe code merged in [#2](https://github.com/dietcodebase/wardrobe-ai/pull/2); physical-device gate open**.
+Updated 19 October 2026. No runtime/model/device combination is qualified. The
+extended camera/switching harness and build evidence are in [M01b](m01b-evidence.md).
 
 ## Decision and go/no-go matrix
 
@@ -13,16 +13,16 @@ the others. Do not infer device support from physical RAM. Keep manual/local mod
 
 | Capability | Evidence today | Decision / dependent work |
 |---|---|---|
-| Exact Swift signatures / binary linkage | Source inspected; syntax only locally; CI pending | Compile gate pending |
+| Exact Swift signatures / binary linkage | Pinned revision builds for arm64 iOS simulator with Xcode 27.1 | Compile gate passed for probe; device execution pending |
 | E2B generation + vision | No model download or physical-device run | Untested; blocks M06–M08 |
 | EmbeddingGemma 2 text + image | Probe validates dimensions/finiteness/nonzero only; not executed | Untested; blocks M09 |
 | E2B audio | Decoder/format and transcription quality untested | Untested; blocks M13 |
 | Tools | Fixed read-only echo probe; no device invocation | Untested; no tool support claim |
 | MTP off/on | Separate run setting implemented; no measurements | Untested; default off for evaluation |
 | E4B | Optional; artifact metadata only | Deferred until E2B resource safety is established |
-| Capture/model switching/repeated use | File inputs only; no capture stress harness yet | Unmet acceptance requirement |
+| Capture/model switching/repeated use | File fixture switching and real-camera capture harnesses implemented; physical runs pending | Unmet acceptance requirement |
 
-M02–M05 may proceed independently per ROADMAP. No AI capability gate is passed.
+Feature code through M15 is merged per ROADMAP. No AI capability gate is passed.
 
 ## Reproducibility and source evidence
 
@@ -69,11 +69,10 @@ state. Synthetic/licensed inputs only; no personal wardrobe photos or recordings
    inference and release. Record thermal state and termination/jetsam evidence.
    Proposed classification p95 <=2.5 s and total peak <=3.5 GB remain provisional.
    Revise with measured rationale before downstream code relies on them.
-4. Complete the missing real-camera capture + inference stress harness, then at
-   least ten repeated capture/inference operations and ten sequential
-   generation→embedding→generation cycles. Verify release, thermal recovery,
-   missing/corrupt artifacts and termination behavior. The current isolated file
-   probe does not implement this capture/switch acceptance test.
+4. Run the implemented real-camera capture + inference harness for at least ten
+   separate photos, then generation → embedding → generation for ten cycles.
+   Verify release, thermal recovery, missing/corrupt artifacts and termination
+   behavior. Review each checkpoint and the full Instruments trace.
 5. Run tools (expect exactly one echo invocation and returned sentinel), audio
    against known transcripts, and embedding text/image relevance independently.
    Record actual accepted sample rate/channels/encoding and failure cases. Audio
@@ -88,11 +87,12 @@ state. Synthetic/licensed inputs only; no personal wardrobe photos or recordings
 - `plutil -lint Qualification/RuntimeProbe.xcodeproj/project.pbxproj`: pass.
 - Artifact-verifier synthetic checks: valid bytes pass; wrong size and wrong hash reject.
 - `git diff --check`: pass.
-- `xcodebuild -version`: unavailable; selected developer directory is Command Line Tools and full Xcode is not installed locally.
-- CI exact-signature build: first run failed in upstream Swift sources because main referenced a mismatched C binary. Source is now pinned to the matching v0.18.0 release commit; arm64 simulator rebuild pending. See [failed run](https://github.com/dietcodebase/wardrobe-ai/actions/runs/38925446897).
+- `xcodebuild -version`: Xcode 27.1 (27A9275).
+- `xcodebuild -project Qualification/RuntimeProbe.xcodeproj -scheme RuntimeProbe -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/wardrobe-probe-derived CODE_SIGNING_ALLOWED=NO ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build`: passed locally against the matching v0.18.0 source/binary revision. The generic x86_64 simulator link failed because this binary has an arm64 simulator slice only.
+- CI exact-signature build for the original probe also [passed](https://github.com/dietcodebase/wardrobe-ai/actions/runs/38927286291).
 - Device execution, screenshots, peak memory, p50/p95, thermal/capture/switch tests,
   audio quality, embedding relevance and MTP comparison: **not run**.
 
-M01 is partial implementation with device validation pending, not code-complete or
-accepted. Resume this milestone after compilation and hardware are available;
-merge only after the acceptance matrix has actual evidence.
+M01 probe code compiles, but the physical-device qualification is still untested.
+Record the exported iPhone report and Instruments trace before accepting dependent
+AI features.
