@@ -288,6 +288,8 @@ private struct AssistantSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage(OllamaConfiguration.endpointKey) private var endpoint = ""
     @AppStorage(OllamaConfiguration.modelKey) private var model = OllamaConfiguration.defaultModel
+    @State private var connectionStatus: String?
+    @State private var isTestingConnection = false
 
     var body: some View {
         NavigationStack {
@@ -297,12 +299,41 @@ private struct AssistantSettingsView: View {
                         .textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
                     TextField("Model", text: $model)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
+                    Button {
+                        testConnection()
+                    } label: {
+                        if isTestingConnection {
+                            HStack { ProgressView(); Text("Checking connection…") }
+                        } else {
+                            Label("Test Ollama connection", systemImage: "network")
+                        }
+                    }
+                    .disabled(isTestingConnection)
+                    if let connectionStatus {
+                        Text(connectionStatus)
+                            .font(.footnote)
+                            .foregroundStyle(connectionStatus.hasPrefix("Connected") ? .green : .red)
+                    }
                     Text("Use a reachable HTTP(S) URL. Your wardrobe context is sent only to this configured server.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("Assistant settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+
+    private func testConnection() {
+        let configuration = OllamaConfiguration(endpointText: endpoint, model: model)
+        isTestingConnection = true
+        connectionStatus = nil
+        Task {
+            defer { isTestingConnection = false }
+            do {
+                connectionStatus = try await OllamaClient().verifyConnection(configuration: configuration)
+            } catch {
+                connectionStatus = error.localizedDescription
+            }
         }
     }
 }

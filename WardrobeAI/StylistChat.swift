@@ -32,26 +32,31 @@ struct OllamaConfiguration: Equatable, Sendable {
 
     var isConfigured: Bool { endpoint != nil }
 
-    var chatURL: URL? {
+    private func apiURL(_ route: String) -> URL? {
         guard let endpoint else { return nil }
         let base = endpoint.path.hasSuffix("/") ? endpoint : endpoint.appendingPathComponent("")
         // Accept either an Ollama server root or a copied /api URL.
         return base.path.hasSuffix("/api/") || base.path.hasSuffix("/api")
-            ? base.appendingPathComponent("chat")
-            : base.appendingPathComponent("api/chat")
+            ? base.appendingPathComponent(route)
+            : base.appendingPathComponent("api/(route)")
     }
+
+    var chatURL: URL? { apiURL("chat") }
+    var tagsURL: URL? { apiURL("tags") }
 }
 
 enum OllamaError: LocalizedError, Equatable {
     case notConfigured
     case invalidResponse
     case server(statusCode: Int, message: String)
+    case modelUnavailable(String)
 
     var errorDescription: String? {
         switch self {
         case .notConfigured: "Add your remote Ollama server URL to use Gemma 4."
         case .invalidResponse: "Ollama returned an unreadable response."
         case let .server(statusCode, message): "Ollama returned HTTP \(statusCode): \(message)"
+        case let .modelUnavailable(model): "The server is reachable, but \(model) is not installed. Run: ollama pull \(model)"
         }
     }
 }
@@ -71,6 +76,25 @@ struct OllamaClient: Sendable {
 
     init(transport: any OllamaTransport = URLSessionOllamaTransport()) {
         self.transport = transport
+    }
+
+    /// Checks the configured server without sending wardrobe data or running inference.
+    func verifyConnection(configuration: OllamaConfiguration) async throws -> String {
+        guard let url = configuration.tagsURL else { throw OllamaError.notConfigured }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await transport.send(request)
+        guard let http = response as? HTTPURLResponse else { throw OllamaError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(OllamaErrorResponse.self, from: data).error) ?? "Request failed"
+            throw OllamaError.server(statusCode: http.statusCode, message: message)
+        }
+        let models = try JSONDecoder().decode(OllamaTagsResponse.self, from: data).models
+        guard models.contains(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
+            throw OllamaError.modelUnavailable(configuration.model)
+        }
+        return "Connected to Ollama • \(configuration.model) is ready"
     }
 
     func reply(to requestText: String, configuration: OllamaConfiguration, wardrobeContext: String) async throws -> String {
@@ -115,6 +139,10 @@ private struct OllamaChatResponse: Decodable {
 }
 
 private struct OllamaErrorResponse: Decodable { let error: String }
+private struct OllamaTagsResponse: Decodable {
+    struct Model: Decodable { let name: String; let model: String? }
+    let models: [Model]
+}
 
 enum StylistTool: String, Codable, CaseIterable, Sendable {
     case searchWardrobe

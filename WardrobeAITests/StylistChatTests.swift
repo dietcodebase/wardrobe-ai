@@ -7,6 +7,7 @@ final class StylistChatTests: XCTestCase {
         let root = OllamaConfiguration(endpointText: "https://ollama.example.net")
         XCTAssertEqual(root.model, "gemma4:latest")
         XCTAssertEqual(root.chatURL?.absoluteString, "https://ollama.example.net/api/chat")
+        XCTAssertEqual(root.tagsURL?.absoluteString, "https://ollama.example.net/api/tags")
 
         let api = OllamaConfiguration(endpointText: "https://ollama.example.net/api/")
         XCTAssertEqual(api.chatURL?.absoluteString, "https://ollama.example.net/api/chat")
@@ -27,6 +28,17 @@ final class StylistChatTests: XCTestCase {
         let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
         XCTAssertEqual(json["model"] as? String, "gemma4")
         XCTAssertEqual(json["stream"] as? Bool, false)
+    }
+
+    func testConnectionCheckRequiresTheConfiguredModel() async throws {
+        let configuration = OllamaConfiguration(endpointText: "https://ollama.example.net", model: "gemma4:latest")
+        let transport = StubOllamaTransport(
+            data: Data(#"{"models":[{"name":"gemma4:latest","model":"gemma4:latest"}]}"#.utf8),
+            response: HTTPURLResponse(url: URL(string: "https://ollama.example.net/api/tags")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
+        let status = try await OllamaClient(transport: transport).verifyConnection(configuration: configuration)
+        XCTAssertEqual(status, "Connected to Ollama • gemma4:latest is ready")
+        XCTAssertEqual(transport.request?.url?.path, "/api/tags")
     }
 
     func testSearchRejectsEmptyArgumentsAndHonorsCallLimit() throws {
