@@ -62,10 +62,24 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
     private var startedAt: Date?
     private var isFinishing = false
     private var wantsRecording = false
+    private var interruptionObserver: NSObjectProtocol?
 
     init(permission: any VoiceRecordingPermission = SystemVoiceRecordingPermission(), fileManager: FileManager = .default) {
         self.permission = permission
         self.fileManager = fileManager
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let rawValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: rawValue) == .began else { return }
+            Task { @MainActor [weak self] in self?.handleInterruption() }
+        }
+    }
+
+    deinit {
+        if let interruptionObserver { NotificationCenter.default.removeObserver(interruptionObserver) }
     }
 
     func begin() async {
@@ -125,6 +139,8 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
         do {
             try Self.validateFormat(at: url)
+            recordingURL = nil
+            deactivateAudioSession()
             statusMessage = nil
             return VoiceRecording(url: url, duration: duration)
         } catch {
@@ -157,11 +173,15 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
 
     static func validateFormat(at url: URL) throws {
         let file = try AVAudioFile(forReading: url)
-        let format = file.processingFormat
-        guard abs(format.sampleRate - targetSampleRate) < 1 else {
-            throw VoiceInputError.invalidFormat(sampleRate: format.sampleRate, channels: Int(format.channelCount))
-        }
-        guard format.channelCount == AVAudioChannelCount(targetChannels) else {
+        let format = file.fileFormat
+        let description = format.streamDescription.pointee
+        let isExpectedPCM = description.mFormatID == kAudioFormatLinearPCM
+            && format.commonFormat == .pcmFormatInt16
+            && description.mBitsPerChannel == 16
+            && format.isInterleaved
+        guard isExpectedPCM,
+              abs(format.sampleRate - targetSampleRate) < 1,
+              format.channelCount == AVAudioChannelCount(targetChannels) else {
             throw VoiceInputError.invalidFormat(sampleRate: format.sampleRate, channels: Int(format.channelCount))
         }
     }
@@ -176,6 +196,19 @@ final class VoiceInput: NSObject, ObservableObject, AVAudioRecorderDelegate {
         startedAt = nil
         wantsRecording = false
         if let url { try? fileManager.removeItem(at: url) }
+        deactivateAudioSession()
+    }
+
+    private func deactivateAudioSession() {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+    }
+
+    private func handleInterruption() {
+        guard isRecording || wantsRecording else { return }
+        let url = recordingURL
+        isFinishing = true
+        cleanup(url: url)
+        isFinishing = false
+        statusMessage = "Recording stopped by an audio interruption. Your recording was deleted; you can still type your request."
     }
 }

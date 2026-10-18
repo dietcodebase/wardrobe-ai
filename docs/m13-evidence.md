@@ -8,6 +8,7 @@ Status: implementation complete; physical-device and qualified-runtime validatio
 - Recording requests 16 kHz, mono, signed 16-bit PCM and validates the actual file format before it can be submitted. Requests stop at ten seconds.
 - Cancellation, recording failure, automatic duration expiry, and leaving the chat clean up the temporary file and deactivate the audio session. Typed chat remains available in every failure state.
 - The current voice-runtime adapter deliberately reports that audio support is unqualified, then deletes the recording. No cloud transcription or silent substitute is used.
+- A successful recording now deactivates the shared audio session before submission. Audio-session interruptions reset recording state and delete the partial file. WAV validation checks the on-disk linear PCM codec, signed 16-bit representation, sample rate, channel count, and interleaving.
 
 ## Verification
 
