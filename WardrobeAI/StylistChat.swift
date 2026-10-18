@@ -99,10 +99,14 @@ final class StylistChat: ObservableObject {
     @Published private(set) var isResponding = false
 
     private let toolbox: StylistToolbox
+    private let voiceRuntime: any VoiceRuntimeSubmitting
     private var responseTask: Task<Void, Never>?
     private var activeResponseID: UUID?
 
-    init(store: WardrobeStore) { toolbox = StylistToolbox(store: store) }
+    init(store: WardrobeStore, voiceRuntime: any VoiceRuntimeSubmitting = UnqualifiedVoiceRuntime()) {
+        toolbox = StylistToolbox(store: store)
+        self.voiceRuntime = voiceRuntime
+    }
 
     func send(_ input: String) {
         let request = input.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -141,6 +145,20 @@ final class StylistChat: ObservableObject {
         activeResponseID = nil
         responseTask = nil
         isResponding = false
+    }
+
+    func sendVoice(_ recording: VoiceRecording) async {
+        guard !isResponding else { return }
+        messages.append(.init(role: .user, text: "Voice request (\(Int(recording.duration.rounded())) seconds)"))
+        isResponding = true
+        defer { isResponding = false }
+        do {
+            let response = try await voiceRuntime.submit(audio: recording)
+            messages.append(.init(role: .assistant, text: response))
+        } catch {
+            messages.append(.init(role: .assistant, text: error.localizedDescription))
+        }
+        try? FileManager.default.removeItem(at: recording.url)
     }
 
     func requestWear(for outfit: Outfit) { pendingWearOutfit = outfit }
@@ -222,6 +240,7 @@ struct StylistChatView: View {
     @ObservedObject var store: WardrobeStore
     @StateObject private var chat: StylistChat
     @State private var draft = ""
+    @StateObject private var voice = VoiceInput()
 
     init(store: WardrobeStore) {
         self.store = store
@@ -247,6 +266,24 @@ struct StylistChatView: View {
                         .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
+            HStack {
+                Button(voice.isRecording ? "Stop recording" : "Hold to talk") {
+                    if voice.isRecording {
+                        Task {
+                            if let recording = voice.finish() { await chat.sendVoice(recording) }
+                        }
+                    } else {
+                        Task { await voice.begin() }
+                    }
+                }
+                .disabled(chat.isResponding)
+                if voice.isRecording {
+                    Button("Cancel voice") { voice.cancel() }
+                }
+            }
+            if let status = voice.statusMessage {
+                Text(status).font(.footnote).foregroundStyle(.secondary)
+            }
             if !store.outfits.isEmpty {
                 Menu("Record wear…") {
                     ForEach(store.outfits) { outfit in
@@ -263,5 +300,6 @@ struct StylistChatView: View {
         } message: {
             Text(chat.pendingWearOutfit?.name ?? "")
         }
+        .onDisappear { voice.cleanup() }
     }
 }
