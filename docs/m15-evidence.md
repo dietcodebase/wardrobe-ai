@@ -18,6 +18,8 @@ qualification pending.
 ## Verification
 
 - git diff --check — passed on 18 October 2026.
+- swiftc -parse for the M15 Swift sources and unit-test source — passed on 18
+  October 2026.
 - Added deterministic unit coverage for verified owned swaps and no-swap fallback.
 - xcodebuild test for the WardrobeAI scheme against a generic iOS Simulator did
   not compile in the task sandbox: CoreSimulatorService was unavailable and Swift
