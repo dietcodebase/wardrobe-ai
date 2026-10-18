@@ -242,7 +242,12 @@ struct AssistantConversationView: View {
     private func loadDemoWardrobe() {
         do {
             try store.installDemoWardrobe()
-            demoStatus = "13 demo photos are ready. Add the Ollama URL, then ask Gemma to enrich their tags."
+            guard OllamaConfiguration.saved().isConfigured else {
+                demoStatus = "13 demo photos are ready. Add your Ollama URL to enrich them with Gemma."
+                return
+            }
+            demoStatus = "13 demo photos are ready. Gemma is enriching their tags…"
+            tagDemoWardrobe()
         } catch {
             demoStatus = error.localizedDescription
         }
