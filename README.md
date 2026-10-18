@@ -35,3 +35,10 @@ Keep models in ignored `Models/`, personal images/data in ignored `LocalData/`,
 and local credentials in `.env` or `Config/Local.xcconfig`. No sample private
 photos or runtime artifacts belong in this repository. Service protocols and
 fakes will be introduced with their first consumer; this static shell has none.
+
+## Remote Ollama
+
+The Stylist can use a remote Ollama server as its default AI responder, with
+`gemma4` selected by default. Enter the server URL in **Stylist → Remote AI**;
+the connection design, privacy boundary, and deployment notes are in
+[docs/remote-ollama.md](docs/remote-ollama.md).

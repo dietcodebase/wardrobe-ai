@@ -3,6 +3,54 @@ import XCTest
 
 @MainActor
 final class StylistChatTests: XCTestCase {
+    func testOllamaConfigurationUsesGemma4AndNormalizesTheChatEndpoint() {
+        let root = OllamaConfiguration(endpointText: "https://ollama.example.net")
+        XCTAssertEqual(root.model, "gemma4:latest")
+        XCTAssertEqual(root.chatURL?.absoluteString, "https://ollama.example.net/api/chat")
+        XCTAssertEqual(root.tagsURL?.absoluteString, "https://ollama.example.net/api/tags")
+
+        let api = OllamaConfiguration(endpointText: "https://ollama.example.net/api/")
+        XCTAssertEqual(api.chatURL?.absoluteString, "https://ollama.example.net/api/chat")
+        XCTAssertFalse(OllamaConfiguration(endpointText: "ollama.example.net").isConfigured)
+    }
+
+    func testOllamaClientPostsNonStreamingChatRequestAndReturnsContent() async throws {
+        let configuration = OllamaConfiguration(endpointText: "https://ollama.example.net", model: "gemma4")
+        let transport = StubOllamaTransport(
+            data: Data(#"{"message":{"content":"Try the blue shirt."}}"#.utf8),
+            response: HTTPURLResponse(url: URL(string: "https://ollama.example.net/api/chat")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
+        let answer = try await OllamaClient(transport: transport).reply(to: "What should I wear?", configuration: configuration, wardrobeContext: "Owned garments: Blue shirt")
+
+        XCTAssertEqual(answer, "Try the blue shirt.")
+        XCTAssertEqual(transport.request?.url?.path, "/api/chat")
+        let body = try XCTUnwrap(transport.request?.httpBody)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        XCTAssertEqual(json["model"] as? String, "gemma4")
+        XCTAssertEqual(json["stream"] as? Bool, false)
+    }
+
+    func testConnectionCheckRequiresTheConfiguredModel() async throws {
+        let configuration = OllamaConfiguration(endpointText: "https://ollama.example.net", model: "gemma4:latest")
+        let transport = StubOllamaTransport(
+            data: Data(#"{"models":[{"name":"gemma4:latest","model":"gemma4:latest"}]}"#.utf8),
+            response: HTTPURLResponse(url: URL(string: "https://ollama.example.net/api/tags")!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        )
+        let status = try await OllamaClient(transport: transport).verifyConnection(configuration: configuration)
+        XCTAssertEqual(status, "Connected to Ollama • gemma4:latest is ready")
+        XCTAssertEqual(transport.request?.url?.path, "/api/tags")
+    }
+
+    func testPhysicalDeviceCanReachOllamaWhenEndpointIsProvided() async throws {
+        guard let endpoint = ProcessInfo.processInfo.environment["OLLAMA_TEST_ENDPOINT"], !endpoint.isEmpty else {
+            throw XCTSkip("Set OLLAMA_TEST_ENDPOINT to run the LAN Ollama smoke test.")
+        }
+        let status = try await OllamaClient().verifyConnection(
+            configuration: OllamaConfiguration(endpointText: endpoint, model: "gemma4:latest")
+        )
+        XCTAssertEqual(status, "Connected to Ollama • gemma4:latest is ready")
+    }
+
     func testSearchRejectsEmptyArgumentsAndHonorsCallLimit() throws {
         let toolbox = StylistToolbox(store: try makeStore(), maximumCallCount: 1)
         XCTAssertThrowsError(try toolbox.execute(.init(tool: .searchWardrobe, query: "  "))) {
@@ -94,5 +142,21 @@ final class StylistChatTests: XCTestCase {
     private func makeStore() throws -> WardrobeStore {
         let database = try WardrobeDatabase.makeQueue(at: FileManager.default.temporaryDirectory.appending(path: "stylist-\(UUID().uuidString).sqlite"))
         return WardrobeStore(repository: WardrobeRepository(database: database))
+    }
+}
+
+private final class StubOllamaTransport: OllamaTransport, @unchecked Sendable {
+    let data: Data
+    let response: URLResponse
+    private(set) var request: URLRequest?
+
+    init(data: Data, response: URLResponse) {
+        self.data = data
+        self.response = response
+    }
+
+    func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        self.request = request
+        return (data, response)
     }
 }

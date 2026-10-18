@@ -7,19 +7,99 @@ import Vision
 /// storage until it has passed validation and the person has reviewed it.
 struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
     let category: String
+    let suggestedName: String?
     let color: String?
     let tags: [String]
     let materialGuess: String?
+    let garmentType: String?
+    let pattern: String?
+    let fit: String?
+    let formality: String?
+    let seasons: [String]
+    let occasions: [String]
+    let colorFamily: String?
+    let secondaryColors: [String]
+    let silhouette: String?
+    let texture: String?
+    let layering: String?
+    let warmth: String?
+    let styleKeywords: [String]
+    let pairingNotes: [String]
 
-    init(category: String, color: String? = nil, tags: [String] = [], materialGuess: String? = nil) throws {
+    init(
+        category: String,
+        suggestedName: String? = nil,
+        color: String? = nil,
+        tags: [String] = [],
+        materialGuess: String? = nil,
+        garmentType: String? = nil,
+        pattern: String? = nil,
+        fit: String? = nil,
+        formality: String? = nil,
+        seasons: [String] = [],
+        occasions: [String] = [],
+        colorFamily: String? = nil,
+        secondaryColors: [String] = [],
+        silhouette: String? = nil,
+        texture: String? = nil,
+        layering: String? = nil,
+        warmth: String? = nil,
+        styleKeywords: [String] = [],
+        pairingNotes: [String] = []
+    ) throws {
         let normalizedCategory = category.trimmingCharacters(in: .whitespacesAndNewlines)
         guard GarmentTaxonomy.isKnownCategory(normalizedCategory) else {
             throw GarmentClassificationError.unknownCategory(normalizedCategory)
         }
         self.category = normalizedCategory
+        self.suggestedName = Self.boundedOptional(suggestedName, field: "garment name", limit: 64)
         self.color = Self.boundedOptional(color, field: "color", limit: 40)
         self.tags = try Self.boundedTags(tags)
         self.materialGuess = Self.boundedOptional(materialGuess, field: "material", limit: 40)
+        self.garmentType = Self.boundedOptional(garmentType, field: "garment type", limit: 48)
+        self.pattern = Self.boundedOptional(pattern, field: "pattern", limit: 32)
+        self.fit = Self.boundedOptional(fit, field: "fit", limit: 32)
+        self.formality = Self.boundedOptional(formality, field: "formality", limit: 32)
+        self.seasons = try Self.boundedValues(seasons, limit: 4, field: "season")
+        self.occasions = try Self.boundedValues(occasions, limit: 4, field: "occasion")
+        self.colorFamily = Self.boundedOptional(colorFamily, field: "color family", limit: 32)
+        self.secondaryColors = try Self.boundedValues(secondaryColors, limit: 3, field: "secondary color")
+        self.silhouette = Self.boundedOptional(silhouette, field: "silhouette", limit: 32)
+        self.texture = Self.boundedOptional(texture, field: "texture", limit: 32)
+        self.layering = Self.boundedOptional(layering, field: "layering", limit: 32)
+        self.warmth = Self.boundedOptional(warmth, field: "warmth", limit: 24)
+        self.styleKeywords = try Self.boundedValues(styleKeywords, limit: 6, field: "style keyword")
+        self.pairingNotes = try Self.boundedValues(pairingNotes, limit: 4, field: "pairing note")
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case category, suggestedName, color, tags, materialGuess, garmentType, pattern, fit, formality, seasons, occasions
+        case colorFamily, secondaryColors, silhouette, texture, layering, warmth, styleKeywords, pairingNotes
+    }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            category: values.decode(String.self, forKey: .category),
+            suggestedName: values.decodeIfPresent(String.self, forKey: .suggestedName),
+            color: values.decodeIfPresent(String.self, forKey: .color),
+            tags: values.decodeIfPresent([String].self, forKey: .tags) ?? [],
+            materialGuess: values.decodeIfPresent(String.self, forKey: .materialGuess),
+            garmentType: values.decodeIfPresent(String.self, forKey: .garmentType),
+            pattern: values.decodeIfPresent(String.self, forKey: .pattern),
+            fit: values.decodeIfPresent(String.self, forKey: .fit),
+            formality: values.decodeIfPresent(String.self, forKey: .formality),
+            seasons: values.decodeIfPresent([String].self, forKey: .seasons) ?? [],
+            occasions: values.decodeIfPresent([String].self, forKey: .occasions) ?? [],
+            colorFamily: values.decodeIfPresent(String.self, forKey: .colorFamily),
+            secondaryColors: values.decodeIfPresent([String].self, forKey: .secondaryColors) ?? [],
+            silhouette: values.decodeIfPresent(String.self, forKey: .silhouette),
+            texture: values.decodeIfPresent(String.self, forKey: .texture),
+            layering: values.decodeIfPresent(String.self, forKey: .layering),
+            warmth: values.decodeIfPresent(String.self, forKey: .warmth),
+            styleKeywords: values.decodeIfPresent([String].self, forKey: .styleKeywords) ?? [],
+            pairingNotes: values.decodeIfPresent([String].self, forKey: .pairingNotes) ?? []
+        )
     }
 
     private static func boundedTags(_ tags: [String]) throws -> [String] {
@@ -28,6 +108,19 @@ struct GarmentClassificationSuggestion: Codable, Equatable, Sendable {
         for tag in tags {
             let normalized = tag.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !normalized.isEmpty, normalized.count <= 32 else { throw GarmentClassificationError.invalidTag }
+            if !unique.contains(where: { $0.caseInsensitiveCompare(normalized) == .orderedSame }) {
+                unique.append(normalized)
+            }
+        }
+        return unique
+    }
+
+    private static func boundedValues(_ values: [String], limit: Int, field: String) throws -> [String] {
+        guard values.count <= limit else { throw GarmentClassificationError.tooManyAttributes(field) }
+        var unique: [String] = []
+        for value in values {
+            let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !normalized.isEmpty, normalized.count <= 32 else { throw GarmentClassificationError.invalidAttribute(field) }
             if !unique.contains(where: { $0.caseInsensitiveCompare(normalized) == .orderedSame }) {
                 unique.append(normalized)
             }
@@ -57,6 +150,8 @@ enum GarmentClassificationError: LocalizedError, Equatable {
     case unknownCategory(String)
     case tooManyTags
     case invalidTag
+    case tooManyAttributes(String)
+    case invalidAttribute(String)
     case unavailable
     case timedOut
 
@@ -64,7 +159,7 @@ enum GarmentClassificationError: LocalizedError, Equatable {
         switch self {
         case .malformedResponse: "The local model returned an unusable suggestion. You can enter garment details manually."
         case .unknownCategory: "The local model suggested a category this wardrobe does not support. You can enter garment details manually."
-        case .tooManyTags, .invalidTag: "The local model returned unusable tags. You can enter garment details manually."
+        case .tooManyTags, .invalidTag, .tooManyAttributes, .invalidAttribute: "The local model returned unusable garment attributes. You can enter garment details manually."
         case .unavailable: "Automatic suggestions are unavailable. You can still save this garment manually."
         case .timedOut: "Automatic suggestions took too long. You can still save this garment manually."
         }
@@ -73,22 +168,92 @@ enum GarmentClassificationError: LocalizedError, Equatable {
 
 enum GarmentClassificationResponse {
     private struct Payload: Decodable {
-        let category: String
+        let category: String?
+        let suggestedName: String?
         let color: String?
         let tags: [String]?
         let materialGuess: String?
+        let garmentType: String?
+        let pattern: String?
+        let fit: String?
+        let formality: String?
+        let seasons: [String]?
+        let occasions: [String]?
+        let colorFamily: String?
+        let secondaryColors: [String]?
+        let silhouette: String?
+        let texture: String?
+        let layering: String?
+        let warmth: String?
+        let styleKeywords: [String]?
+        let pairingNotes: [String]?
     }
 
     static func decode(_ text: String) throws -> GarmentClassificationSuggestion {
-        guard let data = text.data(using: .utf8), let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+        guard let data = jsonData(from: text), let payload = try? JSONDecoder().decode(Payload.self, from: data) else {
+            throw GarmentClassificationError.malformedResponse
+        }
+        let category = normalizedCategory(payload.category ?? payload.garmentType ?? payload.suggestedName ?? "")
+            ?? inferCategory(from: [payload.garmentType, payload.suggestedName] + (payload.tags ?? []).map(Optional.some))
+        guard let category else {
+            if let rawCategory = payload.category { throw GarmentClassificationError.unknownCategory(rawCategory) }
             throw GarmentClassificationError.malformedResponse
         }
         return try GarmentClassificationSuggestion(
-            category: payload.category,
+            category: category,
+            suggestedName: payload.suggestedName,
             color: payload.color,
-            tags: payload.tags ?? [],
-            materialGuess: payload.materialGuess
+            tags: cleanValues(payload.tags, limit: 8),
+            materialGuess: payload.materialGuess,
+            garmentType: payload.garmentType,
+            pattern: payload.pattern,
+            fit: payload.fit,
+            formality: payload.formality,
+            seasons: cleanValues(payload.seasons, limit: 4),
+            occasions: cleanValues(payload.occasions, limit: 4),
+            colorFamily: payload.colorFamily,
+            secondaryColors: cleanValues(payload.secondaryColors, limit: 3),
+            silhouette: payload.silhouette,
+            texture: payload.texture,
+            layering: payload.layering,
+            warmth: payload.warmth,
+            styleKeywords: cleanValues(payload.styleKeywords, limit: 6),
+            pairingNotes: cleanValues(payload.pairingNotes, limit: 4)
         )
+    }
+
+    private static func jsonData(from text: String) -> Data? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = trimmed.data(using: .utf8), (try? JSONSerialization.jsonObject(with: data)) != nil { return data }
+        guard let start = trimmed.firstIndex(of: "{"), let end = trimmed.lastIndex(of: "}"), start < end else { return nil }
+        return String(trimmed[start...end]).data(using: .utf8)
+    }
+
+    private static func cleanValues(_ values: [String]?, limit: Int) -> [String] {
+        Array((values ?? []).compactMap { value in
+            let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return cleaned.isEmpty ? nil : String(cleaned.prefix(32))
+        }.prefix(limit))
+    }
+
+    private static func normalizedCategory(_ value: String) -> String? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if value.isEmpty { return nil }
+        if value.contains("one-piece") || value.contains("jumpsuit") || value.contains("romper") { return "One-piece outfit" }
+        if value.contains("dress") { return "Dress" }
+        if value.contains("outer") || value.contains("jacket") || value.contains("coat") || value.contains("blazer") || value.contains("cardigan") { return "Outerwear" }
+        if value.contains("shoe") || value.contains("boot") || value.contains("sneaker") || value.contains("loafer") || value.contains("footwear") { return "Shoes" }
+        if value.contains("accessory") || value.contains("bag") || value.contains("belt") || value.contains("scarf") || value.contains("hat") { return "Accessory" }
+        if value.contains("bottom") || value.contains("pant") || value.contains("trouser") || value.contains("jean") || value.contains("skirt") || value.contains("short") { return "Bottom" }
+        if value.contains("top") || value.contains("shirt") || value.contains("tee") || value.contains("blouse") || value.contains("sweater") || value.contains("hoodie") || value.contains("knit") { return "Top" }
+        return GarmentTaxonomy.categories.first { $0.lowercased() == value }
+    }
+
+    private static func inferCategory(from values: [String?]) -> String? {
+        for value in values.compactMap({ $0 }) {
+            if let category = normalizedCategory(value) { return category }
+        }
+        return nil
     }
 }
 
@@ -100,6 +265,68 @@ struct UnavailableGarmentClassifier: GarmentClassifying {
     func classify(imageData: Data) async throws -> ClassificationProvenance {
         throw GarmentClassificationError.unavailable
     }
+}
+
+/// A bounded vision request to the same configured Ollama/Gemma endpoint used
+/// by the stylist. The model output is validated before it reaches local data.
+struct OllamaGarmentClassifier: GarmentClassifying {
+    private let configuration: OllamaConfiguration
+    private let transport: any OllamaTransport
+
+    init(configuration: OllamaConfiguration = .saved(), transport: any OllamaTransport = URLSessionOllamaTransport()) {
+        self.configuration = configuration
+        self.transport = transport
+    }
+
+    func classify(imageData: Data) async throws -> ClassificationProvenance {
+        guard let url = configuration.chatURL else { throw GarmentClassificationError.unavailable }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(OllamaVisionRequest(
+            model: configuration.model,
+            stream: false,
+            format: "json",
+            think: false,
+            messages: [
+                .init(role: "system", content: "You tag one clothing item. Return JSON only with category, suggestedName, color, colorFamily, secondaryColors, tags, materialGuess, garmentType, pattern, texture, silhouette, fit, formality, layering, warmth, seasons, occasions, styleKeywords, pairingNotes. suggestedName must be a concise neutral inventory name based only on visible garment details, for example 'Navy Oxford Shirt' or 'Black Leather Loafers'. category must be one of Top, Bottom, Dress, One-piece outfit, Outerwear, Shoes, Accessory. Use concise visual observations; tags max 8, styleKeywords max 6, seasons/occasions/pairingNotes max 4, secondaryColors max 3. material is a visual guess, never a certainty. Never infer a body or person.", images: nil),
+                .init(role: "user", content: "Classify the garment in this image.", images: [imageData.base64EncodedString()])
+            ]
+        ))
+        let (data, response) = try await transport.send(request)
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw GarmentClassificationError.unavailable
+        }
+        let payload = try JSONDecoder().decode(OllamaVisionResponse.self, from: data)
+        let suggestion = try GarmentClassificationResponse.decode(payload.message.content)
+        return ClassificationProvenance(
+            modelID: configuration.model,
+            modelRevision: "ollama",
+            route: "remote-ollama-vision",
+            classifiedAt: Date(),
+            suggestion: suggestion,
+            wasEditedBeforeSave: false
+        )
+    }
+}
+
+private struct OllamaVisionRequest: Encodable {
+    struct Message: Encodable {
+        let role: String
+        let content: String
+        let images: [String]?
+    }
+    let model: String
+    let stream: Bool
+    let format: String
+    let think: Bool
+    let messages: [Message]
+}
+
+private struct OllamaVisionResponse: Decodable {
+    struct Message: Decodable { let content: String }
+    let message: Message
 }
 
 enum VisionClassificationMapping {
@@ -156,7 +383,7 @@ actor GarmentClassificationCoordinator {
     private let classifier: any GarmentClassifying
     private let timeout: Duration
 
-    init(classifier: any GarmentClassifying = VisionGarmentClassifier(), timeout: Duration = .seconds(12)) {
+    init(classifier: any GarmentClassifying = OllamaGarmentClassifier(), timeout: Duration = .seconds(30)) {
         self.classifier = classifier
         self.timeout = timeout
     }

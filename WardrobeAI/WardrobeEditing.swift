@@ -24,6 +24,26 @@ struct GarmentDetail: View {
                     if let color = displayedItem.color, !color.isEmpty { LabeledContent("Color", value: color) }
                 }
                 if !displayedItem.tags.isEmpty { Section("Tags") { Text(displayedItem.tags.joined(separator: ", ")) } }
+                if let suggestion = displayedItem.classification?.suggestion {
+                    Section("Style read") {
+                        TagSummaryGrid(rows: [
+                            ("Fabric", suggestion.materialGuess),
+                            ("Pattern", suggestion.pattern),
+                            ("Texture", suggestion.texture),
+                            ("Fit", suggestion.fit),
+                            ("Silhouette", suggestion.silhouette),
+                            ("Layering", suggestion.layering),
+                            ("Warmth", suggestion.warmth),
+                            ("Formality", suggestion.formality),
+                            ("Color family", suggestion.colorFamily)
+                        ])
+                        if !suggestion.styleKeywords.isEmpty {
+                            Text(suggestion.styleKeywords.joined(separator: "  ·  "))
+                                .font(WardrobeDesign.metadata())
+                                .foregroundStyle(WardrobeDesign.Color.signal)
+                        }
+                    }
+                }
                 if let notes = displayedItem.notes, !notes.isEmpty { Section("Notes") { Text(notes) } }
                 Section { Button("Delete garment", role: .destructive) { isConfirmingDelete = true } }
             }
@@ -44,6 +64,24 @@ struct GarmentDetail: View {
     }
 }
 
+private struct TagSummaryGrid: View {
+    let rows: [(String, String?)]
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], alignment: .leading, spacing: 12) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                if let value = row.1, !value.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.0.uppercased()).font(WardrobeDesign.metadata(9)).foregroundStyle(WardrobeDesign.Color.quiet)
+                        Text(value).font(WardrobeDesign.body(14))
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+    }
+}
+
 struct GarmentEditor: View {
     @ObservedObject var store: WardrobeStore
     let item: GarmentItem?
@@ -53,9 +91,24 @@ struct GarmentEditor: View {
     @State private var color: String
     @State private var tags: String
     @State private var materialGuess: String
+    @State private var garmentType: String
+    @State private var pattern: String
+    @State private var fit: String
+    @State private var formality: String
+    @State private var seasons: String
+    @State private var suggestedOccasions: String
+    @State private var colorFamily: String
+    @State private var secondaryColors: String
+    @State private var texture: String
+    @State private var layering: String
+    @State private var warmth: String
+    @State private var silhouette: String
+    @State private var styleKeywords: String
+    @State private var pairingNotes: String
     @State private var notes: String
     @State private var capturedImage: GarmentCaptureCandidate?
     @State private var isCapturing = false
+    @State private var isConfirmingDelete = false
     @State private var errorMessage: String?
     @State private var classification: ClassificationProvenance?
     @State private var isClassifying = false
@@ -63,7 +116,7 @@ struct GarmentEditor: View {
     @State private var classificationTask: Task<Void, Never>?
     private let classifier = GarmentClassificationCoordinator()
 
-    init(store: WardrobeStore, item: GarmentItem? = nil) {
+    init(store: WardrobeStore, item: GarmentItem? = nil, initialCapture: GarmentCaptureCandidate? = nil) {
         self.store = store
         self.item = item
         _name = State(initialValue: item?.name ?? "")
@@ -71,20 +124,59 @@ struct GarmentEditor: View {
         _color = State(initialValue: item?.color ?? "")
         _tags = State(initialValue: item?.tags.joined(separator: ", ") ?? "")
         _materialGuess = State(initialValue: item?.classification?.suggestion.materialGuess ?? "")
+        _garmentType = State(initialValue: item?.classification?.suggestion.garmentType ?? "")
+        _pattern = State(initialValue: item?.classification?.suggestion.pattern ?? "")
+        _fit = State(initialValue: item?.classification?.suggestion.fit ?? "")
+        _formality = State(initialValue: item?.classification?.suggestion.formality ?? "")
+        _seasons = State(initialValue: item?.classification?.suggestion.seasons.joined(separator: ", ") ?? "")
+        _suggestedOccasions = State(initialValue: item?.classification?.suggestion.occasions.joined(separator: ", ") ?? "")
+        _colorFamily = State(initialValue: item?.classification?.suggestion.colorFamily ?? "")
+        _secondaryColors = State(initialValue: item?.classification?.suggestion.secondaryColors.joined(separator: ", ") ?? "")
+        _texture = State(initialValue: item?.classification?.suggestion.texture ?? "")
+        _layering = State(initialValue: item?.classification?.suggestion.layering ?? "")
+        _warmth = State(initialValue: item?.classification?.suggestion.warmth ?? "")
+        _silhouette = State(initialValue: item?.classification?.suggestion.silhouette ?? "")
+        _styleKeywords = State(initialValue: item?.classification?.suggestion.styleKeywords.joined(separator: ", ") ?? "")
+        _pairingNotes = State(initialValue: item?.classification?.suggestion.pairingNotes.joined(separator: ", ") ?? "")
         _notes = State(initialValue: item?.notes ?? "")
         _classification = State(initialValue: item?.classification)
+        _capturedImage = State(initialValue: initialCapture)
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    GemmaAnalysisPanel(
+                        capturedImage: capturedImage,
+                        isClassifying: isClassifying,
+                        classification: classification,
+                        errorMessage: classificationMessage,
+                        upload: { isCapturing = true },
+                        analyze: { startClassification() }
+                    )
+                } header: {
+                    Text("Gemma auto-tagging")
+                } footer: {
+                    Text("Gemma reads the photo for visible garment details. Review the suggestions before saving; fabric and material are visual estimates.")
+                }
                 Section("Basics") {
                     TextField("Garment name", text: $name).textInputAutocapitalization(.words).accessibilityLabel("Garment name")
                     Picker("Category", selection: $category) { ForEach(GarmentTaxonomy.categories, id: \.self) { Text($0).tag($0) } }
                     TextField("Color", text: $color).textInputAutocapitalization(.words)
                 }
                 Section("Details") {
+                    OptionPicker(title: "Pattern", selection: $pattern, options: GarmentTaxonomy.patterns)
+                    OptionPicker(title: "Fabric", selection: $materialGuess, options: GarmentTaxonomy.fabrics)
+                    OptionPicker(title: "Texture", selection: $texture, options: GarmentTaxonomy.textures)
+                    OptionPicker(title: "Fit", selection: $fit, options: GarmentTaxonomy.fits)
+                    OptionPicker(title: "Silhouette", selection: $silhouette, options: GarmentTaxonomy.silhouettes)
+                    OptionPicker(title: "Layering role", selection: $layering, options: GarmentTaxonomy.layering)
+                    OptionPicker(title: "Warmth", selection: $warmth, options: GarmentTaxonomy.warmthLevels)
+                    OptionPicker(title: "Formality", selection: $formality, options: GarmentTaxonomy.formalityLevels)
                     TextField("Tags, separated by commas", text: $tags).textInputAutocapitalization(.never).accessibilityLabel("Tags, separated by commas")
+                    TextField("Style keywords, separated by commas", text: $styleKeywords).textInputAutocapitalization(.words)
+                    TextField("Pairs well with…", text: $pairingNotes).textInputAutocapitalization(.sentences)
                     TextField("Notes", text: $notes, axis: .vertical).lineLimit(3...6)
                 }
                 Section("Photo") {
@@ -100,14 +192,14 @@ struct GarmentEditor: View {
                     }
                     Button(capturedImage == nil ? "Add photo" : "Change photo") { isCapturing = true }
                 }
-                Section("Automatic suggestions") {
+                Section("Review attributes") {
                     if isClassifying {
                         HStack { ProgressView(); Text("Finding editable suggestions…") }
                         Button("Stop suggestions", role: .cancel) { cancelClassification() }
                     } else if let classification {
                         Text("Suggested locally by \(classification.modelID.uppercased()). Review and edit every field before saving.")
                             .font(.footnote).foregroundStyle(.secondary)
-                        if let material = classification.suggestion.materialGuess {
+                        if classification.suggestion.materialGuess != nil {
                             TextField("Material guess (verify this)", text: $materialGuess)
                                 .textInputAutocapitalization(.words)
                                 .accessibilityLabel("Material guess, verify this")
@@ -115,6 +207,13 @@ struct GarmentEditor: View {
                             TextField("Material", text: $materialGuess)
                                 .textInputAutocapitalization(.words)
                                 .accessibilityLabel("Material")
+                        }
+                        DisclosureGroup("Gemma's full read") {
+                            TextField("Garment type", text: $garmentType).textInputAutocapitalization(.words)
+                            TextField("Color family", text: $colorFamily).textInputAutocapitalization(.words)
+                            TextField("Secondary colors", text: $secondaryColors).textInputAutocapitalization(.words)
+                            TextField("Seasons, separated by commas", text: $seasons).textInputAutocapitalization(.words)
+                            TextField("Occasions, separated by commas", text: $suggestedOccasions).textInputAutocapitalization(.words)
                         }
                         Button("Try automatic suggestions again") { startClassification() }
                             .disabled(capturedImage == nil)
@@ -126,6 +225,15 @@ struct GarmentEditor: View {
                     }
                 }
                 Section("Occasion ideas") { Text(GarmentTaxonomy.occasions.joined(separator: " · ")).font(.footnote).foregroundStyle(.secondary) }
+                if item != nil {
+                    Section {
+                        Button("Remove from wardrobe", role: .destructive) {
+                            isConfirmingDelete = true
+                        }
+                    } footer: {
+                        Text("This removes the garment and its saved photo. Garments used by an outfit or wear history must be removed there first.")
+                    }
+                }
             }
             .navigationTitle(item == nil ? "Add garment" : "Edit garment")
             .toolbar {
@@ -133,10 +241,20 @@ struct GarmentEditor: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { save() }.accessibilityLabel("Save garment") }
             }
             .alert("Couldn’t save garment", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) { Button("OK", role: .cancel) {} } message: { Text(errorMessage ?? "") }
+            .confirmationDialog("Remove \(item?.name ?? "this garment") from your wardrobe?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
+                Button("Remove garment", role: .destructive) { deleteGarment() }
+            } message: {
+                Text("This cannot be undone.")
+            }
             .sheet(isPresented: $isCapturing) { GarmentCaptureSheet { candidate in
                 capturedImage = candidate
                 startClassification()
             } }
+            .onAppear {
+                if item == nil, capturedImage != nil, classification == nil, !isClassifying {
+                    startClassification()
+                }
+            }
             .onDisappear { cancelClassification() }
         }
     }
@@ -153,6 +271,16 @@ struct GarmentEditor: View {
         } catch { errorMessage = error.localizedDescription }
     }
 
+    private func deleteGarment() {
+        guard let item else { return }
+        do {
+            try store.delete(item)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func startClassification() {
         guard let capturedImage else { return }
         cancelClassification()
@@ -165,10 +293,27 @@ struct GarmentEditor: View {
                 let result = try await classifier.classify(imageData: data)
                 guard !Task.isCancelled else { return }
                 classification = result
+                if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    name = result.suggestion.suggestedName ?? result.suggestion.garmentType ?? result.suggestion.category
+                }
                 category = result.suggestion.category
                 color = result.suggestion.color ?? ""
                 tags = result.suggestion.tags.joined(separator: ", ")
                 materialGuess = result.suggestion.materialGuess ?? ""
+                garmentType = result.suggestion.garmentType ?? ""
+                pattern = result.suggestion.pattern ?? ""
+                fit = result.suggestion.fit ?? ""
+                formality = result.suggestion.formality ?? ""
+                seasons = result.suggestion.seasons.joined(separator: ", ")
+                suggestedOccasions = result.suggestion.occasions.joined(separator: ", ")
+                colorFamily = result.suggestion.colorFamily ?? ""
+                secondaryColors = result.suggestion.secondaryColors.joined(separator: ", ")
+                texture = result.suggestion.texture ?? ""
+                layering = result.suggestion.layering ?? ""
+                warmth = result.suggestion.warmth ?? ""
+                silhouette = result.suggestion.silhouette ?? ""
+                styleKeywords = result.suggestion.styleKeywords.joined(separator: ", ")
+                pairingNotes = result.suggestion.pairingNotes.joined(separator: ", ")
             } catch is CancellationError {
                 return
             } catch {
@@ -192,12 +337,55 @@ struct GarmentEditor: View {
         guard var classification else { return nil }
         let editedTags = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         let editedMaterial = materialGuess.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
-        if editedMaterial != classification.suggestion.materialGuess,
+        let editedSeasons = seasons.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let editedOccasions = suggestedOccasions.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+        let editedGarmentType = garmentType.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedPattern = pattern.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedFit = fit.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedFormality = formality.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedColorFamily = colorFamily.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedSecondaryColors = splitValues(secondaryColors)
+        let editedTexture = texture.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedLayering = layering.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedWarmth = warmth.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedSilhouette = silhouette.trimmingCharacters(in: .whitespacesAndNewlines).nilIfBlank
+        let editedStyleKeywords = splitValues(styleKeywords)
+        let editedPairingNotes = splitValues(pairingNotes)
+        if editedMaterial != classification.suggestion.materialGuess
+            || editedGarmentType != classification.suggestion.garmentType
+            || editedPattern != classification.suggestion.pattern
+            || editedFit != classification.suggestion.fit
+            || editedFormality != classification.suggestion.formality
+            || editedColorFamily != classification.suggestion.colorFamily
+            || editedSecondaryColors != classification.suggestion.secondaryColors
+            || editedTexture != classification.suggestion.texture
+            || editedLayering != classification.suggestion.layering
+            || editedWarmth != classification.suggestion.warmth
+            || editedSilhouette != classification.suggestion.silhouette
+            || editedStyleKeywords != classification.suggestion.styleKeywords
+            || editedPairingNotes != classification.suggestion.pairingNotes
+            || editedSeasons != classification.suggestion.seasons
+            || editedOccasions != classification.suggestion.occasions,
            let updatedSuggestion = try? GarmentClassificationSuggestion(
                 category: classification.suggestion.category,
+                suggestedName: classification.suggestion.suggestedName,
                 color: classification.suggestion.color,
                 tags: classification.suggestion.tags,
-                materialGuess: editedMaterial
+                materialGuess: editedMaterial,
+                garmentType: editedGarmentType,
+                pattern: editedPattern,
+                fit: editedFit,
+                formality: editedFormality,
+                seasons: editedSeasons,
+                occasions: editedOccasions,
+                colorFamily: editedColorFamily,
+                secondaryColors: editedSecondaryColors,
+                silhouette: editedSilhouette,
+                texture: editedTexture,
+                layering: editedLayering,
+                warmth: editedWarmth,
+                styleKeywords: editedStyleKeywords,
+                pairingNotes: editedPairingNotes
            ) {
             classification = ClassificationProvenance(
                 modelID: classification.modelID,
@@ -213,6 +401,132 @@ struct GarmentEditor: View {
             || color.nilIfBlank != classification.suggestion.color
             || editedTags != classification.suggestion.tags
         return classification
+    }
+
+    private func splitValues(_ text: String) -> [String] {
+        text.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
+    }
+}
+
+private struct OptionPicker: View {
+    let title: String
+    @Binding var selection: String
+    let options: [String]
+
+    var body: some View {
+        Menu {
+            Button("Not set") { selection = "" }
+            ForEach(options, id: \.self) { option in
+                Button(option) { selection = option }
+            }
+        } label: {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(selection.isEmpty ? "Not set" : selection)
+                    .foregroundStyle(selection.isEmpty ? .secondary : WardrobeDesign.Color.signal)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .accessibilityLabel("\(title), \(selection.isEmpty ? "not set" : selection)")
+    }
+}
+
+private struct GemmaAnalysisPanel: View {
+    let capturedImage: GarmentCaptureCandidate?
+    let isClassifying: Bool
+    let classification: ClassificationProvenance?
+    let errorMessage: String?
+    let upload: () -> Void
+    let analyze: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: WardrobeDesign.Space.sm) {
+            HStack(spacing: WardrobeDesign.Space.sm) {
+                if let capturedImage {
+                    Image(uiImage: capturedImage.image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 54, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip, style: .continuous))
+                } else {
+                    Image(systemName: "camera.macro")
+                        .frame(width: 54, height: 54)
+                        .background(WardrobeDesign.Color.card, in: RoundedRectangle(cornerRadius: WardrobeDesign.Radius.chip))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(statusTitle).font(WardrobeDesign.body(16).weight(.semibold))
+                    Text(statusDetail).font(WardrobeDesign.body(13)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+
+            if isClassifying {
+                VStack(alignment: .leading, spacing: 8) {
+                    SkeletonLine(width: 0.72)
+                    SkeletonLine(width: 0.48)
+                    SkeletonLine(width: 0.62)
+                }
+                .transition(.opacity)
+            } else if let classification {
+                let suggestion = classification.suggestion
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach([suggestion.category, suggestion.color, suggestion.materialGuess, suggestion.pattern, suggestion.texture, suggestion.fit].compactMap { $0 }, id: \.self) { value in
+                            Text(value)
+                                .font(WardrobeDesign.metadata(10))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(WardrobeDesign.Color.card, in: Capsule())
+                        }
+                    }
+                }
+            } else if let errorMessage {
+                Text(errorMessage)
+                    .font(WardrobeDesign.body(13))
+                    .foregroundStyle(.secondary)
+                if capturedImage != nil {
+                    Button("Retry Gemma analysis", action: analyze)
+                        .buttonStyle(.bordered)
+                        .tint(WardrobeDesign.Color.ink)
+                }
+            } else {
+                Button(capturedImage == nil ? "Upload photo to analyze" : "Analyze with Gemma", action: capturedImage == nil ? upload : analyze)
+                    .buttonStyle(.borderedProminent)
+                    .tint(WardrobeDesign.Color.ink)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: isClassifying)
+    }
+
+    private var statusTitle: String {
+        if isClassifying { return "Gemma is analyzing this photo" }
+        if classification != nil { return "Analysis ready to review" }
+        if errorMessage != nil { return "Analysis needs another try" }
+        return capturedImage == nil ? "Start with a photo" : "Photo ready for analysis"
+    }
+
+    private var statusDetail: String {
+        if isClassifying { return "Reading garment type, color, fabric, pattern, fit, and styling context…" }
+        if classification != nil { return "The fields below were filled from the image." }
+        if errorMessage != nil { return "Your photo is still safe; nothing has been saved yet." }
+        return "Gemma will fill the editable attributes for you."
+    }
+}
+
+private struct SkeletonLine: View {
+    let width: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            Capsule()
+                .fill(WardrobeDesign.Color.card)
+                .frame(width: proxy.size.width * width, height: 11)
+        }
+        .frame(height: 11)
+        .redacted(reason: .placeholder)
     }
 }
 

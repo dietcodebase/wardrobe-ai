@@ -3,10 +3,12 @@ import Combine
 
 enum WardrobeStoreError: LocalizedError {
     case imageStorageUnavailable
+    case noDemoPhotos
 
     var errorDescription: String? {
         switch self {
         case .imageStorageUnavailable: "Photo storage is unavailable. Your garment was not saved. Try again after freeing device storage or restarting the app."
+        case .noDemoPhotos: "Load the demo wardrobe before asking Gemma to tag its photos."
         }
     }
 }
@@ -26,9 +28,11 @@ final class WardrobeStore: ObservableObject {
 
     let repository: WardrobeRepository
     private let imageCoordinator: GarmentImageCoordinator?
+    private let imageStore: WardrobeImageStore?
 
     init(repository: WardrobeRepository, imageStore: WardrobeImageStore? = nil) {
         self.repository = repository
+        self.imageStore = imageStore
         self.imageCoordinator = imageStore.map { GarmentImageCoordinator(repository: repository, imageStore: $0) }
         loadItems()
         loadOutfitData()
@@ -109,6 +113,38 @@ final class WardrobeStore: ObservableObject {
     func imageData(for item: GarmentItem) -> Data? {
         guard let path = item.imagePath, let imageCoordinator else { return nil }
         return try? imageCoordinator.imageData(at: path)
+    }
+
+    func installDemoWardrobe() throws {
+        _ = try WardrobeSeed.install(in: repository, imageStore: imageStore)
+        loadItems()
+        loadOutfitData()
+    }
+
+    /// Runs one serialized Gemma vision request per stored photo. Tags are
+    /// additive so the demo remains useful if a later model response is sparse.
+    func tagDemoWardrobe() async throws -> Int {
+        let candidates = allGarments.filter { $0.imagePath != nil }
+        guard !candidates.isEmpty else { throw WardrobeStoreError.noDemoPhotos }
+        let classifier = GarmentClassificationCoordinator()
+        var tagged = 0
+        for item in candidates {
+            try Task.checkCancellation()
+            guard let imageData = imageData(for: item) else { continue }
+            let provenance = try await classifier.classify(imageData: imageData)
+            var updated = item
+            updated.category = provenance.suggestion.category
+            updated.color = provenance.suggestion.color ?? updated.color
+            updated.tags = Array(Set(item.tags + provenance.suggestion.tags)).sorted {
+                $0.localizedCaseInsensitiveCompare($1) == .orderedAscending
+            }
+            updated.classification = provenance
+            _ = try repository.updateItem(updated)
+            tagged += 1
+        }
+        loadItems()
+        loadOutfitData()
+        return tagged
     }
 
     func delete(_ item: GarmentItem) throws {

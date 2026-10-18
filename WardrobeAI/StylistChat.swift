@@ -1,4 +1,170 @@
+import Foundation
 import SwiftUI
+
+/// Persisted connection details for an Ollama server. The endpoint is intentionally
+/// user-configured: a device's `localhost` is not the same machine as a remote
+/// Ollama host, and the app must never guess a private network address.
+struct OllamaConfiguration: Equatable, Sendable {
+    static let endpointKey = "ollama-endpoint"
+    static let modelKey = "ollama-model"
+    static let defaultModel = "gemma4:latest"
+
+    let endpoint: URL?
+    let model: String
+
+    init(endpointText: String, model: String = OllamaConfiguration.defaultModel) {
+        let trimmedEndpoint = endpointText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate = URL(string: trimmedEndpoint)
+        endpoint = candidate.flatMap { url in
+            guard ["https", "http"].contains(url.scheme?.lowercased() ?? ""), url.host != nil else { return nil }
+            return url
+        }
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        self.model = trimmedModel.isEmpty ? Self.defaultModel : trimmedModel
+    }
+
+    static func saved(defaults: UserDefaults = .standard) -> OllamaConfiguration {
+        OllamaConfiguration(
+            endpointText: defaults.string(forKey: endpointKey) ?? "",
+            model: defaults.string(forKey: modelKey) ?? defaultModel
+        )
+    }
+
+    var isConfigured: Bool { endpoint != nil }
+
+    private func apiURL(_ route: String) -> URL? {
+        guard let endpoint else { return nil }
+        let base = endpoint.path.hasSuffix("/") ? endpoint : endpoint.appendingPathComponent("")
+        // Accept either an Ollama server root or a copied /api URL.
+        return base.path.hasSuffix("/api/") || base.path.hasSuffix("/api")
+            ? base.appendingPathComponent(route)
+            : base.appendingPathComponent("api/" + route)
+    }
+
+    var chatURL: URL? { apiURL("chat") }
+    var tagsURL: URL? { apiURL("tags") }
+}
+
+enum OllamaError: LocalizedError, Equatable {
+    case notConfigured
+    case invalidResponse
+    case server(statusCode: Int, message: String)
+    case modelUnavailable(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .notConfigured: "Add your remote Ollama server URL to use Gemma 4."
+        case .invalidResponse: "Ollama returned an unreadable response."
+        case let .server(statusCode, message): "Ollama returned HTTP \(statusCode): \(message)"
+        case let .modelUnavailable(model): "The server is reachable, but \(model) is not installed. Run: ollama pull \(model)"
+        }
+    }
+}
+
+protocol OllamaTransport: Sendable {
+    func send(_ request: URLRequest) async throws -> (Data, URLResponse)
+}
+
+struct URLSessionOllamaTransport: OllamaTransport {
+    func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        try await URLSession.shared.data(for: request)
+    }
+}
+
+enum StylistResponseFormatter {
+    static func clean(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "```", with: "")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { rawLine in
+                var line = rawLine.trimmingCharacters(in: .whitespaces)
+                line = line.replacingOccurrences(of: "^#{1,6}\\s*", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "^[-*•]\\s+", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "^\\d+[.)]\\s+", with: "", options: .regularExpression)
+                line = line.replacingOccurrences(of: "**", with: "")
+                    .replacingOccurrences(of: "__", with: "")
+                    .replacingOccurrences(of: "`", with: "")
+                return line
+            }
+            .joined(separator: "\n")
+            .replacingOccurrences(of: "\n{3,}", with: "\n\n", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
+struct OllamaClient: Sendable {
+    private let transport: any OllamaTransport
+
+    init(transport: any OllamaTransport = URLSessionOllamaTransport()) {
+        self.transport = transport
+    }
+
+    /// Checks the configured server without sending wardrobe data or running inference.
+    func verifyConnection(configuration: OllamaConfiguration) async throws -> String {
+        guard let url = configuration.tagsURL else { throw OllamaError.notConfigured }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 10
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        let (data, response) = try await transport.send(request)
+        guard let http = response as? HTTPURLResponse else { throw OllamaError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(OllamaErrorResponse.self, from: data).error) ?? "Request failed"
+            let server = http.value(forHTTPHeaderField: "Server") ?? "unknown server"
+            throw OllamaError.server(statusCode: http.statusCode, message: "\(message) at \(url.absoluteString) [\(server)]")
+        }
+        let models = try JSONDecoder().decode(OllamaTagsResponse.self, from: data).models
+        guard models.contains(where: { $0.name == configuration.model || $0.model == configuration.model }) else {
+            throw OllamaError.modelUnavailable(configuration.model)
+        }
+        return "Connected to Ollama • \(configuration.model) is ready"
+    }
+
+    func reply(to requestText: String, configuration: OllamaConfiguration, wardrobeContext: String) async throws -> String {
+        guard let url = configuration.chatURL else { throw OllamaError.notConfigured }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 30
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(OllamaChatRequest(
+            model: configuration.model,
+            stream: false,
+            messages: [
+                .init(role: "system", content: "You are ootd.ai, a concise, practical wardrobe stylist. Use only the supplied wardrobe context and never claim an item is owned unless it appears there. Recommend 1–3 named owned-item outfits with a short rationale grounded in color, formality, layering, season, occasion, or recent wear, plus one alternative when useful. Do not reveal private chain-of-thought, invent facts, or record wear; the app asks for confirmation separately. Return plain text only: no Markdown, no bullets, no asterisks, no code fences. Structure the answer with short uppercase section labels ending in a colon, such as BEST PICK:, WHY IT WORKS:, ALTERNATIVE:, and NEXT STEP:."),
+                .init(role: "user", content: "Wardrobe context:\n\(wardrobeContext)\n\nRequest: \(requestText)")
+            ]
+        ))
+
+        let (data, response) = try await transport.send(request)
+        guard let http = response as? HTTPURLResponse else { throw OllamaError.invalidResponse }
+        guard (200...299).contains(http.statusCode) else {
+            let message = (try? JSONDecoder().decode(OllamaErrorResponse.self, from: data).error) ?? "Request failed"
+            throw OllamaError.server(statusCode: http.statusCode, message: message)
+        }
+        let decoded = try JSONDecoder().decode(OllamaChatResponse.self, from: data)
+        let text = StylistResponseFormatter.clean(decoded.message.content)
+        guard !text.isEmpty else { throw OllamaError.invalidResponse }
+        return text
+    }
+}
+
+private struct OllamaChatRequest: Encodable {
+    struct Message: Encodable { let role: String; let content: String }
+    let model: String
+    let stream: Bool
+    let messages: [Message]
+}
+
+private struct OllamaChatResponse: Decodable {
+    struct Message: Decodable { let content: String }
+    let message: Message
+}
+
+private struct OllamaErrorResponse: Decodable { let error: String }
+private struct OllamaTagsResponse: Decodable {
+    struct Model: Decodable { let name: String; let model: String? }
+    let models: [Model]
+}
 
 enum StylistTool: String, Codable, CaseIterable, Sendable {
     case searchWardrobe
@@ -99,13 +265,17 @@ final class StylistChat: ObservableObject {
     @Published private(set) var isResponding = false
 
     private let toolbox: StylistToolbox
+    private let store: WardrobeStore
     private let voiceRuntime: any VoiceRuntimeSubmitting
+    private let ollama: OllamaClient
     private var responseTask: Task<Void, Never>?
     private var activeResponseID: UUID?
 
-    init(store: WardrobeStore, voiceRuntime: any VoiceRuntimeSubmitting = UnqualifiedVoiceRuntime()) {
+    init(store: WardrobeStore, voiceRuntime: any VoiceRuntimeSubmitting = UnqualifiedVoiceRuntime(), ollama: OllamaClient = OllamaClient()) {
+        self.store = store
         toolbox = StylistToolbox(store: store)
         self.voiceRuntime = voiceRuntime
+        self.ollama = ollama
     }
 
     func send(_ input: String) {
@@ -126,16 +296,7 @@ final class StylistChat: ObservableObject {
                 }
             }
             guard !Task.isCancelled, self.activeResponseID == responseID else { return }
-            let response: String
-            if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
-                response = self.wearSummary()
-            } else if request.localizedCaseInsensitiveContains("plan") || request.localizedCaseInsensitiveContains("calendar") {
-                response = self.contextSummary()
-            } else if Self.isRecommendationRequest(request) {
-                response = self.recommendationSummary()
-            } else {
-                response = self.searchSummary(for: Self.searchTerms(from: request))
-            }
+            let response = await self.response(for: request)
             await self.stream(response, responseID: responseID)
         }
     }
@@ -207,6 +368,65 @@ final class StylistChat: ObservableObject {
         } catch { return error.localizedDescription }
     }
 
+    private func response(for request: String) async -> String {
+        let configuration = OllamaConfiguration.saved()
+        guard configuration.isConfigured else { return localResponse(for: request) }
+        do {
+            return try await ollama.reply(
+                to: request,
+                configuration: configuration,
+                wardrobeContext: wardrobeContext()
+            )
+        } catch is CancellationError {
+            return ""
+        } catch {
+            // The local responder keeps core wardrobe actions useful during a
+            // transient server outage, while making the source unambiguous.
+            return "Gemma 4 is unavailable (\(error.localizedDescription)). \(localResponse(for: request))"
+        }
+    }
+
+    private func localResponse(for request: String) -> String {
+        if request.localizedCaseInsensitiveContains("recent") || request.localizedCaseInsensitiveContains("wore") {
+            return wearSummary()
+        } else if request.localizedCaseInsensitiveContains("plan") || request.localizedCaseInsensitiveContains("calendar") {
+            return contextSummary()
+        } else if Self.isRecommendationRequest(request) {
+            return recommendationSummary()
+        }
+        return searchSummary(for: Self.searchTerms(from: request))
+    }
+
+    private func wardrobeContext() -> String {
+        let garments = store.allGarments.prefix(40).map { item in
+            let classification = item.classification?.suggestion
+            let details = [
+                item.name,
+                item.category,
+                item.color,
+                classification?.garmentType,
+                classification?.colorFamily,
+                classification?.materialGuess,
+                classification?.pattern,
+                classification?.texture,
+                classification?.silhouette,
+                classification?.fit,
+                classification?.formality,
+                classification?.layering,
+                classification?.warmth
+            ].compactMap { $0 }
+                + (classification.map { $0.seasons + $0.occasions + $0.styleKeywords + $0.pairingNotes } ?? [])
+                + item.tags
+            return details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " — ")
+        }
+        let upcoming = store.outfitPlans
+            .filter { $0.scheduledFor >= Date() }
+            .sorted { $0.scheduledFor < $1.scheduledFor }
+            .prefix(5)
+            .map { "\($0.occasion ?? "Unspecified occasion") on \($0.scheduledFor.formatted(date: .abbreviated, time: .omitted))" }
+        return "Owned garments: \(garments.isEmpty ? "none recorded" : garments.joined(separator: "; "))\nUpcoming plans: \(upcoming.isEmpty ? "none" : upcoming.joined(separator: "; "))"
+    }
+
     private static func isRecommendationRequest(_ request: String) -> Bool {
         let normalized = request.lowercased()
         return ["what should i wear", "recommend", "outfit", "style me"].contains(where: normalized.contains)
@@ -220,6 +440,7 @@ final class StylistChat: ObservableObject {
     }
 
     private func stream(_ response: String, responseID: UUID) async {
+        guard !response.isEmpty, !Task.isCancelled, activeResponseID == responseID else { return }
         messages.append(.init(role: .assistant, text: ""))
         let messageID = messages[messages.index(before: messages.endIndex)].id
         for word in response.split(separator: " ") {
@@ -241,6 +462,8 @@ struct StylistChatView: View {
     @StateObject private var chat: StylistChat
     @State private var draft = ""
     @StateObject private var voice = VoiceInput()
+    @AppStorage(OllamaConfiguration.endpointKey) private var ollamaEndpoint = ""
+    @AppStorage(OllamaConfiguration.modelKey) private var ollamaModel = OllamaConfiguration.defaultModel
 
     init(store: WardrobeStore) {
         self.store = store
@@ -248,6 +471,29 @@ struct StylistChatView: View {
     }
 
     var body: some View {
+        Section("Remote AI") {
+            TextField("Ollama server URL", text: $ollamaEndpoint)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .keyboardType(.URL)
+                .accessibilityIdentifier("ollama-endpoint")
+            TextField("Model", text: $ollamaModel)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("ollama-model")
+            let configuration = OllamaConfiguration(endpointText: ollamaEndpoint, model: ollamaModel)
+            if ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Text("Gemma 4 is the default once you enter your remote Ollama server URL. Until then, the stylist uses its offline wardrobe rules.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else if configuration.isConfigured {
+                Label("Gemma 4 is the preferred stylist responder.", systemImage: "network")
+                    .font(.footnote).foregroundStyle(.secondary)
+            } else {
+                Label("Enter a full HTTP(S) server URL, such as https://ollama.example.net.", systemImage: "exclamationmark.triangle")
+                    .font(.footnote).foregroundStyle(WardrobeDesign.Color.quiet)
+            }
+        }
+
         Section("Ask your stylist") {
             ForEach(chat.messages.suffix(6)) { message in
                 VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
@@ -291,7 +537,7 @@ struct StylistChatView: View {
                     }
                 }
             }
-            Text("The stylist can search owned garments and read recent wear or in-app plans. It cannot record wear until you confirm a saved outfit.")
+            Text("The remote stylist receives only the wardrobe names, categories, colors, and upcoming in-app plans needed to answer. It cannot record wear until you confirm a saved outfit.")
                 .font(.footnote).foregroundStyle(.secondary)
         }
         .confirmationDialog("Record this outfit as worn today?", isPresented: Binding(get: { chat.pendingWearOutfit != nil }, set: { if !$0 { chat.dismissWearConfirmation() } }), titleVisibility: .visible) {
