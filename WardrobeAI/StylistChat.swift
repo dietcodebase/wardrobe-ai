@@ -399,26 +399,29 @@ final class StylistChat: ObservableObject {
     }
 
     private func wardrobeContext() -> String {
-        let garments = store.allGarments.prefix(40).map { item in
+        let garments = store.allGarments.prefix(40).map { item -> String in
             let classification = item.classification?.suggestion
-            let details = [
-                item.name,
-                item.category,
-                item.color,
-                classification?.garmentType,
-                classification?.colorFamily,
-                classification?.materialGuess,
-                classification?.pattern,
-                classification?.texture,
-                classification?.silhouette,
-                classification?.fit,
-                classification?.formality,
-                classification?.layering,
-                classification?.warmth
-            ].compactMap { $0 }
-                + (classification.map { $0.seasons + $0.occasions + $0.styleKeywords + $0.pairingNotes } ?? [])
-                + item.tags
-            return details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }.joined(separator: " — ")
+            var details: [String] = [item.name, item.category]
+            Self.append(item.color, to: &details)
+            if let classification {
+                Self.append(classification.garmentType, to: &details)
+                Self.append(classification.colorFamily, to: &details)
+                Self.append(classification.materialGuess, to: &details)
+                Self.append(classification.pattern, to: &details)
+                Self.append(classification.texture, to: &details)
+                Self.append(classification.silhouette, to: &details)
+                Self.append(classification.fit, to: &details)
+                Self.append(classification.formality, to: &details)
+                Self.append(classification.layering, to: &details)
+                Self.append(classification.warmth, to: &details)
+                details.append(contentsOf: classification.seasons)
+                details.append(contentsOf: classification.occasions)
+                details.append(contentsOf: classification.styleKeywords)
+                details.append(contentsOf: classification.pairingNotes)
+            }
+            details.append(contentsOf: item.tags)
+            let cleanedDetails = details.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            return cleanedDetails.filter { !$0.isEmpty }.joined(separator: " — ")
         }
         let upcoming = store.outfitPlans
             .filter { $0.scheduledFor >= Date() }
@@ -426,6 +429,11 @@ final class StylistChat: ObservableObject {
             .prefix(5)
             .map { "\($0.occasion ?? "Unspecified occasion") on \($0.scheduledFor.formatted(date: .abbreviated, time: .omitted))" }
         return "Owned garments: \(garments.isEmpty ? "none recorded" : garments.joined(separator: "; "))\nUpcoming plans: \(upcoming.isEmpty ? "none" : upcoming.joined(separator: "; "))"
+    }
+
+    private static func append(_ value: String?, to details: inout [String]) {
+        guard let value else { return }
+        details.append(value)
     }
 
     private static func isRecommendationRequest(_ request: String) -> Bool {
