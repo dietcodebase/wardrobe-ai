@@ -157,6 +157,8 @@ struct AssistantConversationView: View {
                 }
             } else {
                 HStack(spacing: 10) {
+                    Button("Update demo library") { loadDemoWardrobe() }
+                        .buttonStyle(.bordered)
                     Button(isTaggingDemo ? "Gemma is tagging…" : "Auto-tag photos with Gemma") { tagDemoWardrobe() }
                         .buttonStyle(.borderedProminent)
                         .disabled(isTaggingDemo || !OllamaConfiguration.saved().isConfigured)
